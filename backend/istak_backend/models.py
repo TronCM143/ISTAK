@@ -17,17 +17,18 @@ class CustomUser(AbstractUser):
         related_name='mobile_users',
         limit_choices_to={'role': 'user_web'}
     )
-
     fcm_token = models.CharField(max_length=255, null=True, blank=True)
 
     def clean(self):
         if self.role == 'user_mobile' and not self.manager:
             raise ValidationError("Mobile users must have a manager assigned.")
-        if self.role == 'user_web' and self.manager is not None:
+        if self.role == 'user_web' and self.manager is not None:    
             raise ValidationError("Managers cannot have a manager assigned.")
 
     def __str__(self):
-        return f"{self.username} ({self.role})"
+        username = self.username if self.username else "Unknown User"
+        role = self.role if self.role else "Unknown Role"
+        return f"{username} ({role})"
 
 class Item(models.Model):
     item_name = models.CharField(max_length=50)
@@ -61,13 +62,30 @@ class Item(models.Model):
     def __str__(self):  
         return self.item_name
     
+class Borrower(models.Model):
+    name = models.CharField(max_length=255)
+    school_id = models.CharField(max_length=10, null=True, blank=True)
+    is_active = models.BooleanField(
+        ("active status"),
+        null=True,
+        blank=True,
+        default=None,
+        help_text=("Set to True if active, False if inactive, or None if pending.")
+    )
+    borrow_transaction = models.ForeignKey(
+        'BorrowTransaction',
+        on_delete=models.CASCADE,
+        related_name='borrowers',
+        null=True,
+        blank=True
+    )
 
+    def __str__(self):
+        return f"{self.name} (School ID: {self.school_id})"
 
 class BorrowTransaction(models.Model):
     borrow_date = models.DateField(auto_now_add=True)
     return_date = models.DateField(null=True, blank=True)
-    borrowerName = models.CharField(max_length=255, null=True)
-    schoolId = models.CharField(max_length=10, null=True)
     manager = models.ForeignKey(
         CustomUser,
         limit_choices_to={'role': 'user_web'},
@@ -85,7 +103,19 @@ class BorrowTransaction(models.Model):
         on_delete=models.CASCADE,
         related_name='transactions'
     )
+    borrower = models.ForeignKey(
+        Borrower,
+        on_delete=models.CASCADE,
+        related_name='borrow_transactions',
+        null=True,  # Allow null borrowers
+        blank=True
+    )
 
+    def __str__(self):
+        borrower_name = self.borrower.name if self.borrower else "Unknown Borrower"
+        return f"Transaction for {borrower_name} on {self.borrow_date}"
+    
+    
 class RegistrationRequest(models.Model):
     username = models.CharField(max_length=150, unique=True)
     email = models.EmailField()
@@ -101,3 +131,5 @@ class RegistrationRequest(models.Model):
 
     def __str__(self):
         return f"Request for {self.username} to {self.requested_manager}"
+
+

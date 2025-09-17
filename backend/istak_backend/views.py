@@ -12,8 +12,8 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib import messages
 import json
-from .models import BorrowTransaction, Item, CustomUser, RegistrationRequest
-from .serializers import BorrowTransactionSerializer, ItemSerializer, RegistrationRequestSerializer
+from .models import BorrowTransaction, Item, CustomUser, RegistrationRequest, Borrower
+from .serializers import BorrowTransactionSerializer, ItemSerializer, RegistrationRequestSerializer, TopBorrowedItemsSerializer
 from datetime import date
 
 @csrf_exempt
@@ -190,6 +190,7 @@ def item_list(request):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     return Response({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
 class ItemListCreateAPIView(generics.ListCreateAPIView):
     serializer_class = ItemSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -216,7 +217,7 @@ class ItemRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
         if self.request.user.role == 'user_web':
             return Item.objects.filter(manager=self.request.user)
         else:
-            if self.request.user.manager:
+            if self.request.user.manager:  # Changed 'request' to 'self.request'
                 return Item.objects.filter(manager=self.request.user.manager)
             return Item.objects.none()
 
@@ -336,25 +337,31 @@ def borrow_process(request):
             return Response({"error": "Invalid item ID"}, status=status.HTTP_400_BAD_REQUEST)
         
         if item.current_transaction is None:
-            borrower_name = data.get('borrowerName')
-            school_id = data.get('schoolId')
+            borrower_name = data.get('borrower_name')
+            school_id = data.get('school_id')
             return_date = data.get('return_date')
             
             if not all([borrower_name, school_id, return_date]):
-                return Response({"error": "borrowerName, schoolId, and return_date are required"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": "borrower_name, school_id, and return_date are required"}, status=status.HTTP_400_BAD_REQUEST)
             
             try:
                 return_date = date.fromisoformat(return_date)
             except ValueError:
                 return Response({"error": "Invalid return_date format, use YYYY-MM-DD"}, status=status.HTTP_400_BAD_REQUEST)
             
+            # Create or get Borrower instance
+            borrower, created = Borrower.objects.get_or_create(
+                name=borrower_name,
+                school_id=school_id,
+                defaults={'is_active': None}  # Default to None (pending) if new
+            )
+            
             transaction = BorrowTransaction.objects.create(
                 return_date=return_date,
-                borrowerName=borrower_name,
-                schoolId=school_id,
                 manager=request.user.manager,
                 mobile_user=request.user,
-                item=item
+                item=item,
+                borrower=borrower
             )
             
             item.current_transaction = transaction
@@ -365,7 +372,13 @@ def borrow_process(request):
             return Response({
                 "status": "success",
                 "message": f"Item {item.item_name} borrowed successfully",
-                "transaction_id": transaction.id
+                "transaction_id": transaction.id,
+                "borrower": {
+                    "id": borrower.id,
+                    "name": borrower.name,
+                    "school_id": borrower.school_id,
+                    "is_active": borrower.is_active
+                }
             }, status=status.HTTP_201_CREATED)
         
         else:
@@ -389,13 +402,13 @@ def borrow_process(request):
                 BorrowTransaction.objects.filter(id=transaction_id).delete()
             
             if request.user.fcm_token:
-                    result = send_push_notification(
-                        request.user.fcm_token,
-                        "Return Successful",
-                        f"You returned {item.item_name} in {condition} condition"
-                    )
-                    if result is None:
-                        print(f"Failed to send notification to {request.user.fcm_token}")
+                result = send_push_notification(
+                    request.user.fcm_token,
+                    "Return Successful",
+                    f"You returned {item.item_name} in {condition} condition"
+                )
+                if result is None:
+                    print(f"Failed to send notification to {request.user.fcm_token}")
                         
             return Response({
                 "status": "success",
@@ -415,9 +428,11 @@ class UserAPIView(APIView):
     authentication_classes = [JWTAuthentication]
 
     def get(self, request):
+        manager_id = request.user.manager_id if hasattr(request.user, 'manager_id') else None
         return Response({
             "role": request.user.role,
             "username": request.user.username,
+            "manager_id": manager_id,  # Include manager ID if available
         })
 
 class TransactionListAPIView(generics.ListAPIView):
@@ -496,3 +511,17 @@ def update_fcm_token(request):
         return Response({"error": "Invalid JSON"}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication])
+def top_borrowed_items(request):
+    from django.db.models import Count
+    top_items = Item.objects.annotate(
+        borrow_count=Count('transactions')
+    ).order_by('-borrow_count')[:5]
+
+    serializer = TopBorrowedItemsSerializer(top_items, many=True, context={'request': request})
+    return Response(serializer.data)

@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile/authentication/service.dart';
-import 'package:mobile/components/home.dart';
+import 'package:mobile/components/landing_page.dart';
 
 class AuthPage extends StatefulWidget {
   final VoidCallback handleLogin;
@@ -147,38 +148,73 @@ class _AuthPageState extends State<AuthPage> {
                 const SizedBox(height: 32),
                 TextField(
                   controller: usernameController,
-                  style: TextStyle(color: Colors.white),
+                  style: GoogleFonts.ibmPlexMono(
+                    color: const Color.fromARGB(255, 148, 148, 147),
+                  ),
+                  cursorColor: const Color.fromARGB(255, 103, 73, 49),
+                  textAlignVertical:
+                      TextAlignVertical.center, // ⬅️ centers text vertically
                   decoration: const InputDecoration(
-                    labelText: "Username",
-                    border: OutlineInputBorder(),
+                    labelText: "username",
+                    border: InputBorder.none,
+                    floatingLabelBehavior: FloatingLabelBehavior.never,
                   ),
                 ),
+
                 const SizedBox(height: 16),
                 if (!isLoginMode) ...[
                   TextField(
                     controller: emailController,
-                    style: TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
+                    style: GoogleFonts.ibmPlexMono(
+                      color: const Color.fromARGB(255, 148, 148, 147),
+                    ),
+                    cursorColor: const Color.fromARGB(255, 103, 73, 49),
+                    decoration: InputDecoration(
                       labelText: "Email",
-                      border: OutlineInputBorder(),
+                      labelStyle: GoogleFonts.ibmPlexMono(
+                        color: const Color.fromARGB(255, 148, 148, 147),
+                      ),
+                      border: InputBorder.none, // 👈 no border
+                      floatingLabelBehavior:
+                          FloatingLabelBehavior.never, // 👈 no float
                     ),
                   ),
+
                   const SizedBox(height: 16),
                   isFetchingManagers
                       ? const Center(child: CircularProgressIndicator())
                       : DropdownButtonFormField<String>(
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText: "Select Manager",
-
-                            border: OutlineInputBorder(),
+                            labelStyle: GoogleFonts.ibmPlexMono(
+                              color: const Color.fromARGB(255, 148, 148, 147),
+                            ),
+                            border: InputBorder.none, // 👈 removes border
+                            floatingLabelBehavior:
+                                FloatingLabelBehavior.never, // 👈 prevent float
                           ),
-                          dropdownColor: Colors.black,
+                          dropdownColor: const Color.fromARGB(
+                            255,
+                            23,
+                            20,
+                            1,
+                          ), // dark dropdown bg
+                          style: GoogleFonts.ibmPlexMono(
+                            color: const Color.fromARGB(255, 148, 148, 147),
+                          ),
                           items: managers.map((manager) {
                             return DropdownMenuItem<String>(
                               value: manager['id'].toString(),
                               child: Text(
                                 manager['username'],
-                                style: const TextStyle(color: Colors.white),
+                                style: GoogleFonts.ibmPlexMono(
+                                  color: const Color.fromARGB(
+                                    255,
+                                    148,
+                                    148,
+                                    147,
+                                  ),
+                                ),
                               ),
                             );
                           }).toList(),
@@ -189,16 +225,22 @@ class _AuthPageState extends State<AuthPage> {
                               ? "Please select a manager"
                               : null,
                         ),
+
                   const SizedBox(height: 16),
                 ],
                 TextField(
                   controller: passwordController,
-                  style: TextStyle(color: Colors.white),
                   obscureText: true,
+                  style: GoogleFonts.ibmPlexMono(
+                    color: const Color.fromARGB(255, 148, 148, 147),
+                  ),
+                  cursorColor: const Color.fromARGB(255, 103, 73, 49),
+                  textAlignVertical:
+                      TextAlignVertical.center, // ⬅️ centers text vertically
                   decoration: const InputDecoration(
-                    labelText: "Password",
-
-                    border: OutlineInputBorder(),
+                    labelText: "password",
+                    border: InputBorder.none,
+                    floatingLabelBehavior: FloatingLabelBehavior.never,
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -209,20 +251,22 @@ class _AuthPageState extends State<AuthPage> {
                         child: ElevatedButton(
                           onPressed: handleAuth,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.yellow[700],
+                            backgroundColor:
+                                Colors.transparent, // 👈 transparent background
+                            shadowColor: Colors.transparent,
                             minimumSize: const Size(50, 50),
                           ),
                           child: Text(
                             isLoginMode ? "Login" : "Register",
-                            style: const TextStyle(
-                              color: Colors.black,
+                            style: GoogleFonts.ibmPlexMono(
+                              color: const Color.fromARGB(255, 137, 135, 135),
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
                             ),
                           ),
                         ),
                       ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 200),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -232,11 +276,11 @@ class _AuthPageState extends State<AuthPage> {
                         if (!isLoginMode) fetchManagers();
                       }),
                       child: Text(
-                        isLoginMode ? "SignUp" : "SignIn",
-                        style: const TextStyle(
-                          color: Colors.yellow,
+                        isLoginMode ? "SIGNUP" : "SIGNIN",
+                        style: GoogleFonts.ibmPlexMono(
+                          color: const Color.fromARGB(255, 137, 135, 135),
                           fontWeight: FontWeight.bold,
-                          decoration: TextDecoration.underline,
+                          fontSize: 16,
                         ),
                       ),
                     ),

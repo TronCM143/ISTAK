@@ -45,14 +45,16 @@ class _SplashScreenState extends State<SplashScreen>
         children: [
           Container(
             decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color.fromARGB(255, 13, 20, 11),
-                  Color.fromARGB(255, 40, 38, 38),
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
+              // gradient: LinearGradient(
+              //   colors: [
+              //     Color.fromARGB(255, 13, 20, 11),
+              //     Color.fromARGB(255, 40, 38, 38),
+              //   ],
+              //   begin: Alignment.topCenter,
+              //   end: Alignment.bottomCenter,
+              // ),
+              color: const Color(0xFF151107),
+              // 80/255 ≈ 31% opacity
             ),
           ),
           AnimatedPositioned(

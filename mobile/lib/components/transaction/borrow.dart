@@ -6,14 +6,14 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class QRScanner extends StatefulWidget {
-  const QRScanner({Key? key}) : super(key: key);
+class Borrow extends StatefulWidget {
+  const Borrow({Key? key}) : super(key: key);
 
   @override
-  State<QRScanner> createState() => _QRScannerState();
+  State<Borrow> createState() => _QRScannerState();
 }
 
-class _QRScannerState extends State<QRScanner> {
+class _QRScannerState extends State<Borrow> {
   final String baseUrl = API.baseUrl; // e.g., 'http://192.168.1.6:8000'
   final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
   Barcode? result;
@@ -193,13 +193,6 @@ class _QRScannerState extends State<QRScanner> {
         return;
       }
 
-      if (item == null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Item not found')));
-        return;
-      }
-
       // Parse item_id for POST request
       int? itemId;
       try {
@@ -226,8 +219,8 @@ class _QRScannerState extends State<QRScanner> {
           },
           body: jsonEncode({
             'item_id': itemId,
-            'borrowerName': borrowData['borrowerName'],
-            'schoolId': borrowData['schoolId'],
+            'borrower_name': borrowData['borrowerName'], // Updated field name
+            'school_id': borrowData['schoolId'], // Updated field name
             'return_date': borrowData['return_date'],
           }),
         );
@@ -242,6 +235,17 @@ class _QRScannerState extends State<QRScanner> {
               ),
             ),
           );
+          // Display borrower details if available
+          if (responseData['borrower'] != null) {
+            final borrower = responseData['borrower'];
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Borrower: ${borrower['name']} (ID: ${borrower['school_id']})',
+                ),
+              ),
+            );
+          }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

@@ -35,6 +35,8 @@ urlpatterns = [
     path('api/user/', views.UserAPIView.as_view(), name='user-detail'),
     path('api/transactions/', views.TransactionListAPIView.as_view(), name='transaction-list'),
     path('api/transactions/<int:id>/', views.TransactionDetailAPIView.as_view(), name='transaction-detail'),
-    path('api/borrow/', views.borrow_process, name='borrow_process'),
+    path('api/borrow/', views.borrow_process, name='borrow_process'),  # Duplicate with borrow_process, consider removing
     path('api/update_fcm_token/', views.update_fcm_token, name='update_fcm_token'),
-]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Move top_borrowed_items under /api/
+    path('api/top-borrowed-items/', views.top_borrowed_items, name='top_borrowed_items'),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
