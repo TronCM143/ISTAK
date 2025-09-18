@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/components/dashboard/borrower.dart';
 import 'package:mobile/components/dashboard/features.dart';
+import 'package:mobile/components/dashboard/legend.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile/apiURl.dart';
@@ -87,6 +88,7 @@ class _DashboardState extends State<Dashboard> {
     if (loading) {
       return const Center(child: CircularProgressIndicator());
     }
+
     if (error != null) {
       return Center(
         child: Text(
@@ -95,106 +97,148 @@ class _DashboardState extends State<Dashboard> {
             color: colorScheme.error,
             fontSize: 16,
             fontWeight: FontWeight.w600,
+            decoration: TextDecoration.none, // ✅ No underline
           ),
         ),
       );
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ===== Most Borrowed Items Section =====
-          const SizedBox(height: 8),
-          Text(
-            "Most Borrowed Items",
-            style: GoogleFonts.ibmPlexMono(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 10),
-          //add here -------------
-          Features(),
-          const SizedBox(height: 20),
-
-          // ===== Borrowers List Section =====
-          Text(
-            "Borrowers",
-            style: GoogleFonts.ibmPlexMono(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Borrower(),
-          const SizedBox(height: 20),
-
-          Row(
+    return Stack(
+      children: [
+        SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ===== Filter Options =====
-              Container(
-                padding: const EdgeInsets.all(8),
-                child: const Icon(
-                  Icons.question_mark,
-                  size: 28,
-                  color: Colors.white,
-                ),
-              ),
-
+              // ===== Most Borrowed Items Section =====
+              const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 8,
+                  vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: colorScheme.surfaceVariant.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(30), // Oval shape
-                  border: Border.all(
-                    color: colorScheme.outline.withOpacity(0.5),
+                  color: const Color.fromARGB(255, 43, 38, 13), // dark brown
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Text(
+                  "Most Borrowed Items",
+                  style: GoogleFonts.ibmPlexMono(
+                    color: const Color.fromARGB(255, 195, 171, 126),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w300,
+                    decoration: TextDecoration.none, // ✅ No underline
                   ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: ['All', 'Available', 'Borrowed', 'Overdues'].map((
-                    filter,
-                  ) {
-                    final bool isSelected = selectedFilter == filter;
+              ),
 
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 10),
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            selectedFilter = filter;
-                          });
-                        },
-                        child: Text(
-                          filter,
-                          style: GoogleFonts.ibmPlexMono(
-                            color: isSelected
-                                ? Colors.white
-                                : Colors.white.withOpacity(0.4),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
+              const SizedBox(height: 10),
+              const Features(),
+              const SizedBox(height: 20),
+
+              // ===== Borrowers List Section =====
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color.fromARGB(255, 43, 38, 13), // dark brown
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Text(
+                  "Transactions",
+                  style: GoogleFonts.ibmPlexMono(
+                    color: const Color.fromARGB(255, 195, 171, 126),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w300,
+                    decoration: TextDecoration.none, // ✅ No underline
+                  ),
                 ),
               ),
+              const SizedBox(height: 10),
+              const Borrower(),
+              const SizedBox(height: 20),
+
+              // ===== Filter Row =====
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(0),
+                    child: LegendIcon(),
+                  ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceVariant.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(
+                            color: colorScheme.outline.withOpacity(0.5),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: ['All', 'Available', 'Borrowed', 'Overdues']
+                              .map((filter) {
+                                final bool isSelected =
+                                    selectedFilter == filter;
+
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 10),
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        selectedFilter = filter;
+                                      });
+                                    },
+                                    child: Text(
+                                      filter,
+                                      style: GoogleFonts.ibmPlexMono(
+                                        textStyle: const TextStyle(
+                                          fontSize: 20,
+                                          decoration: TextDecoration
+                                              .none, // ✅ No underline
+                                        ),
+                                        color: isSelected
+                                            ? const Color.fromARGB(
+                                                255,
+                                                195,
+                                                171,
+                                                126,
+                                              )
+                                            : const Color.fromARGB(
+                                                255,
+                                                89,
+                                                78,
+                                                56,
+                                              ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              })
+                              .toList(),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 10),
+
+              // ===== Inventory Section =====
+              Inventory(items: items, selectedFilter: selectedFilter),
             ],
           ),
-
-          const SizedBox(height: 10),
-
-          // ===== Inventory Table Section =====
-          Inventory(items: items, selectedFilter: selectedFilter),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

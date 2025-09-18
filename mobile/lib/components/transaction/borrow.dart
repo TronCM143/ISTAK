@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart'; // Added for IBM Plex Mono
 import 'package:mobile/apiURl.dart';
 import 'package:qr_code_scanner_plus/qr_code_scanner_plus.dart';
 import 'package:http/http.dart' as http;
@@ -19,6 +20,7 @@ class _QRScannerState extends State<Borrow> {
   Barcode? result;
   QRViewController? controller;
   bool isProcessing = false;
+  final TextEditingController returnDateController = TextEditingController();
 
   @override
   void initState() {
@@ -42,73 +44,28 @@ class _QRScannerState extends State<Borrow> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('QR Code Scanner'), centerTitle: true),
       body: Stack(
         children: [
-          Column(
-            children: <Widget>[
-              Expanded(
-                flex: 5,
-                child: QRView(
-                  key: qrKey,
-                  onQRViewCreated: _onQRViewCreated,
-                  overlay: QrScannerOverlayShape(
-                    borderColor: Colors.red,
-                    borderRadius: 10,
-                    borderLength: 30,
-                    borderWidth: 10,
-                    cutOutSize: 300,
-                  ),
-                ),
-              ),
-              Expanded(
-                flex: 1,
-                child: Center(
-                  child: result != null
-                      ? Text(
-                          'Scanned: ${result!.code}',
-                          style: const TextStyle(fontSize: 16),
-                          textAlign: TextAlign.center,
-                        )
-                      : const Text(
-                          'Scan a QR code to borrow/return an item',
-                          style: TextStyle(fontSize: 16),
-                        ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () async {
-                        await controller?.toggleFlash();
-                        setState(() {});
-                      },
-                      child: FutureBuilder<bool?>(
-                        future: controller?.getFlashStatus(),
-                        builder: (context, snapshot) {
-                          return Text(
-                            'Flash: ${snapshot.data ?? false ? 'On' : 'Off'}',
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    ElevatedButton(
-                      onPressed: () async {
-                        await controller?.resumeCamera();
-                        setState(() {});
-                      },
-                      child: const Text('Restart Scan'),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+          QRView(key: qrKey, onQRViewCreated: _onQRViewCreated),
           if (isProcessing) const Center(child: CircularProgressIndicator()),
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton(
+              onPressed: () async {
+                await controller?.toggleFlash();
+                setState(() {});
+              },
+              child: FutureBuilder<bool?>(
+                future: controller?.getFlashStatus(),
+                builder: (context, snapshot) {
+                  return Icon(
+                    snapshot.data ?? false ? Icons.flash_on : Icons.flash_off,
+                  );
+                },
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -147,7 +104,6 @@ class _QRScannerState extends State<Borrow> {
         return;
       }
 
-      // Use code as-is for GET request (API will handle conversion)
       final itemUrl = Uri.parse('$baseUrl/api/items/?id=${code.trim()}');
       final itemResponse = await http.get(
         itemUrl,
@@ -193,7 +149,6 @@ class _QRScannerState extends State<Borrow> {
         return;
       }
 
-      // Parse item_id for POST request
       int? itemId;
       try {
         itemId = int.parse(code.trim());
@@ -219,8 +174,8 @@ class _QRScannerState extends State<Borrow> {
           },
           body: jsonEncode({
             'item_id': itemId,
-            'borrower_name': borrowData['borrowerName'], // Updated field name
-            'school_id': borrowData['schoolId'], // Updated field name
+            'borrower_name': borrowData['borrowerName'],
+            'school_id': borrowData['schoolId'],
             'return_date': borrowData['return_date'],
           }),
         );
@@ -235,7 +190,6 @@ class _QRScannerState extends State<Borrow> {
               ),
             ),
           );
-          // Display borrower details if available
           if (responseData['borrower'] != null) {
             final borrower = responseData['borrower'];
             ScaffoldMessenger.of(context).showSnackBar(
@@ -256,13 +210,11 @@ class _QRScannerState extends State<Borrow> {
           );
         }
       } else {
-        // Show error message for already borrowed item
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Item is already borrowed. Please return it first.'),
           ),
         );
-        // Optionally, prompt for return
         final condition = await _showConditionDialog();
         if (condition == null) return;
 
@@ -306,55 +258,135 @@ class _QRScannerState extends State<Borrow> {
   Future<Map<String, String>?> _showBorrowDialog() async {
     final borrowerNameController = TextEditingController();
     final schoolIdController = TextEditingController();
-    final returnDateController = TextEditingController();
+    DateTime? selectedDate;
 
     return showDialog<Map<String, String>>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Borrow Item'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: borrowerNameController,
-              decoration: const InputDecoration(labelText: 'Borrower Name'),
-            ),
-            TextField(
-              controller: schoolIdController,
-              decoration: const InputDecoration(labelText: 'School ID'),
-            ),
-            TextField(
-              controller: returnDateController,
-              decoration: const InputDecoration(
-                labelText: 'Return Date (YYYY-MM-DD)',
+      builder: (context) => Dialog(
+        backgroundColor: Colors.grey[850], // Dark theme background
+        insetPadding: const EdgeInsets.all(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start, // Justify left
+            children: [
+              Text(
+                'Borrow Item',
+                style: GoogleFonts.ibmPlexMono(
+                  fontWeight: FontWeight.w500, // Medium boldness for title
+                  fontSize: 20,
+                  color: Colors.white,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              TextField(
+                controller: borrowerNameController,
+                decoration: const InputDecoration(
+                  labelText: 'Borrower Name',
+                  labelStyle: TextStyle(color: Colors.white70),
+                ),
+                style: GoogleFonts.ibmPlexMono(
+                  fontWeight: FontWeight.w300, // Light weight for text
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: schoolIdController,
+                decoration: const InputDecoration(
+                  labelText: 'School ID',
+                  labelStyle: TextStyle(color: Colors.white70),
+                ),
+                style: GoogleFonts.ibmPlexMono(
+                  fontWeight: FontWeight.w300,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey[700],
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () async {
+                  final DateTime now = DateTime.now();
+                  final DateTime tomorrow = DateTime(
+                    now.year,
+                    now.month,
+                    now.day + 1,
+                  );
+                  final DateTime? picked = await showDatePicker(
+                    context: context,
+                    initialDate: tomorrow,
+                    firstDate: tomorrow,
+                    lastDate: DateTime(2100),
+                  );
+                  if (picked != null && mounted) {
+                    setState(() {
+                      selectedDate = picked;
+                      returnDateController.text = picked
+                          .toIso8601String()
+                          .split('T')[0];
+                    });
+                  }
+                },
+                child: Text(
+                  selectedDate == null
+                      ? 'Select Return Date'
+                      : 'Return Date: ${selectedDate!.toLocal()}'.split(' ')[0],
+                  style: GoogleFonts.ibmPlexMono(
+                    fontWeight: FontWeight.w300,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      'Cancel',
+                      style: GoogleFonts.ibmPlexMono(
+                        fontWeight: FontWeight.w300,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  TextButton(
+                    onPressed: () {
+                      if (borrowerNameController.text.isEmpty ||
+                          schoolIdController.text.isEmpty ||
+                          returnDateController.text.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('All fields are required'),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.pop(context, {
+                        'borrowerName': borrowerNameController.text,
+                        'schoolId': schoolIdController.text,
+                        'return_date': returnDateController.text,
+                      });
+                    },
+                    child: Text(
+                      'Borrow',
+                      style: GoogleFonts.ibmPlexMono(
+                        fontWeight: FontWeight.w300,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              if (borrowerNameController.text.isEmpty ||
-                  schoolIdController.text.isEmpty ||
-                  returnDateController.text.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('All fields are required')),
-                );
-                return;
-              }
-              Navigator.pop(context, {
-                'borrowerName': borrowerNameController.text,
-                'schoolId': schoolIdController.text,
-                'return_date': returnDateController.text,
-              });
-            },
-            child: const Text('Borrow'),
-          ),
-        ],
       ),
     );
   }
@@ -363,38 +395,84 @@ class _QRScannerState extends State<Borrow> {
     String? selectedCondition;
     return showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Return Item'),
-        content: DropdownButtonFormField<String>(
-          decoration: const InputDecoration(labelText: 'Condition'),
-          items: const [
-            DropdownMenuItem(value: 'Good', child: Text('Good')),
-            DropdownMenuItem(value: 'Fair', child: Text('Fair')),
-            DropdownMenuItem(value: 'Damaged', child: Text('Damaged')),
-            DropdownMenuItem(value: 'Broken', child: Text('Broken')),
-          ],
-          onChanged: (value) {
-            selectedCondition = value;
-          },
+      builder: (context) => Dialog(
+        backgroundColor: Colors.grey[850], // Dark theme background
+        insetPadding: const EdgeInsets.all(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start, // Justify left
+            children: [
+              Text(
+                'Return Item',
+                style: GoogleFonts.ibmPlexMono(
+                  fontWeight: FontWeight.w500, // Medium boldness for title
+                  fontSize: 20,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(
+                  labelText: 'Condition',
+                  labelStyle: TextStyle(color: Colors.white70),
+                ),
+                dropdownColor: Colors.grey[800],
+                style: GoogleFonts.ibmPlexMono(
+                  fontWeight: FontWeight.w300, // Light weight for text
+                  color: Colors.white,
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'Good', child: Text('Good')),
+                  DropdownMenuItem(value: 'Fair', child: Text('Fair')),
+                  DropdownMenuItem(value: 'Damaged', child: Text('Damaged')),
+                  DropdownMenuItem(value: 'Broken', child: Text('Broken')),
+                ],
+                onChanged: (value) {
+                  selectedCondition = value;
+                },
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      'Cancel',
+                      style: GoogleFonts.ibmPlexMono(
+                        fontWeight: FontWeight.w300,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  TextButton(
+                    onPressed: () {
+                      if (selectedCondition == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please select a condition'),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.pop(context, selectedCondition);
+                    },
+                    child: Text(
+                      'Return',
+                      style: GoogleFonts.ibmPlexMono(
+                        fontWeight: FontWeight.w300,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              if (selectedCondition == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please select a condition')),
-                );
-                return;
-              }
-              Navigator.pop(context, selectedCondition);
-            },
-            child: const Text('Return'),
-          ),
-        ],
       ),
     );
   }
@@ -402,6 +480,7 @@ class _QRScannerState extends State<Borrow> {
   @override
   void dispose() {
     controller?.dispose();
+    returnDateController.dispose();
     super.dispose();
   }
 }

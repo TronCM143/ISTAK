@@ -134,29 +134,45 @@ class _BorrowerState extends State<Borrower> {
                   fontSize: 13,
                 ),
                 decoration: const BoxDecoration(color: Colors.transparent),
-                columns: const [
+                columns: [
                   DataColumn(
                     label: Text(
                       "Return Date",
-                      style: TextStyle(color: Colors.white),
+                      style: GoogleFonts.ibmPlexMono(
+                        color: const Color.fromARGB(255, 121, 107, 70),
+                        fontSize: 15,
+                        decoration: TextDecoration.none, // ✅ No underline
+                      ),
                     ),
                   ),
                   DataColumn(
                     label: Text(
                       "Item Name",
-                      style: TextStyle(color: Colors.white),
+                      style: GoogleFonts.ibmPlexMono(
+                        color: const Color.fromARGB(255, 121, 107, 70),
+                        fontSize: 15,
+                        decoration: TextDecoration.none, // ✅ No underline
+                      ),
                     ),
                   ),
                   DataColumn(
                     label: Text(
                       "Borrower Name",
-                      style: TextStyle(color: Colors.white),
+                      style: GoogleFonts.ibmPlexMono(
+                        color: const Color.fromARGB(255, 121, 107, 70),
+                        fontSize: 15,
+                        decoration: TextDecoration.none, // ✅ No underline
+                      ),
                     ),
                   ),
                   DataColumn(
                     label: Text(
                       "School ID",
-                      style: TextStyle(color: Colors.white),
+                      style: GoogleFonts.ibmPlexMono(
+                        color: const Color.fromARGB(255, 121, 107, 70),
+                        fontSize: 15,
+                        decoration: TextDecoration.none, // ✅ No underline
+                      ),
                     ),
                   ),
                 ],
@@ -168,7 +184,13 @@ class _BorrowerState extends State<Borrower> {
                               Text(
                                 "No transactions",
                                 style: GoogleFonts.ibmPlexMono(
-                                  color: Colors.white,
+                                  color: const Color.fromARGB(
+                                    255,
+                                    121,
+                                    107,
+                                    70,
+                                  ),
+                                  decoration: TextDecoration.none,
                                 ),
                               ),
                             ),
@@ -176,7 +198,13 @@ class _BorrowerState extends State<Borrower> {
                               Text(
                                 "",
                                 style: GoogleFonts.ibmPlexMono(
-                                  color: Colors.white,
+                                  color: const Color.fromARGB(
+                                    255,
+                                    121,
+                                    107,
+                                    70,
+                                  ),
+                                  decoration: TextDecoration.none,
                                 ),
                               ),
                             ),
@@ -184,7 +212,13 @@ class _BorrowerState extends State<Borrower> {
                               Text(
                                 "",
                                 style: GoogleFonts.ibmPlexMono(
-                                  color: Colors.white,
+                                  color: const Color.fromARGB(
+                                    255,
+                                    121,
+                                    107,
+                                    70,
+                                  ),
+                                  decoration: TextDecoration.none,
                                 ),
                               ),
                             ),
@@ -192,7 +226,13 @@ class _BorrowerState extends State<Borrower> {
                               Text(
                                 "",
                                 style: GoogleFonts.ibmPlexMono(
-                                  color: Colors.white,
+                                  color: const Color.fromARGB(
+                                    255,
+                                    121,
+                                    107,
+                                    70,
+                                  ),
+                                  decoration: TextDecoration.none,
                                 ),
                               ),
                             ),
@@ -207,6 +247,7 @@ class _BorrowerState extends State<Borrower> {
                                 transaction['return_date'] as String,
                                 style: GoogleFonts.ibmPlexMono(
                                   color: Colors.white,
+                                  decoration: TextDecoration.none,
                                 ),
                               ),
                             ),
@@ -215,6 +256,7 @@ class _BorrowerState extends State<Borrower> {
                                 transaction['item_name'] as String,
                                 style: GoogleFonts.ibmPlexMono(
                                   color: Colors.white,
+                                  decoration: TextDecoration.none,
                                 ),
                               ),
                             ),
@@ -223,6 +265,7 @@ class _BorrowerState extends State<Borrower> {
                                 transaction['borrower_name'] as String,
                                 style: GoogleFonts.ibmPlexMono(
                                   color: Colors.white,
+                                  decoration: TextDecoration.none,
                                 ),
                               ),
                             ),
@@ -231,6 +274,7 @@ class _BorrowerState extends State<Borrower> {
                                 transaction['school_id'] as String,
                                 style: GoogleFonts.ibmPlexMono(
                                   color: Colors.white,
+                                  decoration: TextDecoration.none,
                                 ),
                               ),
                             ),

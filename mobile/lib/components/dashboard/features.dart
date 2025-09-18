@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -87,7 +88,10 @@ class _FeaturesState extends State<Features> {
           ? const Center(child: CircularProgressIndicator())
           : error != null
           ? Center(
-              child: Text(error!, style: const TextStyle(color: Colors.white)),
+              child: Text(
+                error!,
+                style: const TextStyle(color: Color.fromARGB(255, 58, 51, 24)),
+              ),
             )
           : SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -98,30 +102,22 @@ class _FeaturesState extends State<Features> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Display image with error handling
-                        Container(
-                          width: 100,
-                          height: 100,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                        // Floating image without border
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(0),
                           child:
                               item['image'] != null &&
                                   item['image'].toString().isNotEmpty
                               ? Image.network(
                                   item['image'],
+                                  width: 100,
+                                  height: 100,
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) {
-                                    print(
-                                      'Image load error for ${item['item_name']}: $error',
-                                    );
-                                    return Center(
-                                      child: Icon(
-                                        Icons.error,
-                                        color: Colors.red,
-                                        size: 40,
-                                      ),
+                                    return const Icon(
+                                      Icons.error,
+                                      color: Colors.red,
+                                      size: 40,
                                     );
                                   },
                                   loadingBuilder: (context, child, progress) {
@@ -135,19 +131,21 @@ class _FeaturesState extends State<Features> {
                                     );
                                   },
                                 )
-                              : Center(
-                                  child: Icon(
-                                    Icons.image_not_supported,
-                                    color: Colors.grey,
-                                    size: 40,
-                                  ),
+                              : const Icon(
+                                  Icons.image_not_supported,
+                                  color: Colors.grey,
+                                  size: 40,
                                 ),
                         ),
                         const SizedBox(height: 8),
                         // Display item name
                         Text(
                           item['item_name'] ?? 'N/A',
-                          style: const TextStyle(color: Colors.white),
+                          style: GoogleFonts.ibmPlexMono(
+                            color: const Color.fromARGB(255, 150, 139, 88),
+                            fontSize: 15,
+                            decoration: TextDecoration.none,
+                          ),
                           textAlign: TextAlign.center,
                         ),
                       ],

@@ -1,3 +1,6 @@
+import logging
+import os
+from tkinter import Image
 from django.utils import timezone
 from django.contrib.auth import get_user_model, authenticate, login
 from django.contrib.auth.hashers import make_password
@@ -12,6 +15,8 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib import messages
 import json
+
+from istak_backend import settings
 from .models import BorrowTransaction, Item, CustomUser, RegistrationRequest, Borrower
 from .serializers import BorrowTransactionSerializer, ItemSerializer, RegistrationRequestSerializer, TopBorrowedItemsSerializer
 from datetime import date
@@ -208,6 +213,18 @@ class ItemListCreateAPIView(generics.ListCreateAPIView):
             serializer.save(manager=self.request.user)
         else:
             serializer.save(manager=self.request.user.manager)
+            
+import logging
+from io import BytesIO
+from PIL import Image
+from rembg import remove
+from django.core.files.base import ContentFile
+from rest_framework import generics, permissions
+from rest_framework.response import Response
+from .models import Item
+from .serializers import ItemSerializer
+
+logger = logging.getLogger(__name__)
 
 class ItemRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ItemSerializer
@@ -216,10 +233,49 @@ class ItemRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         if self.request.user.role == 'user_web':
             return Item.objects.filter(manager=self.request.user)
+        elif self.request.user.manager:
+            return Item.objects.filter(manager=self.request.user.manager)
+        return Item.objects.none()
+
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        image_file = self.request.FILES.get('image')
+
+        if image_file:
+            try:
+                # Open image and remove background
+                input_img = Image.open(image_file).convert("RGBA")
+                output_img = remove(input_img)  # ✅ remove background using rembg
+
+                # Save processed image to memory
+                temp_buffer = BytesIO()
+                output_img.save(temp_buffer, format="PNG")
+                temp_buffer.seek(0)
+
+                # Wrap in Django ContentFile
+                new_image = ContentFile(
+                    temp_buffer.read(),
+                    name=f"{image_file.name.rsplit('.', 1)[0]}.png"
+                )
+
+                # Save serializer with new image
+                serializer.save(image=new_image)
+
+                logger.info(f"Background removed for item {instance.id}")
+                print(f"✅ Background removed successfully for item {instance.id}")
+
+            except Exception as e:
+                logger.error(f"Error removing background for item {instance.id}: {str(e)}")
+                print(f"❌ Error removing background for item {instance.id}: {str(e)}")
+                raise
         else:
-            if self.request.user.manager:  # Changed 'request' to 'self.request'
-                return Item.objects.filter(manager=self.request.user.manager)
-            return Item.objects.none()
+            serializer.save()
+
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response(status=204)
 
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])

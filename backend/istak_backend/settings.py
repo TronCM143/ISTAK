@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -42,7 +43,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'istak_backend',
     'corsheaders',
-     'rest_framework',
+    'rest_framework',
+    'rest_framework_simplejwt',  # Ensure this is added for JWT
 ]
 
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
@@ -96,15 +98,15 @@ WSGI_APPLICATION = 'istak_backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'istak_db',       # Your database name
-        'USER': 'postgres',       # Your Postgres username
-        'PASSWORD': '1234',  # Your Postgres password
-        'HOST': 'localhost',      # Or IP address of your DB server
-        'PORT': '5432',           # Default Postgres port
+        'NAME': 'istak_db',
+        'USER': 'postgres',
+        'PASSWORD': '1234',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 
-# settings.py
+# Custom User Model
 AUTH_USER_MODEL = 'istak_backend.CustomUser'
 
 
@@ -126,14 +128,27 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+
+# REST Framework Settings
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
-            'rest_framework.permissions.IsAuthenticated',
-        ),
+        'rest_framework.permissions.IsAuthenticated',
+    ),
 }
+
+# SimpleJWT Settings
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  # Extend access token to 60 minutes
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),    # Extend refresh token to 7 days
+    'ROTATE_REFRESH_TOKENS': False,                 # Disable refresh token rotation
+    'BLACKLIST_AFTER_ROTATION': False,              # No blacklist needed if rotation is off
+    'UPDATE_LAST_LOGIN': False,                     # Optional, disable if not needed
+    'AUTH_HEADER_TYPES': ('Bearer',),               # Ensure compatibility with Flutter
+}
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
@@ -155,5 +170,3 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-

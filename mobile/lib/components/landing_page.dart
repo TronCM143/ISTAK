@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile/components/transaction/transactionMainPage.dart';
 import 'package:mobile/components/dashboard/mainDashboard.dart';
-import 'package:mobile/components/dashboard/borrower.dart';
+import 'package:mobile/components/setting/mainSidePanel.dart';
+import 'package:mobile/components/transaction/borrow.dart';
+import 'package:mobile/components/transaction/returning.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -12,87 +13,138 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  int _selectedIndex = 0;
-
-  final List<Widget> _pages = [
-    const SelectTask(), // Borrow/Return Module
-    const Dashboard(), // Inventory Table
-    const Borrower(), // Users
-  ];
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // keep gradient background under everything
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Color.fromARGB(255, 13, 20, 11),
-              Color.fromARGB(255, 40, 38, 38),
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: SafeArea(
-          child: Scaffold(
-            backgroundColor: Colors.transparent,
-            appBar: AppBar(
-              backgroundColor: Colors.black.withOpacity(0.7), // translucent
-              elevation: 0,
-              centerTitle: true,
-              title: Hero(
-                tag: "istakLogo",
-                child: Image.asset(
-                  "assets/fullLogo.png",
-                  width: 120,
-                  height: 60,
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
-            body: _pages[_selectedIndex],
-            bottomNavigationBar: NavigationBarTheme(
-              data: NavigationBarThemeData(
-                labelTextStyle: MaterialStateProperty.all(
-                  GoogleFonts.ibmPlexMono(
-                    color: const Color(0xFFCC9966),
-                    fontWeight: FontWeight.w500,
-                    fontSize: 13,
+      key: _scaffoldKey,
+      backgroundColor: const Color.fromRGBO(36, 27, 7, .6),
+      endDrawer: const SidePanel(), // ✅ use the new widget
+      drawerScrimColor: const Color.fromARGB(0, 157, 35, 35),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header with Logo and Menu
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              color: Colors.transparent,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Hero(
+                    tag: "istakLogo",
+                    child: Image.asset(
+                      "assets/fullLogo.png",
+                      width: 120,
+                      height: 60,
+                      fit: BoxFit.contain,
+                    ),
                   ),
-                ),
-                iconTheme: MaterialStateProperty.resolveWith((states) {
-                  if (states.contains(MaterialState.selected)) {
-                    return const IconThemeData(color: Color(0xFFCC9966));
-                  }
-                  return const IconThemeData(color: Colors.white70);
-                }),
-              ),
-              child: NavigationBar(
-                backgroundColor: Colors.black.withOpacity(0.5),
-                elevation: 0,
-                indicatorColor: Colors.white24,
-                selectedIndex: _selectedIndex,
-                onDestinationSelected: (index) =>
-                    setState(() => _selectedIndex = index),
-                destinations: const [
-                  NavigationDestination(
-                    icon: Icon(Icons.task_alt),
-                    label: "Tasks",
+                  SizedBox(width: 200),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.notifications,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    onPressed: () {
+                      _scaffoldKey.currentState?.openEndDrawer();
+                    },
                   ),
-                  NavigationDestination(
-                    icon: Icon(Icons.inventory),
-                    label: "Inventory",
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.people),
-                    label: "Users",
+                  IconButton(
+                    icon: const Icon(Icons.menu, color: Colors.white, size: 28),
+                    onPressed: () {
+                      _scaffoldKey.currentState?.openEndDrawer();
+                    },
                   ),
                 ],
               ),
             ),
-          ),
+
+            // Borrow & Return Buttons
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 1, horizontal: 16),
+              color: Colors.transparent,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const Borrow()),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color.fromARGB(255, 56, 39, 17),
+                        foregroundColor: const Color.fromARGB(
+                          255,
+                          178,
+                          178,
+                          178,
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 25),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        elevation: 4,
+                      ),
+                      child: Text(
+                        'Borrow',
+                        style: GoogleFonts.ibmPlexMono(
+                          fontWeight: FontWeight.w300,
+                          fontSize: 30,
+                          color: const Color.fromARGB(255, 195, 171, 126),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ReturnItem()),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color.fromARGB(255, 56, 39, 17),
+                        foregroundColor: const Color.fromARGB(
+                          255,
+                          178,
+                          178,
+                          178,
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 25),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        elevation: 4,
+                      ),
+                      child: Text(
+                        'Return',
+                        style: GoogleFonts.ibmPlexMono(
+                          fontWeight: FontWeight.w300,
+                          fontSize: 30,
+                          color: const Color.fromARGB(255, 195, 171, 126),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Scrollable Dashboard
+            const Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.zero,
+                child: Dashboard(),
+              ),
+            ),
+          ],
         ),
       ),
     );
