@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:mobile/apiURl.dart';
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class Borrower extends StatefulWidget {
-  const Borrower({super.key});
+class Transactions extends StatefulWidget {
+  const Transactions({super.key});
 
   @override
-  State<Borrower> createState() => _BorrowerState();
+  State<Transactions> createState() => _BorrowerState();
 }
 
-class _BorrowerState extends State<Borrower> {
+class _BorrowerState extends State<Transactions> {
   List<dynamic> transactions = [];
   bool loading = true;
   String? error;
@@ -244,9 +245,20 @@ class _BorrowerState extends State<Borrower> {
                           cells: [
                             DataCell(
                               Text(
-                                transaction['return_date'] as String,
+                                transaction['return_date'] != null
+                                    ? DateFormat("MMM. d, yyyy").format(
+                                        DateTime.parse(
+                                          transaction['return_date'],
+                                        ),
+                                      )
+                                    : "—", // fallback if null
                                 style: GoogleFonts.ibmPlexMono(
-                                  color: Colors.white,
+                                  color: const Color.fromARGB(
+                                    255,
+                                    237,
+                                    205,
+                                    174,
+                                  ),
                                   decoration: TextDecoration.none,
                                 ),
                               ),
@@ -255,7 +267,12 @@ class _BorrowerState extends State<Borrower> {
                               Text(
                                 transaction['item_name'] as String,
                                 style: GoogleFonts.ibmPlexMono(
-                                  color: Colors.white,
+                                  color: const Color.fromARGB(
+                                    255,
+                                    237,
+                                    205,
+                                    174,
+                                  ),
                                   decoration: TextDecoration.none,
                                 ),
                               ),
@@ -264,7 +281,12 @@ class _BorrowerState extends State<Borrower> {
                               Text(
                                 transaction['borrower_name'] as String,
                                 style: GoogleFonts.ibmPlexMono(
-                                  color: Colors.white,
+                                  color: const Color.fromARGB(
+                                    255,
+                                    237,
+                                    205,
+                                    174,
+                                  ),
                                   decoration: TextDecoration.none,
                                 ),
                               ),
@@ -273,7 +295,12 @@ class _BorrowerState extends State<Borrower> {
                               Text(
                                 transaction['school_id'] as String,
                                 style: GoogleFonts.ibmPlexMono(
-                                  color: Colors.white,
+                                  color: const Color.fromARGB(
+                                    255,
+                                    237,
+                                    205,
+                                    174,
+                                  ),
                                   decoration: TextDecoration.none,
                                 ),
                               ),

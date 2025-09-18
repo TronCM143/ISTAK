@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/components/dashboard/mainDashboard.dart';
-import 'package:mobile/components/setting/mainSidePanel.dart';
+import 'package:mobile/components/sidePanel/_mainSidePanel.dart';
 import 'package:mobile/components/transaction/borrow.dart';
 import 'package:mobile/components/transaction/returning.dart';
+import 'package:mobile/notifications/notif.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -14,6 +15,16 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  Future<void> _refreshDashboard() async {
+    // Example: wait 2s and reload data
+    await Future.delayed(const Duration(seconds: 2));
+
+    setState(() {
+      // TODO: trigger your API call / update logic
+      print("Dashboard refreshed!");
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,19 +52,27 @@ class _HomeState extends State<Home> {
                       fit: BoxFit.contain,
                     ),
                   ),
-                  SizedBox(width: 200),
+                  const SizedBox(width: 200),
                   IconButton(
                     icon: const Icon(
                       Icons.notifications,
-                      color: Colors.white,
+                      color: Color.fromARGB(255, 206, 192, 152),
                       size: 28,
                     ),
                     onPressed: () {
-                      _scaffoldKey.currentState?.openEndDrawer();
+                      // _scaffoldKey.currentState?.openEndDrawer();
+                      showDialog(
+                        context: context,
+                        builder: (context) => const NotificationScreen(),
+                      );
                     },
                   ),
                   IconButton(
-                    icon: const Icon(Icons.menu, color: Colors.white, size: 28),
+                    icon: const Icon(
+                      Icons.menu,
+                      color: Color.fromARGB(255, 185, 170, 157),
+                      size: 28,
+                    ),
                     onPressed: () {
                       _scaffoldKey.currentState?.openEndDrawer();
                     },
@@ -137,11 +156,18 @@ class _HomeState extends State<Home> {
               ),
             ),
 
-            // Scrollable Dashboard
-            const Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.zero,
-                child: Dashboard(),
+            // ✅ Only one scrollable Dashboard with pull-to-refresh
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _refreshDashboard,
+                backgroundColor: Colors.transparent, // ✅ no background
+                color: Colors.yellow, // ✅ rotating icon color
+                displacement: 40, // optional: distance from top
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.zero,
+                  child: const Dashboard(),
+                ),
               ),
             ),
           ],

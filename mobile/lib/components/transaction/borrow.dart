@@ -48,24 +48,24 @@ class _QRScannerState extends State<Borrow> {
         children: [
           QRView(key: qrKey, onQRViewCreated: _onQRViewCreated),
           if (isProcessing) const Center(child: CircularProgressIndicator()),
-          Positioned(
-            bottom: 16,
-            right: 16,
-            child: FloatingActionButton(
-              onPressed: () async {
-                await controller?.toggleFlash();
-                setState(() {});
-              },
-              child: FutureBuilder<bool?>(
-                future: controller?.getFlashStatus(),
-                builder: (context, snapshot) {
-                  return Icon(
-                    snapshot.data ?? false ? Icons.flash_on : Icons.flash_off,
-                  );
-                },
-              ),
-            ),
-          ),
+          // Positioned(
+          //   bottom: 16,
+          //   right: 16,
+          //   child: FloatingActionButton(
+          //     onPressed: () async {
+          //       await controller?.toggleFlash();
+          //       setState(() {});
+          //     },
+          //     child: FutureBuilder<bool?>(
+          //       future: controller?.getFlashStatus(),
+          //       builder: (context, snapshot) {
+          //         return Icon(
+          //           snapshot.data ?? false ? Icons.flash_on : Icons.flash_off,
+          //         );
+          //       },
+          //     ),
+          //   ),
+          // ),
         ],
       ),
     );

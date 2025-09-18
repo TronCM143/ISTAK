@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile/components/dashboard/borrower.dart';
+import 'package:mobile/components/dashboard/transactions.dart';
 import 'package:mobile/components/dashboard/features.dart';
 import 'package:mobile/components/dashboard/legend.dart';
+import 'package:mobile/components/helperFunction.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile/apiURl.dart';
@@ -64,6 +65,7 @@ class _DashboardState extends State<Dashboard> {
           loading = false;
         });
         debugPrint("Items loaded: ${items.length}");
+        Items.getItems(items);
       } else {
         setState(() {
           error =
@@ -157,7 +159,7 @@ class _DashboardState extends State<Dashboard> {
                 ),
               ),
               const SizedBox(height: 10),
-              const Borrower(),
+              const Transactions(),
               const SizedBox(height: 20),
 
               // ===== Filter Row =====

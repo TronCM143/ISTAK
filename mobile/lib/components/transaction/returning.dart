@@ -129,11 +129,6 @@ class _ReturnItemState extends State<ReturnItem> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Return Item'),
-        centerTitle: true,
-        backgroundColor: Colors.blue[800],
-      ),
       body: Stack(
         children: [
           Container(

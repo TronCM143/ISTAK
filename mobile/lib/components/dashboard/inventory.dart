@@ -120,6 +120,7 @@ class Inventory extends StatelessWidget {
               final String? imageUrl = item["image"];
               final String? status = item["status"];
               final String? lastBorrowed = item["last_borrowed"];
+              final String? condition = item["condition"]; // Added condition
               final bool isOverdue = lastBorrowed != null
                   ? DateTime.parse(
                       lastBorrowed,
@@ -149,7 +150,8 @@ class Inventory extends StatelessWidget {
                   ),
                   DataCell(
                     Text(
-                      _formatDate(lastBorrowed),
+                      condition ??
+                          "N/A", // Changed from _formatDate(lastBorrowed)
                       style: GoogleFonts.ibmPlexMono(
                         color: const Color.fromARGB(255, 158, 144, 106),
                       ),
