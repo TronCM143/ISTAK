@@ -109,207 +109,170 @@ class _BorrowerState extends State<Transactions> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      child: loading
-          ? const Center(child: CircularProgressIndicator())
-          : error != null
-          ? Center(
-              child: Text(
-                error!,
-                style: GoogleFonts.ibmPlexMono(color: Colors.white),
-              ),
-            )
-          : SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                columnSpacing: 24.0,
-                dataRowHeight: 48.0,
-                headingRowHeight: 40.0,
-                headingTextStyle: GoogleFonts.ibmPlexMono(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+    if (loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (error != null) {
+      return Center(
+        child: Text(
+          error!,
+          style: GoogleFonts.ibmPlexMono(color: Colors.white),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: MediaQuery.of(context).size.width,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          columnSpacing: 24.0,
+          dataRowHeight: 48.0,
+          headingRowHeight: 40.0,
+          headingTextStyle: GoogleFonts.ibmPlexMono(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+          dataTextStyle: GoogleFonts.ibmPlexMono(
+            color: Colors.white,
+            fontSize: 13,
+          ),
+          decoration: const BoxDecoration(color: Colors.transparent),
+          columns: [
+            DataColumn(
+              label: Text(
+                "Return Date",
+                style: GoogleFonts.ibmPlexMono(
+                  color: const Color.fromARGB(255, 121, 107, 70),
+                  fontSize: 15,
+                  decoration: TextDecoration.none, // ✅ No underline
                 ),
-                dataTextStyle: GoogleFonts.ibmPlexMono(
-                  color: Colors.white,
-                  fontSize: 13,
-                ),
-                decoration: const BoxDecoration(color: Colors.transparent),
-                columns: [
-                  DataColumn(
-                    label: Text(
-                      "Return Date",
-                      style: GoogleFonts.ibmPlexMono(
-                        color: const Color.fromARGB(255, 121, 107, 70),
-                        fontSize: 15,
-                        decoration: TextDecoration.none, // ✅ No underline
-                      ),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      "Item Name",
-                      style: GoogleFonts.ibmPlexMono(
-                        color: const Color.fromARGB(255, 121, 107, 70),
-                        fontSize: 15,
-                        decoration: TextDecoration.none, // ✅ No underline
-                      ),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      "Borrower Name",
-                      style: GoogleFonts.ibmPlexMono(
-                        color: const Color.fromARGB(255, 121, 107, 70),
-                        fontSize: 15,
-                        decoration: TextDecoration.none, // ✅ No underline
-                      ),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      "School ID",
-                      style: GoogleFonts.ibmPlexMono(
-                        color: const Color.fromARGB(255, 121, 107, 70),
-                        fontSize: 15,
-                        decoration: TextDecoration.none, // ✅ No underline
-                      ),
-                    ),
-                  ),
-                ],
-                rows: transactions.isEmpty
-                    ? [
-                        DataRow(
-                          cells: [
-                            DataCell(
-                              Text(
-                                "No transactions",
-                                style: GoogleFonts.ibmPlexMono(
-                                  color: const Color.fromARGB(
-                                    255,
-                                    121,
-                                    107,
-                                    70,
-                                  ),
-                                  decoration: TextDecoration.none,
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                "",
-                                style: GoogleFonts.ibmPlexMono(
-                                  color: const Color.fromARGB(
-                                    255,
-                                    121,
-                                    107,
-                                    70,
-                                  ),
-                                  decoration: TextDecoration.none,
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                "",
-                                style: GoogleFonts.ibmPlexMono(
-                                  color: const Color.fromARGB(
-                                    255,
-                                    121,
-                                    107,
-                                    70,
-                                  ),
-                                  decoration: TextDecoration.none,
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                "",
-                                style: GoogleFonts.ibmPlexMono(
-                                  color: const Color.fromARGB(
-                                    255,
-                                    121,
-                                    107,
-                                    70,
-                                  ),
-                                  decoration: TextDecoration.none,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ]
-                    : transactions.map((transaction) {
-                        return DataRow(
-                          cells: [
-                            DataCell(
-                              Text(
-                                transaction['return_date'] != null
-                                    ? DateFormat("MMM. d, yyyy").format(
-                                        DateTime.parse(
-                                          transaction['return_date'],
-                                        ),
-                                      )
-                                    : "—", // fallback if null
-                                style: GoogleFonts.ibmPlexMono(
-                                  color: const Color.fromARGB(
-                                    255,
-                                    237,
-                                    205,
-                                    174,
-                                  ),
-                                  decoration: TextDecoration.none,
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                transaction['item_name'] as String,
-                                style: GoogleFonts.ibmPlexMono(
-                                  color: const Color.fromARGB(
-                                    255,
-                                    237,
-                                    205,
-                                    174,
-                                  ),
-                                  decoration: TextDecoration.none,
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                transaction['borrower_name'] as String,
-                                style: GoogleFonts.ibmPlexMono(
-                                  color: const Color.fromARGB(
-                                    255,
-                                    237,
-                                    205,
-                                    174,
-                                  ),
-                                  decoration: TextDecoration.none,
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                transaction['school_id'] as String,
-                                style: GoogleFonts.ibmPlexMono(
-                                  color: const Color.fromARGB(
-                                    255,
-                                    237,
-                                    205,
-                                    174,
-                                  ),
-                                  decoration: TextDecoration.none,
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
               ),
             ),
+            DataColumn(
+              label: Text(
+                "Item Name",
+                style: GoogleFonts.ibmPlexMono(
+                  color: const Color.fromARGB(255, 121, 107, 70),
+                  fontSize: 15,
+                  decoration: TextDecoration.none, // ✅ No underline
+                ),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                "Borrower Name",
+                style: GoogleFonts.ibmPlexMono(
+                  color: const Color.fromARGB(255, 121, 107, 70),
+                  fontSize: 15,
+                  decoration: TextDecoration.none, // ✅ No underline
+                ),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                "School ID",
+                style: GoogleFonts.ibmPlexMono(
+                  color: const Color.fromARGB(255, 121, 107, 70),
+                  fontSize: 15,
+                  decoration: TextDecoration.none, // ✅ No underline
+                ),
+              ),
+            ),
+          ],
+          rows: transactions.isEmpty
+              ? [
+                  DataRow(
+                    cells: [
+                      DataCell(
+                        Text(
+                          "No transactions",
+                          style: GoogleFonts.ibmPlexMono(
+                            color: const Color.fromARGB(255, 121, 107, 70),
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        Text(
+                          "",
+                          style: GoogleFonts.ibmPlexMono(
+                            color: const Color.fromARGB(255, 121, 107, 70),
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        Text(
+                          "",
+                          style: GoogleFonts.ibmPlexMono(
+                            color: const Color.fromARGB(255, 121, 107, 70),
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        Text(
+                          "",
+                          style: GoogleFonts.ibmPlexMono(
+                            color: const Color.fromARGB(255, 121, 107, 70),
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ]
+              : transactions.map((transaction) {
+                  return DataRow(
+                    cells: [
+                      DataCell(
+                        Text(
+                          transaction['return_date'] != null
+                              ? DateFormat("MMM. d, yyyy").format(
+                                  DateTime.parse(transaction['return_date']),
+                                )
+                              : "—", // fallback if null
+                          style: GoogleFonts.ibmPlexMono(
+                            color: const Color.fromARGB(255, 237, 205, 174),
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        Text(
+                          transaction['item_name'] as String,
+                          style: GoogleFonts.ibmPlexMono(
+                            color: const Color.fromARGB(255, 237, 205, 174),
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        Text(
+                          transaction['borrower_name'] as String,
+                          style: GoogleFonts.ibmPlexMono(
+                            color: const Color.fromARGB(255, 237, 205, 174),
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        Text(
+                          transaction['school_id'] as String,
+                          style: GoogleFonts.ibmPlexMono(
+                            color: const Color.fromARGB(255, 237, 205, 174),
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
+        ),
+      ),
     );
   }
 }

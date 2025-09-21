@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile/components/dashboard/mainDashboard.dart';
+import 'package:mobile/components/dashboard/_dashboard.dart';
 import 'package:mobile/components/sidePanel/_mainSidePanel.dart';
 import 'package:mobile/components/transaction/borrow.dart';
 import 'package:mobile/components/transaction/returning.dart';
