@@ -1,6 +1,5 @@
 import logging
-import os
-from tkinter import Image
+import json
 from django.utils import timezone
 from django.contrib.auth import get_user_model, authenticate, login
 from django.contrib.auth.hashers import make_password
@@ -13,13 +12,19 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.views import APIView
 from django.contrib import messages
-import json
-
-from istak_backend import settings
-from .models import BorrowTransaction, Item, CustomUser, RegistrationRequest, Borrower
-from .serializers import BorrowTransactionSerializer, ItemSerializer, RegistrationRequestSerializer, TopBorrowedItemsSerializer
+from io import BytesIO
+from PIL import Image
+from rembg import remove
+from django.core.files.base import ContentFile
 from datetime import date
+from django.db.models import Count
+from .firebase import send_push_notification
+from .models import Transaction, Item, CustomUser, RegistrationRequest, Borrower
+from .serializers import TransactionSerializer, ItemSerializer, RegistrationRequestSerializer, TopBorrowedItemsSerializer
+
+logger = logging.getLogger(__name__)
 
 @csrf_exempt
 def register_manager(request):
@@ -213,18 +218,6 @@ class ItemListCreateAPIView(generics.ListCreateAPIView):
             serializer.save(manager=self.request.user)
         else:
             serializer.save(manager=self.request.user.manager)
-            
-import logging
-from io import BytesIO
-from PIL import Image
-from rembg import remove
-from django.core.files.base import ContentFile
-from rest_framework import generics, permissions
-from rest_framework.response import Response
-from .models import Item
-from .serializers import ItemSerializer
-
-logger = logging.getLogger(__name__)
 
 class ItemRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ItemSerializer
@@ -243,27 +236,18 @@ class ItemRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
 
         if image_file:
             try:
-                # Open image and remove background
                 input_img = Image.open(image_file).convert("RGBA")
-                output_img = remove(input_img)  # ✅ remove background using rembg
-
-                # Save processed image to memory
+                output_img = remove(input_img)
                 temp_buffer = BytesIO()
                 output_img.save(temp_buffer, format="PNG")
                 temp_buffer.seek(0)
-
-                # Wrap in Django ContentFile
                 new_image = ContentFile(
                     temp_buffer.read(),
                     name=f"{image_file.name.rsplit('.', 1)[0]}.png"
                 )
-
-                # Save serializer with new image
                 serializer.save(image=new_image)
-
                 logger.info(f"Background removed for item {instance.id}")
                 print(f"✅ Background removed successfully for item {instance.id}")
-
             except Exception as e:
                 logger.error(f"Error removing background for item {instance.id}: {str(e)}")
                 print(f"❌ Error removing background for item {instance.id}: {str(e)}")
@@ -271,9 +255,10 @@ class ItemRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
         else:
             serializer.save()
 
-
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        if instance.current_transaction:
+            return Response({"error": "Cannot delete item with an active transaction"}, status=status.HTTP_400_BAD_REQUEST)
         self.perform_destroy(instance)
         return Response(status=204)
 
@@ -340,7 +325,7 @@ class RegistrationRequestViewSet(viewsets.ModelViewSet):
             )
 
         if status_value == 'approved':
-            if instance.is_approved:
+            if instance.status == 'approved':
                 return Response(
                     {"error": "Request is already approved."},
                     status=status.HTTP_400_BAD_REQUEST
@@ -354,10 +339,10 @@ class RegistrationRequestViewSet(viewsets.ModelViewSet):
             )
             user.password = instance.password
             user.save()
-            instance.is_approved = True
+            instance.status = 'approved'
             instance.save()
         elif status_value == 'rejected':
-            if instance.is_approved:
+            if instance.status == 'approved':
                 return Response(
                     {"error": "Cannot reject an already approved request."},
                     status=status.HTTP_400_BAD_REQUEST
@@ -367,8 +352,6 @@ class RegistrationRequestViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
-
-from .firebase import send_push_notification
 
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
@@ -405,15 +388,18 @@ def borrow_process(request):
             except ValueError:
                 return Response({"error": "Invalid return_date format, use YYYY-MM-DD"}, status=status.HTTP_400_BAD_REQUEST)
             
-            # Create or get Borrower instance
+            if return_date < date.today():
+                return Response({"error": "Return date cannot be in the past"}, status=status.HTTP_400_BAD_REQUEST)
+            
             borrower, created = Borrower.objects.get_or_create(
                 name=borrower_name,
                 school_id=school_id,
-                defaults={'is_active': None}  # Default to None (pending) if new
+                defaults={'status': 'pending'}
             )
             
-            transaction = BorrowTransaction.objects.create(
+            transaction = Transaction.objects.create(
                 return_date=return_date,
+                status='borrowed',
                 manager=request.user.manager,
                 mobile_user=request.user,
                 item=item,
@@ -421,8 +407,6 @@ def borrow_process(request):
             )
             
             item.current_transaction = transaction
-            item.status = "borrowed"
-            item.last_borrowed = timezone.now()
             item.save()
             
             return Response({
@@ -433,7 +417,7 @@ def borrow_process(request):
                     "id": borrower.id,
                     "name": borrower.name,
                     "school_id": borrower.school_id,
-                    "is_active": borrower.is_active
+                    "status": borrower.status
                 }
             }, status=status.HTTP_201_CREATED)
         
@@ -442,42 +426,41 @@ def borrow_process(request):
             valid_conditions = ["Good", "Fair", "Damaged", "Broken"]
             
             if not condition:
-                return Response({"error": "condition is required"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": "condition is required for return"}, status=status.HTTP_400_BAD_REQUEST)
             if condition not in valid_conditions:
                 return Response({"error": f"condition must be one of {valid_conditions}"}, status=status.HTTP_400_BAD_REQUEST)
             
-            # Store transaction ID before setting current_transaction to None
-            transaction_id = item.current_transaction.id if item.current_transaction else None
-            item.condition = condition  
-            item.status = "available"
-            item.last_borrowed = timezone.now()
-            item.current_transaction = None
-            item.save()
-            
-            if transaction_id:
-                BorrowTransaction.objects.filter(id=transaction_id).delete()
-            
-            if request.user.fcm_token:
-                result = send_push_notification(
-                    request.user.fcm_token,
-                    "Return Successful",
-                    f"You returned {item.item_name} in {condition} condition"
-                )
-                if result is None:
-                    print(f"Failed to send notification to {request.user.fcm_token}")
-                        
-            return Response({
-                "status": "success",
-                "message": f"Item {item.item_name} returned successfully",
-                "condition": condition
-            }, status=status.HTTP_200_OK)
+            if item.current_transaction:
+                transaction = item.current_transaction
+                transaction.status = 'returned'
+                transaction.return_date = date.today()
+                transaction.save()
+                
+                item.condition = condition
+                item.current_transaction = None
+                item.save()
+                
+                if request.user.fcm_token:
+                    result = send_push_notification(
+                        request.user.fcm_token,
+                        "Return Successful",
+                        f"You returned {item.item_name} in {condition} condition"
+                    )
+                    if result is None:
+                        print(f"Failed to send notification to {request.user.fcm_token}")
+                
+                return Response({
+                    "status": "success",
+                    "message": f"Item {item.item_name} returned successfully",
+                    "condition": condition
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({"error": "No active transaction for this item"}, status=status.HTTP_400_BAD_REQUEST)
     
     except json.JSONDecodeError:
         return Response({"error": "Invalid JSON"}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-from rest_framework.views import APIView
 
 class UserAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -488,61 +471,22 @@ class UserAPIView(APIView):
         return Response({
             "role": request.user.role,
             "username": request.user.username,
-            "manager_id": manager_id,  # Include manager ID if available
+            "manager_id": manager_id,
         })
 
 class TransactionListAPIView(generics.ListAPIView):
-    serializer_class = BorrowTransactionSerializer
+    serializer_class = TransactionSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
     def get_queryset(self):
         user = self.request.user
         if user.role == 'user_web':
-            return BorrowTransaction.objects.filter(manager=user)
+            return Transaction.objects.filter(manager=user)
         elif user.role == 'user_mobile':
-            return BorrowTransaction.objects.filter(mobile_user=user)
-        return BorrowTransaction.objects.none()
+            return Transaction.objects.filter(mobile_user=user)
+        return Transaction.objects.none()
 
-class TransactionDetailAPIView(generics.RetrieveDestroyAPIView):
-    serializer_class = BorrowTransactionSerializer
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
-    queryset = BorrowTransaction.objects.all()
-    lookup_field = 'id'
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.role == 'user_web':
-            return BorrowTransaction.objects.filter(manager=user)
-        return BorrowTransaction.objects.none()
-
-    def destroy(self, request, *args, **kwargs):
-        if request.user.role != 'user_web':
-            return Response(
-                {"error": "Only web users (managers) can delete transactions"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        instance = self.get_object()
-        item = instance.item
-
-        if item.current_transaction == instance:
-            item.current_transaction = None
-            item.status = "available"
-            item.last_borrowed = timezone.now()
-            item.save()
-
-        self.perform_destroy(instance)
-
-        return Response(
-            {
-                "status": "success",
-                "message": f"Transaction {instance.id} deleted successfully"
-            },
-            status=status.HTTP_200_OK
-        )
-        
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
@@ -554,7 +498,6 @@ def update_fcm_token(request):
         if not fcm_token:
             return Response({"error": "fcm_token is required"}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Update the user's FCM token
         request.user.fcm_token = fcm_token
         request.user.save()
         
@@ -567,17 +510,171 @@ def update_fcm_token(request):
         return Response({"error": "Invalid JSON"}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    
-    
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([JWTAuthentication])
 def top_borrowed_items(request):
-    from django.db.models import Count
     top_items = Item.objects.annotate(
         borrow_count=Count('transactions')
     ).order_by('-borrow_count')[:5]
-
     serializer = TopBorrowedItemsSerializer(top_items, many=True, context={'request': request})
     return Response(serializer.data)
+
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.utils import timezone
+from datetime import timedelta, datetime
+from django.db.models import Count
+from .models import Transaction
+from .serializers import TransactionSerializer
+
+class AnalyticsTransactionsView(APIView):
+    def get(self, request):
+        try:
+            # Get all transactions
+            transactions = Transaction.objects.all()
+
+            # Calculate date ranges
+            today = timezone.now().date()
+            three_months_ago = today - timedelta(days=90)
+
+            # Weekly aggregation
+            weekly_data = {}
+            for t in transactions:
+                borrow_date = t.borrow_date
+                # Get Monday of the week
+                day = borrow_date.weekday()
+                week_start = borrow_date - timedelta(days=day)
+                week_key = week_start.strftime('%Y-%m-%d')
+
+                if week_key not in weekly_data:
+                    weekly_data[week_key] = {'count': 0, 'items': {}}
+                weekly_data[week_key]['count'] += 1
+                item_name = t.item.item_name
+                weekly_data[week_key]['items'][item_name] = weekly_data[week_key]['items'].get(item_name, 0) + 1
+
+            weekly_result = [
+                {
+                    'week_start': week_key,
+                    'count': data['count'],
+                    'top_items': [
+                        {'item': item, 'count': count}
+                        for item, count in sorted(
+                            data['items'].items(), key=lambda x: x[1], reverse=True
+                        )[:5]
+                    ]
+                }
+                for week_key, data in sorted(weekly_data.items())
+                if datetime.strptime(week_key, '%Y-%m-%d').date() >= three_months_ago
+            ]
+
+            # Monthly aggregation
+            monthly_data = {}
+            for t in transactions:
+                month_key = t.borrow_date.strftime('%Y-%m')
+                if month_key not in monthly_data:
+                    monthly_data[month_key] = {'count': 0, 'items': {}}
+                monthly_data[month_key]['count'] += 1
+                item_name = t.item.item_name
+                monthly_data[month_key]['items'][item_name] = monthly_data[month_key]['items'].get(item_name, 0) + 1
+
+            monthly_result = [
+                {
+                    'month': month_key,
+                    'count': data['count'],
+                    'top_items': [
+                        {'item': item, 'count': count}
+                        for item, count in sorted(
+                            data['items'].items(), key=lambda x: x[1], reverse=True
+                        )[:5]
+                    ]
+                }
+                for month_key, data in sorted(monthly_data.items())
+                if datetime.strptime(month_key, '%Y-%m').date() >= three_months_ago.replace(day=1)
+            ]
+
+            # Three months aggregation (by month within the last 90 days)
+            three_months_result = [
+                {
+                    'month': month_key,
+                    'count': data['count'],
+                    'top_items': [
+                        {'item': item, 'count': count}
+                        for item, count in sorted(
+                            data['items'].items(), key=lambda x: x[1], reverse=True
+                        )[:5]
+                    ]
+                }
+                for month_key, data in sorted(monthly_data.items())
+                if datetime.strptime(month_key, '%Y-%m').date() >= three_months_ago.replace(day=1)
+            ]
+
+            return Response({
+                'weekly': weekly_result,
+                'monthly': monthly_result,
+                'three_months': three_months_result
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            
+            
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .models import Transaction
+from django.utils import timezone
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
+from rest_framework.permissions import AllowAny
+class MonthlyTransactionsView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny] 
+    def get(self, request):
+        try:
+            # Calculate the date range: last 6 months from today
+            today = timezone.now().date()
+            start_date = today - relativedelta(months=6)
+            transactions = Transaction.objects.filter(borrow_date__gte=start_date)
+
+            # Initialize monthly data
+            monthly_data = {}
+            current_date = start_date
+            while current_date <= today:
+                month_key = current_date.strftime('%Y-%m')
+                monthly_data[month_key] = {'borrowed': 0, 'returned': 0}
+                current_date += relativedelta(months=1)
+
+            # Aggregate transactions
+            for t in transactions:
+                month_key = t.borrow_date.strftime('%Y-%m')
+                if month_key in monthly_data:
+                    if t.status.lower() == 'borrowed':
+                        monthly_data[month_key]['borrowed'] += 1
+                    elif t.status.lower() == 'returned':
+                        monthly_data[month_key]['returned'] += 1
+
+            # Format response
+            monthly_result = [
+                {
+                    'month': datetime.strptime(month_key, '%Y-%m').strftime('%B'),  # e.g., "April"
+                    'borrowed': data['borrowed'],
+                    'returned': data['returned']
+                }
+                for month_key, data in sorted(monthly_data.items())
+            ]
+
+            return Response(monthly_result, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

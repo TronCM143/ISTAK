@@ -1,7 +1,7 @@
 from celery import shared_task
 from django.utils import timezone
 from datetime import timedelta
-from istak_backend.models import BorrowTransaction
+from istak_backend.models import Transaction
 from istak_backend.firebase import send_push_notification
 
 @shared_task
@@ -9,7 +9,7 @@ def notify_due_items():
     today = timezone.now().date()
 
     # Get transactions that are due today
-    due_transactions = BorrowTransaction.objects.filter(
+    due_transactions = Transaction.objects.filter(
         return_date=today,
         item__current_transaction__isnull=False
     )
@@ -23,7 +23,7 @@ def notify_due_items():
             )
 
     # Get overdue transactions (past return_date)
-    overdue_transactions = BorrowTransaction.objects.filter(
+    overdue_transactions = Transaction.objects.filter(
         return_date__lt=today,
         item__current_transaction__isnull=False
     )

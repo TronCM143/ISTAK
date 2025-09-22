@@ -199,129 +199,136 @@ class _ItemlistState extends State<Itemlist> {
             ),
           )
         else
-          LayoutBuilder(
-            builder: (context, constraints) {
-              return ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: 200, // Minimum height for small item lists
-                  maxHeight:
-                      constraints.maxHeight, // Respect parent constraints
-                ),
+          SizedBox(
+            width: double.infinity, // 🔥 force full width
+            child: SingleChildScrollView(
+              scrollDirection: Axis.vertical,
+              physics: const ClampingScrollPhysics(),
+              child: DataTable(
+                columnSpacing: 16.0,
+                horizontalMargin: 16.0,
+                headingRowHeight: 40.0,
+                dataRowHeight: 60.0,
+                dividerThickness: 0,
+                showBottomBorder: false,
+                columns: const [
+                  DataColumn(
+                    label: Text(
+                      "Status",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      "Item Name",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      "Condition",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text("Image", style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+                rows: filteredItems.map((item) {
+                  final String? status = item["status"];
+                  final String? condition = item["condition"];
+                  final String? imageUrl = item["image"];
 
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.vertical,
-                  physics:
-                      const ClampingScrollPhysics(), // Prevent overscrolling
-                  child: DataTable(
-                    columnSpacing: 16.0, // Reduce spacing between columns
-                    horizontalMargin: 16.0, // Add margin for better padding
-                    showBottomBorder: false,
-                    dividerThickness: 0,
-                    headingRowHeight: 40.0, // Reduced for compactness
-                    dataRowHeight: 60.0,
-                    columns: const [
-                      DataColumn(
-                        label: Text(
-                          "Status",
-                          style: TextStyle(color: Colors.white),
+                  return DataRow(
+                    cells: [
+                      DataCell(
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: _getStatusColor(status),
+                            shape: BoxShape.circle,
+                          ),
                         ),
                       ),
-                      DataColumn(
-                        label: Text(
-                          "Item Name",
-                          style: TextStyle(color: Colors.white),
+                      DataCell(
+                        Text(
+                          item["item_name"] ?? "N/A",
+                          style: GoogleFonts.ibmPlexMono(color: Colors.white),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      DataColumn(
-                        label: Text(
-                          "Condition",
-                          style: TextStyle(color: Colors.white),
+                      DataCell(
+                        Text(
+                          condition ?? "N/A",
+                          style: GoogleFonts.ibmPlexMono(color: Colors.white),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      DataColumn(
-                        label: Text(
-                          "Image",
-                          style: TextStyle(color: Colors.white),
-                        ),
+                      DataCell(
+                        imageUrl != null && imageUrl.isNotEmpty
+                            ? GestureDetector(
+                                onTap: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) {
+                                      return Dialog(
+                                        backgroundColor: Colors.black,
+                                        insetPadding: EdgeInsets.zero,
+                                        child: GestureDetector(
+                                          onTap: () => Navigator.of(
+                                            context,
+                                          ).pop(), // close on tap
+                                          child: InteractiveViewer(
+                                            child: Image.network(
+                                              imageUrl,
+                                              fit: BoxFit.contain,
+                                              errorBuilder:
+                                                  (
+                                                    context,
+                                                    error,
+                                                    stackTrace,
+                                                  ) => const Center(
+                                                    child: Icon(
+                                                      Icons.broken_image,
+                                                      size: 80,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Image.network(
+                                    imageUrl,
+                                    width: 40,
+                                    height: 40,
+                                    //fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) => Icon(
+                                          Icons.image_not_supported,
+                                          color: theme
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
+                                  ),
+                                ),
+                              )
+                            : Icon(
+                                Icons.image_not_supported,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                       ),
                     ],
-                    rows: filteredItems.map((item) {
-                      final String? status = item["status"];
-                      final String? condition = item["condition"];
-                      final String? imageUrl = item["image"];
-
-                      return DataRow(
-                        cells: [
-                          DataCell(
-                            Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: _getStatusColor(status),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
-                          DataCell(
-                            Container(
-                              constraints: const BoxConstraints(
-                                maxWidth: 150,
-                              ), // Limit width
-                              child: Text(
-                                item["item_name"] ?? "N/A",
-                                style: GoogleFonts.ibmPlexMono(
-                                  color: Colors.white,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                          DataCell(
-                            Container(
-                              constraints: const BoxConstraints(
-                                maxWidth: 100,
-                              ), // Limit width
-                              child: Text(
-                                condition ?? "N/A",
-                                style: GoogleFonts.ibmPlexMono(
-                                  color: Colors.white,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                          DataCell(
-                            imageUrl != null && imageUrl.isNotEmpty
-                                ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(6),
-                                    child: Image.network(
-                                      imageUrl,
-                                      width: 40,
-                                      height: 40,
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) => Icon(
-                                            Icons.image_not_supported,
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.onSurfaceVariant,
-                                          ),
-                                    ),
-                                  )
-                                : Icon(
-                                    Icons.image_not_supported,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                                  ),
-                          ),
-                        ],
-                      );
-                    }).toList(),
-                  ),
-                ),
-              );
-            },
+                  );
+                }).toList(),
+              ),
+            ),
           ),
       ],
     );

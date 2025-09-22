@@ -1,31 +1,29 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.admin import SimpleListFilter
-from .models import CustomUser, Item, Borrower, BorrowTransaction
+from .models import CustomUser, Item, Borrower, Transaction
 
-# Custom filter for is_active
-class IsActiveFilter(SimpleListFilter):
-    title = 'active status'  # Display name in admin
-    parameter_name = 'is_active'  # URL parameter name
+
+# Custom filter for Borrower.status
+class BorrowerStatusFilter(SimpleListFilter):
+    title = 'borrower status'  # Display name in admin
+    parameter_name = 'status'  # URL parameter name
 
     def lookups(self, request, model_admin):
         # Define the filter options
         return (
-            ('1', 'Yes'),
-            ('0', 'No'),
-            ('None', 'Pending'),
+            ('pending', 'Pending'),
+            ('active', 'Active'),
+            ('inactive', 'Inactive'),
         )
 
     def queryset(self, request, queryset):
         # Apply the filter based on the selected value
         value = self.value()
-        if value == '1':
-            return queryset.filter(is_active=True)
-        elif value == '0':
-            return queryset.filter(is_active=False)
-        elif value == 'None':
-            return queryset.filter(is_active__isnull=True)
+        if value in ['pending', 'active', 'inactive']:
+            return queryset.filter(status=value)
         return queryset
+
 
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
@@ -40,56 +38,65 @@ class CustomUserAdmin(UserAdmin):
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('username', 'email', 'password1', 'password2', 'role', 'manager', 'is_staff', 'is_active')}
+            'fields': ('username', 'email', 'password1', 'password2',
+                       'role', 'manager', 'is_staff', 'is_active')}
         ),
     )
     search_fields = ('username', 'email')
     ordering = ('username',)
     autocomplete_fields = ['manager']
 
+
 @admin.register(Item)
 class ItemAdmin(admin.ModelAdmin):
-    list_display = ('item_name', 'status', 'condition', 'manager_username')
-    list_filter = ('status', 'condition', 'manager')
+    list_display = ('item_name', 'get_status_display', 'condition', 'manager_username')
+    list_filter = ('condition', 'manager')
     search_fields = ('item_name',)
-    fields = ('item_name', 'status', 'condition', 'user', 'manager', 'current_transaction', 'last_borrowed', 'image')
+    fields = ('item_name', 'condition', 'user', 'manager', 'current_transaction', 'image')
     raw_id_fields = ('user', 'manager', 'current_transaction')
     autocomplete_fields = ['user', 'manager', 'current_transaction']
 
+    def get_status_display(self, obj):
+        """Display computed status based on current_transaction."""
+        if obj.current_transaction:
+            return obj.current_transaction.status  # borrowed / returned / overdue
+        return 'available'
+    get_status_display.short_description = 'Status'
+
     def manager_username(self, obj):
-        """Safely display manager username without triggering __str__ errors."""
+        """Safely display manager username."""
         if obj.manager:
             return obj.manager.username or "No Username"
         return "No Manager"
     manager_username.short_description = "Manager"
     manager_username.admin_order_field = 'manager__username'
 
+
 @admin.register(Borrower)
 class BorrowerAdmin(admin.ModelAdmin):
-    list_display = ('name', 'school_id', 'get_is_active_display', 'borrow_transaction_id')
-    list_filter = ('is_active', IsActiveFilter)  # Use the custom filter alongside the field
+    list_display = ('name', 'school_id', 'get_status_display')
+    list_filter = ('status', BorrowerStatusFilter)
     search_fields = ('name', 'school_id')
-    fields = ('name', 'school_id', 'is_active', 'borrow_transaction')
-    autocomplete_fields = ['borrow_transaction']
+    fields = ('name', 'school_id', 'status')
+    # removed autocomplete_fields (not valid for reverse relations)
 
-    def get_is_active_display(self, obj):
-        """Custom display for is_active to handle None."""
-        if obj.is_active is True:
-            return "Yes"
-        elif obj.is_active is False:
-            return "No"
-        return "Pending"
-    get_is_active_display.short_description = "Active"
+    def get_status_display(self, obj):
+        """Display Borrower.status."""
+        return obj.status.capitalize()
+    get_status_display.short_description = "Status"
 
-    def borrow_transaction_id(self, obj):
-        """Safely display borrow_transaction ID."""
-        return obj.borrow_transaction.id if obj.borrow_transaction else "None"
-    borrow_transaction_id.short_description = "Transaction ID"
+    # def borrow_transactions_id(self, obj):
+    #     """Display related transaction IDs."""
+    #     transaction_ids = obj.borrow_transactions.values_list('id', flat=True)
+    #     return ", ".join(str(id) for id in transaction_ids) if transaction_ids else "None"
+    # borrow_transactions_id.short_description = "Transaction IDs"
 
-@admin.register(BorrowTransaction)
-class BorrowTransactionAdmin(admin.ModelAdmin):
-    list_display = ('borrow_date', 'return_date', 'manager', 'mobile_user', 'item', 'borrower')
-    list_filter = ('borrow_date', 'return_date', 'manager', 'mobile_user')
+
+@admin.register(Transaction)
+class TransactionAdmin(admin.ModelAdmin):
+    list_display = ('borrow_date', 'return_date', 'status',
+                    'manager', 'mobile_user', 'item', 'borrower')
+    list_filter = ('status', 'borrow_date', 'return_date', 'manager', 'mobile_user')
     search_fields = ('borrower__name', 'item__item_name')
     raw_id_fields = ('manager', 'mobile_user', 'item', 'borrower')
     autocomplete_fields = ['manager', 'mobile_user', 'item', 'borrower']

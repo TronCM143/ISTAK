@@ -4,6 +4,7 @@ import 'package:mobile/components/dashboard/_dashboard.dart';
 import 'package:mobile/components/sidePanel/_mainSidePanel.dart';
 import 'package:mobile/components/transaction/borrow.dart';
 import 'package:mobile/components/transaction/returning.dart';
+import 'package:mobile/components/transaction/syncTransaction.dart';
 import 'package:mobile/notifications/notif.dart';
 
 class Home extends StatefulWidget {
@@ -17,13 +18,35 @@ class _HomeState extends State<Home> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   Future<void> _refreshDashboard() async {
-    // Example: wait 2s and reload data
+    // Show loading popup
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return const Center(
+          child: CircularProgressIndicator(
+            color: Colors.yellow,
+            strokeWidth: 3,
+          ),
+        );
+      },
+    );
+
+    // Sync transactions
+    bool syncSuccess = await SyncTransactions.syncTransactions(
+      context,
+      type: 'all',
+    );
+
+    // Wait a little to simulate "refresh feel"
     await Future.delayed(const Duration(seconds: 2));
 
-    setState(() {
-      // TODO: trigger your API call / update logic
-      print("Dashboard refreshed!");
-    });
+    if (mounted) {
+      Navigator.of(context).pop(); // Dismiss loading popup
+      setState(() {
+        print("Dashboard refreshed! Sync success: $syncSuccess");
+      });
+    }
   }
 
   @override
@@ -31,12 +54,11 @@ class _HomeState extends State<Home> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: const Color.fromRGBO(36, 27, 7, .6),
-      endDrawer: const SidePanel(), // ✅ use the new widget
+      endDrawer: const SidePanel(),
       drawerScrimColor: const Color.fromARGB(0, 157, 35, 35),
       body: SafeArea(
         child: Column(
           children: [
-            // Header with Logo and Menu
             Container(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
               color: Colors.transparent,
@@ -60,7 +82,6 @@ class _HomeState extends State<Home> {
                       size: 28,
                     ),
                     onPressed: () {
-                      // _scaffoldKey.currentState?.openEndDrawer();
                       showDialog(
                         context: context,
                         builder: (context) => const NotificationScreen(),
@@ -80,8 +101,6 @@ class _HomeState extends State<Home> {
                 ],
               ),
             ),
-
-            // Borrow & Return Buttons
             Container(
               padding: const EdgeInsets.symmetric(vertical: 1, horizontal: 16),
               color: Colors.transparent,
@@ -155,14 +174,12 @@ class _HomeState extends State<Home> {
                 ],
               ),
             ),
-
-            // ✅ Only one scrollable Dashboard with pull-to-refresh
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _refreshDashboard,
-                backgroundColor: Colors.transparent, // ✅ no background
-                color: Colors.yellow, // ✅ rotating icon color
-                displacement: 40, // optional: distance from top
+                backgroundColor: Colors.transparent,
+                color: Colors.yellow,
+                displacement: 40,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: EdgeInsets.zero,

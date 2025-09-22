@@ -23,7 +23,6 @@ class _QRScannerState extends State<Borrow> {
   Barcode? result;
   QRViewController? controller;
   bool isProcessing = false;
-  bool isSyncing = false;
   final TextEditingController returnDateController = TextEditingController();
 
   @override
@@ -43,180 +42,6 @@ class _QRScannerState extends State<Borrow> {
     } catch (e) {
       print('Error checking connectivity: $e');
       return false;
-    }
-  }
-
-  Future<void> syncPendingRequests() async {
-    if (isSyncing) return;
-    setState(() {
-      isSyncing = true;
-    });
-
-    try {
-      final token = await getToken();
-      if (token == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please log in to sync requests')),
-        );
-        return;
-      }
-
-      if (!(await isOnline())) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No internet connection. Cannot sync.')),
-        );
-        return;
-      }
-
-      final db = LocalDatabase();
-      final pendingRequests = await db.getPendingRequests(
-        type: 'borrow',
-      ); // Specify borrow requests
-      if (pendingRequests.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No pending borrow requests to sync')),
-        );
-        return;
-      }
-
-      print('Pending borrow requests to sync: $pendingRequests');
-
-      for (var request in pendingRequests) {
-        try {
-          // Fetch item details to check availability
-          final itemId = request['item_id']; // Keep as string
-          print('Checking availability for item $itemId');
-          final itemUrl = Uri.parse('$baseUrl/api/items/?id=$itemId');
-          final itemResponse = await http.get(
-            itemUrl,
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json',
-            },
-          );
-
-          if (itemResponse.statusCode != 200) {
-            print(
-              'Item fetch failed for $itemId: ${itemResponse.statusCode} ${itemResponse.body}',
-            );
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  itemResponse.statusCode == 404
-                      ? 'Item $itemId not found'
-                      : 'Failed to fetch item $itemId',
-                ),
-              ),
-            );
-            continue; // Skip to next request
-          }
-
-          final itemData = jsonDecode(itemResponse.body);
-          Map<String, dynamic>? item;
-          if (itemData is List) {
-            if (itemData.isEmpty) {
-              print('Item $itemId not found in response: $itemData');
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Item $itemId not found')));
-              continue;
-            }
-            item = itemData[0] as Map<String, dynamic>;
-          } else if (itemData is Map<String, dynamic>) {
-            item = itemData;
-          } else {
-            print('Invalid item data format for $itemId: $itemData');
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Invalid item data format')),
-            );
-            continue;
-          }
-
-          final bool isAvailable = item['current_transaction'] == null;
-          print(
-            'Item $itemId availability: $isAvailable, current_transaction: ${item['current_transaction']}',
-          );
-
-          if (isAvailable) {
-            // Send borrow request to backend
-            final response = await http.post(
-              Uri.parse('$baseUrl/api/borrow_process/'),
-              headers: {
-                'Authorization': 'Bearer $token',
-                'Content-Type': 'application/json',
-              },
-              body: jsonEncode({
-                'item_id': itemId,
-                'borrower_name': request['borrower_name'],
-                'school_id': request['school_id'],
-                'return_date': request['return_date'],
-              }),
-            );
-
-            print(
-              'Sync response for request ${request['id']}: ${response.statusCode} ${response.body}',
-            );
-            final responseData = jsonDecode(response.body);
-            if (response.statusCode == 201) {
-              // Delete the request from local storage
-              await db.deleteBorrowRequest(request['id']);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Synced: ${responseData['message'] ?? 'Item $itemId borrowed successfully'}',
-                  ),
-                ),
-              );
-              if (responseData['borrower'] != null) {
-                final borrower = responseData['borrower'];
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Borrower: ${borrower['name']} (ID: ${borrower['school_id']})',
-                    ),
-                  ),
-                );
-              }
-            } else {
-              print('Sync failed for item $itemId: ${response.body}');
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Sync failed for item $itemId: ${responseData['error'] ?? 'Failed to borrow item'}',
-                  ),
-                ),
-              );
-            }
-          } else {
-            print(
-              'Item $itemId not available, current_transaction: ${item['current_transaction']}',
-            );
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Item $itemId is currently borrowed. Request will retry later.',
-                ),
-              ),
-            );
-          }
-        } catch (e) {
-          print('Error syncing request ${request['id']}: $e');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to sync item ${request['item_id']}: $e'),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      print('Error during sync: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Sync error: $e')));
-    } finally {
-      setState(() {
-        isSyncing = false;
-      });
     }
   }
 
@@ -241,18 +66,6 @@ class _QRScannerState extends State<Borrow> {
           ),
         ),
         backgroundColor: Colors.grey[850],
-        actions: [
-          IconButton(
-            icon: isSyncing
-                ? const CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
-                  )
-                : const Icon(Icons.sync, color: Colors.white),
-            onPressed: isSyncing ? null : syncPendingRequests,
-            tooltip: 'Sync Pending Requests',
-          ),
-        ],
       ),
       body: Stack(
         children: [
@@ -289,18 +102,18 @@ class _QRScannerState extends State<Borrow> {
     try {
       final token = await getToken();
       if (token == null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Please log in first')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please log in to borrow')),
+        );
         return;
       }
 
-      final itemId = code.trim(); // Keep as string
-      print('Processing borrow for item $itemId');
+      final itemId = code.trim();
+      print('Processing borrow for item ID: $itemId');
       final borrowData = await _showBorrowDialog(context);
       if (borrowData == null) return;
 
-      // Store in local database first
+      // Store in local database
       final requestId = Uuid().v4();
       final borrowDate = DateTime.now().toIso8601String().split('T')[0];
       final requestData = {
@@ -311,20 +124,21 @@ class _QRScannerState extends State<Borrow> {
         'school_id': borrowData['schoolId'],
         'return_date': borrowData['return_date'],
         'borrow_date': borrowDate,
-        'condition': null, // Not used for borrow
+        'condition': null,
         'is_synced': '0',
         'status': 'pending',
       };
       await LocalDatabase().saveBorrowRequest(requestData);
       print('Saved borrow request locally: $requestData');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Request saved locally')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Borrow request saved locally. Syncing...'),
+        ),
+      );
 
       // Attempt to sync if online
       try {
         if (await isOnline()) {
-          // Fetch item details to check availability
           final itemUrl = Uri.parse('$baseUrl/api/items/?id=$itemId');
           final itemResponse = await http.get(
             itemUrl,
@@ -336,14 +150,14 @@ class _QRScannerState extends State<Borrow> {
 
           if (itemResponse.statusCode != 200) {
             print(
-              'Item fetch failed for $itemId: ${itemResponse.statusCode} ${itemResponse.body}',
+              'Item fetch failed: ${itemResponse.statusCode} ${itemResponse.body}',
             );
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
                   itemResponse.statusCode == 404
                       ? 'Item $itemId not found'
-                      : 'Failed to fetch item details',
+                      : 'Failed to fetch item: ${itemResponse.statusCode}',
                 ),
               ),
             );
@@ -357,17 +171,17 @@ class _QRScannerState extends State<Borrow> {
           Map<String, dynamic>? item;
           if (itemData is List) {
             if (itemData.isEmpty) {
-              print('Item $itemId not found in response: $itemData');
+              print('Item $itemId not found: $itemData');
               ScaffoldMessenger.of(
                 context,
-              ).showSnackBar(const SnackBar(content: Text('Item not found')));
+              ).showSnackBar(SnackBar(content: Text('Item $itemId not found')));
               return;
             }
             item = itemData[0] as Map<String, dynamic>;
           } else if (itemData is Map<String, dynamic>) {
             item = itemData;
           } else {
-            print('Invalid item data format for $itemId: $itemData');
+            print('Invalid item data: $itemData');
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Invalid item data format')),
             );
@@ -375,12 +189,9 @@ class _QRScannerState extends State<Borrow> {
           }
 
           final bool isAvailable = item['current_transaction'] == null;
-          print(
-            'Item $itemId availability: $isAvailable, current_transaction: ${item['current_transaction']}',
-          );
+          print('Item $itemId availability: $isAvailable');
 
           if (isAvailable) {
-            // Send borrow request to backend
             final response = await http.post(
               Uri.parse('$baseUrl/api/borrow_process/'),
               headers: {
@@ -395,18 +206,14 @@ class _QRScannerState extends State<Borrow> {
               }),
             );
 
-            print(
-              'Borrow response for $itemId: ${response.statusCode} ${response.body}',
-            );
+            print('Borrow response: ${response.statusCode} ${response.body}');
             final responseData = jsonDecode(response.body);
             if (response.statusCode == 201) {
-              // Delete the request from local storage
               await LocalDatabase().deleteBorrowRequest(requestId);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    responseData['message'] ??
-                        'Item $itemId borrowed successfully',
+                    'Borrowed successfully: ${responseData['message'] ?? 'Item $itemId borrowed'}',
                   ),
                 ),
               );
@@ -420,12 +227,13 @@ class _QRScannerState extends State<Borrow> {
                   ),
                 );
               }
+              print('Transaction ID: ${responseData['id'] ?? 'unknown'}');
             } else {
-              print('Borrow failed for $itemId: ${response.body}');
+              print('Borrow failed: ${response.body}');
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    'Error borrowing item $itemId: ${responseData['error'] ?? 'Failed to borrow item'}',
+                    'Failed to borrow: ${responseData['error'] ?? 'Error borrowing item $itemId'}',
                   ),
                 ),
               );
@@ -434,13 +242,11 @@ class _QRScannerState extends State<Borrow> {
               );
             }
           } else {
-            print(
-              'Item $itemId not available, current_transaction: ${item['current_transaction']}',
-            );
+            print('Item $itemId not available');
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text(
-                  'Item is currently borrowed. Request will sync later.',
+                  'Item is currently borrowed. Request will sync later',
                 ),
               ),
             );
@@ -448,25 +254,21 @@ class _QRScannerState extends State<Borrow> {
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text(
-                'No internet connection. Request will sync when online',
-              ),
+              content: Text('Offline: Request will sync when online'),
             ),
           );
         }
       } catch (e) {
-        print('Network error during sync for $itemId: $e');
+        print('Sync error for item $itemId: $e');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Connection failed: $e. Request will sync later'),
-          ),
+          SnackBar(content: Text('Sync failed: $e. Request will sync later')),
         );
       }
     } catch (e, stackTrace) {
-      print('Error processing QR code $code: $e\n$stackTrace');
+      print('QR processing error: $e\n$stackTrace');
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ).showSnackBar(SnackBar(content: Text('Error processing QR: $e')));
     }
   }
 
