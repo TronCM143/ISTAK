@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { LoginForm } from "@/components/login-form"
+import { LoginForm } from "@/components/pages/login/login-form"
 
 export default function LoginPage() {
   const router = useRouter()

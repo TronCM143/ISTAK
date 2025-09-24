@@ -19,10 +19,10 @@ import {
   IconQrcode,
 } from "@tabler/icons-react"
 
-import { NavDocuments } from "@/components/nav-documents"
-import { NavMain } from "@/components/nav-main"
-import { NavSecondary } from "@/components/nav-secondary"
-import { NavUser } from "@/components/nav-user"
+import { NavDocuments } from "@/components/widgets/nav-documents"
+import { NavMain } from "@/components/widgets/nav-main"
+import { NavSecondary } from "@/components/widgets/nav-secondary"
+import { NavUser } from "@/components/widgets/nav-user"
 import {
   Sidebar,
   SidebarContent,
@@ -35,8 +35,8 @@ import {
 
 const data = {
   user: {
-    name: "shadcn",
-    email: "m@example.com",
+    name: "marist",
+    email: "maristGroup",
     avatar: "/avatars/shadcn.jpg",
   },
   navMain: [
@@ -52,7 +52,7 @@ const data = {
     },
     {
       title: "Requests",
-      url: "/requests", // 👈 optional
+      url: "/request", // 👈 optional
       icon: IconChartBar,
     },
      {

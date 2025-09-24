@@ -11,6 +11,7 @@ router.register(r'requests', views.RegistrationRequestViewSet, basename='request
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/', include(router.urls)), 
     path('api/register_mobile/', views.register_mobile, name='register_mobile'),
     path('api/login_manager/', views.login_manager, name='login_manager'),
     path('api/login_mobile/', views.login_mobile, name='login_mobile'),
@@ -28,4 +29,5 @@ urlpatterns = [
     path('api/top-borrowed-items/', views.top_borrowed_items, name='top_borrowed_items'),
     path('api/analytics/transactions/', views.AnalyticsTransactionsView.as_view(), name='analytics-transactions'),
     path('api/analytics/monthly-transactions/', views.MonthlyTransactionsView.as_view(), name='monthly-transactions'),
+    path('api/update_overdue_transactions/', views.update_overdue_transactions, name='update_overdue_transactions'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)   

@@ -678,3 +678,26 @@ class MonthlyTransactionsView(APIView):
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+            
+            
+            
+
+@api_view(['POST'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def update_overdue_transactions(request):
+    try:
+        today = date.today()
+        # Find borrowed transactions with past due return dates
+        overdue_transactions = Transaction.objects.filter(
+            status='borrowed',
+            return_date__lt=today
+        )
+        count = overdue_transactions.count()
+        overdue_transactions.update(status='overdue')
+        return Response({
+            "status": "success",
+            "message": f"Updated {count} transactions to overdue status"
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

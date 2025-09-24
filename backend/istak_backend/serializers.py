@@ -3,11 +3,17 @@ from .models import Transaction, Item, CustomUser, RegistrationRequest, Borrower
 
 class ItemSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(allow_null=True, required=False)
-    
+    last_transaction_return_date = serializers.SerializerMethodField()
+
     class Meta:
         model = Item
-        fields = '__all__'
+        fields = ['id', 'item_name', 'condition', 'current_transaction', 'image', 'last_transaction_return_date']
         extra_kwargs = {'manager': {'read_only': True}}
+
+    def get_last_transaction_return_date(self, obj):
+        # Get the latest transaction with status 'returned'
+        last_transaction = obj.transactions.filter(status='returned').order_by('-return_date').first()
+        return last_transaction.return_date if last_transaction else None
 
 class RegistrationRequestSerializer(serializers.ModelSerializer):
     class Meta:
@@ -22,10 +28,11 @@ class BorrowerSerializer(serializers.ModelSerializer):
 class TransactionSerializer(serializers.ModelSerializer):
     item = serializers.StringRelatedField(read_only=True)
     school_id = serializers.CharField(source='borrower.school_id', read_only=True)
+    borrower_name = serializers.CharField(source='borrower.name', read_only=True)
 
     class Meta:
         model = Transaction
-        fields = ['id', 'borrow_date', 'return_date', 'status', 'item', 'school_id']
+        fields = ['id', 'borrow_date', 'return_date', 'status', 'item', 'school_id', 'borrower_name']
 
 class TopBorrowedItemsSerializer(serializers.ModelSerializer):
     borrow_count = serializers.IntegerField()

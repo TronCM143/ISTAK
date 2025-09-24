@@ -1,12 +1,7 @@
-import { AppSidebar } from "@/components/widgets/app-sidebar"
-import {Transactions} from "@/components/pages/transactions/transaction";
-import { SiteHeader } from "@/components/widgets/site-header"
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
-
-
+import { AppSidebar } from "@/components/widgets/app-sidebar";
+import { SiteHeader } from "@/components/widgets/site-header";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { Request } from "@/components/pages/request/request";
 export default function Page() {
   return (
     <SidebarProvider
@@ -18,16 +13,16 @@ export default function Page() {
       }
     >
       <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader title="Transactions"/>
+      <SidebarInset title="Request">
+        <SiteHeader title="Request" />
         <div className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
+          <div className="flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-                <Transactions/>
+            <Request/>
             </div>
           </div>
         </div>
       </SidebarInset>
     </SidebarProvider>
-  )
+  );
 }
