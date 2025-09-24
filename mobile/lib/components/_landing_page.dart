@@ -4,7 +4,6 @@ import 'package:mobile/components/dashboard/_dashboard.dart';
 import 'package:mobile/components/sidePanel/_mainSidePanel.dart';
 import 'package:mobile/components/transaction/borrow.dart';
 import 'package:mobile/components/transaction/returning.dart';
-import 'package:mobile/components/transaction/syncTransaction.dart';
 import 'package:mobile/notifications/notif.dart';
 
 class Home extends StatefulWidget {
@@ -33,27 +32,15 @@ class _HomeState extends State<Home> {
     );
 
     // Sync transactions
-    bool syncSuccess = await SyncTransactions.syncTransactions(
-      context,
-      type: 'all',
-    );
 
     // Wait a little to simulate "refresh feel"
-    await Future.delayed(const Duration(seconds: 2));
-
-    if (mounted) {
-      Navigator.of(context).pop(); // Dismiss loading popup
-      setState(() {
-        print("Dashboard refreshed! Sync success: $syncSuccess");
-      });
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: const Color.fromRGBO(36, 27, 7, .6),
+      backgroundColor: const Color.fromARGB(153, 2, 22, 24),
       endDrawer: const SidePanel(),
       drawerScrimColor: const Color.fromARGB(0, 157, 35, 35),
       body: SafeArea(

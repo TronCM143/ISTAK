@@ -4,9 +4,6 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:mobile/apiURl.dart';
-import 'package:mobile/components/local_database/localDatabaseMain.dart';
-import 'package:uuid/uuid.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class ReturnItem extends StatefulWidget {
@@ -30,55 +27,15 @@ class _ReturnItemState extends State<ReturnItem> {
 
   Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('access_token');
-  }
-
-  Future<bool> isOnline() async {
-    try {
-      var connectivityResult = await Connectivity().checkConnectivity();
-      return connectivityResult != ConnectivityResult.none;
-    } catch (e) {
-      print('Error checking connectivity: $e');
-      return false;
-    }
+    final token = prefs.getString('access_token');
+    print('Access token: $token');
+    return token;
   }
 
   bool _isValidItemId(String itemId) {
-    return itemId.isNotEmpty && int.tryParse(itemId) != null;
-  }
-
-  Future<Map<String, dynamic>?> _fetchItemDetails(
-    String itemId,
-    String token,
-  ) async {
-    try {
-      final itemUrl = Uri.parse('$baseUrl/api/items/?id=$itemId');
-      final response = await http.get(
-        itemUrl,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      print(
-        'Item fetch response for $itemId: ${response.statusCode} ${response.body}',
-      );
-      if (response.statusCode != 200) {
-        return null;
-      }
-
-      final data = jsonDecode(response.body);
-      if (data is List && data.isNotEmpty) {
-        return data[0] as Map<String, dynamic>;
-      } else if (data is Map<String, dynamic>) {
-        return data;
-      }
-      return null;
-    } catch (e) {
-      print('Error fetching item $itemId: $e');
-      return null;
-    }
+    final isValid = itemId.isNotEmpty && int.tryParse(itemId) != null;
+    print('Validating itemId: $itemId, isValid: $isValid');
+    return isValid;
   }
 
   Future<void> returnItem(String itemId) async {
@@ -106,152 +63,52 @@ class _ReturnItemState extends State<ReturnItem> {
     try {
       final token = await getToken();
       if (token == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Please log in first',
-              style: GoogleFonts.ibmPlexMono(color: Colors.white),
-            ),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-        setState(() {
-          isLoading = false;
-        });
-        return;
+        throw Exception('Please log in first');
       }
 
-      final itemDetails = await _fetchItemDetails(itemId, token);
-      if (itemDetails == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Item $itemId not found',
-              style: GoogleFonts.ibmPlexMono(color: Colors.white),
-            ),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-        setState(() {
-          isLoading = false;
-        });
-        return;
-      }
+      final payload = {'item_id': int.parse(itemId), 'condition': condition};
+      print('Sending return request for $itemId: $payload');
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/borrow_process/'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(payload),
+      );
 
-      final bool isBorrowed = itemDetails['current_transaction'] != null;
       print(
-        'Item $itemId isBorrowed: $isBorrowed, current_transaction: ${itemDetails['current_transaction']}',
+        'Return response for $itemId: ${response.statusCode} ${response.body}',
       );
-
-      if (!isBorrowed) {
+      final responseData = jsonDecode(response.body);
+      if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Item $itemId is not borrowed',
+              responseData['message'] ?? 'Item $itemId returned successfully',
+              style: GoogleFonts.ibmPlexMono(color: Colors.white),
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        String errorMessage = responseData['error'] ?? 'Failed to return item';
+        if (errorMessage.contains('Item not found')) {
+          errorMessage =
+              'Item $itemId not found or not managed by your manager';
+        } else if (errorMessage.contains('No active transaction')) {
+          errorMessage = 'Item $itemId is not borrowed';
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error returning item $itemId: $errorMessage',
               style: GoogleFonts.ibmPlexMono(color: Colors.white),
             ),
             backgroundColor: Colors.redAccent,
           ),
         );
-        setState(() {
-          isLoading = false;
-        });
-        return;
-      }
-
-      final requestId = const Uuid().v4();
-      final returnDate = DateTime.now().toIso8601String().split('T')[0];
-      final requestData = {
-        'id': requestId,
-        'type': 'return',
-        'item_id': itemId,
-        'borrower_name': null,
-        'school_id': null,
-        'return_date': returnDate,
-        'borrow_date': null,
-        'condition': condition,
-        'is_synced': '0',
-        'status': 'pending',
-      };
-      await LocalDatabase().saveBorrowRequest(requestData);
-      print('Saved return request locally: $requestData');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Return request saved locally. Syncing...',
-            style: GoogleFonts.ibmPlexMono(color: Colors.white),
-          ),
-          backgroundColor: Colors.blueGrey,
-        ),
-      );
-
-      if (await isOnline()) {
-        final response = await http.post(
-          Uri.parse('$baseUrl/api/borrow_process/'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'item_id': int.parse(itemId),
-            'condition': condition,
-          }),
-        );
-
-        print(
-          'Return response for $itemId: ${response.statusCode} ${response.body}',
-        );
-        final responseData = jsonDecode(response.body);
-        if (response.statusCode == 200) {
-          await LocalDatabase().deleteBorrowRequest(requestId);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                responseData['message'] ?? 'Item $itemId returned successfully',
-                style: GoogleFonts.ibmPlexMono(color: Colors.white),
-              ),
-              backgroundColor: Colors.green,
-            ),
-          );
-          print('Transaction ID: ${responseData['id'] ?? 'unknown'}');
-        } else {
-          String errorMessage =
-              responseData['error'] ?? 'Failed to return item';
-          if (errorMessage.contains('Item not found') ||
-              errorMessage.contains('not borrowed')) {
-            errorMessage = 'Item $itemId is not borrowed';
-            await LocalDatabase().deleteBorrowRequest(requestId);
-          }
-          print('Return failed for $itemId: ${response.body}');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Error returning item $itemId: $errorMessage',
-                style: GoogleFonts.ibmPlexMono(color: Colors.white),
-              ),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Request will sync later',
-                style: GoogleFonts.ibmPlexMono(color: Colors.white),
-              ),
-              backgroundColor: Colors.blueGrey,
-            ),
-          );
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Offline: Request will sync when online',
-              style: GoogleFonts.ibmPlexMono(color: Colors.white),
-            ),
-            backgroundColor: Colors.blueGrey,
-          ),
-        );
+        throw Exception(errorMessage);
       }
     } catch (e, stackTrace) {
       print('Error returning item $itemId: $e\n$stackTrace');
@@ -417,7 +274,13 @@ class _ReturnItemState extends State<ReturnItem> {
                   },
                 ),
               ),
-              if (isLoading) const Center(child: CircularProgressIndicator()),
+              if (isLoading)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+                ),
               if (error != null)
                 Padding(
                   padding: const EdgeInsets.all(16.0),

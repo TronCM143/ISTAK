@@ -1,8 +1,8 @@
-"use client"
+"use client";
 
-import Image from "next/image"
-import Link from "next/link"
-import * as React from "react"
+import Image from "next/image";
+import Link from "next/link";
+import * as React from "react";
 import {
   IconCamera,
   IconChartBar,
@@ -17,21 +17,18 @@ import {
   IconSettings,
   IconHeartHandshake,
   IconQrcode,
-} from "@tabler/icons-react"
-
-import { NavDocuments } from "@/components/widgets/nav-documents"
-import { NavMain } from "@/components/widgets/nav-main"
-import { NavSecondary } from "@/components/widgets/nav-secondary"
-import { NavUser } from "@/components/widgets/nav-user"
+} from "@tabler/icons-react";
+import { NavMain } from "@/components/widgets/nav-main";
+import { NavUser } from "@/components/widgets/nav-user";
 import {
   Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar"
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+} from "@/components/ui/sidebar";
 
 const data = {
   user: {
@@ -42,45 +39,45 @@ const data = {
   navMain: [
     {
       title: "Dashboard",
-      url: "/dashboard", // 👈 will map to dashboard/page.tsx
+      url: "/dashboard",
       icon: IconDashboard,
     },
     {
       title: "Inventory",
-      url: "/inventory", // 👈 will map to inventory/page.tsx
+      url: "/inventory",
       icon: IconListDetails,
     },
     {
       title: "Requests",
-      url: "/request", // 👈 optional
+      url: "/request",
       icon: IconChartBar,
     },
-     {
-      title: "Transactions",
-      url: "/transaction", // 👈 optional
-      icon: IconHeartHandshake  ,
-    },
-  ],
-  documents: [
     {
-      name: "Print QR Codes",
+      title: "Transactions",
+      url: "/transaction",
+      icon: IconHeartHandshake,
+    },
+
+
+    {
+      title: "Print QR Codes",
       url: "/qrGenerator",
       icon: IconQrcode,
     },
     {
-      name: "Reports",
+      title: "Reports",
       url: "/reports",
       icon: IconReport,
     },
-  ],
-  navSecondary: [
+  
+
     {
       title: "Settings",
       url: "/settings",
       icon: IconSettings,
     },
-  ],
-}
+    ],
+};
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
@@ -92,7 +89,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              {/* ✅ Use Link for routing */}
               <Link href="/dashboard" className="flex items-center gap-2">
                 <Image
                   src="/istak_LOGO.png"
@@ -101,21 +97,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   height={24}
                   className="w-6 h-6"
                 />
-                <span className="text-base font-bold ">Istak</span>
+                <span className="text-base font-bold">Istak</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {/* Main nav now uses Link under the hood */}
         <NavMain items={data.navMain} />
-        <NavDocuments items={data.documents} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }

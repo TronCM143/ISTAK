@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
-import 'package:intl/intl.dart';
 import 'package:mobile/apiURl.dart';
 import 'package:mobile/components/helperFunction.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,15 +14,27 @@ class Itemlist extends StatefulWidget {
   State<Itemlist> createState() => _ItemlistState();
 }
 
-class _ItemlistState extends State<Itemlist> {
+class _ItemlistState extends State<Itemlist>
+    with SingleTickerProviderStateMixin {
   String selectedFilter = "All";
-  List<dynamic> items = []; // Explicitly typed as dynamic to match jsonDecode
+  List<dynamic> items = [];
   bool loading = true;
-  String? error;
+  String error = "";
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeInOut,
+    );
+    _fadeController.forward();
     fetchItems();
   }
 
@@ -52,10 +63,11 @@ class _ItemlistState extends State<Itemlist> {
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         setState(() {
-          items = decoded is List ? decoded : []; // Ensure items is a List
+          items = decoded is List ? decoded : [];
           loading = false;
+          error = "";
         });
-        Items.getItems(items); // Pass items to helper function if needed
+        Items.getItems(items);
       } else {
         setState(() {
           error = "Failed to load items: ${response.statusCode}";
@@ -71,35 +83,25 @@ class _ItemlistState extends State<Itemlist> {
   }
 
   List<dynamic> getFilteredItems() {
-    final now = DateTime.now();
     return items.where((item) {
-      final status = item["status"]?.toLowerCase();
-      final lastBorrowed = item["last_borrowed"] != null
-          ? DateTime.parse(item["last_borrowed"])
-          : null;
-      bool isOverdue =
-          lastBorrowed != null &&
-          lastBorrowed.isBefore(now.subtract(const Duration(days: 7)));
+      final isAvailable = item["current_transaction"] == null;
+      final status = isAvailable ? 'available' : 'borrowed';
 
       if (selectedFilter == 'All') return true;
       if (selectedFilter == 'Available') return status == 'available';
       if (selectedFilter == 'Borrowed') return status == 'borrowed';
-      if (selectedFilter == 'Overdues') return isOverdue;
       return false;
     }).toList();
   }
 
-  Color _getStatusColor(String? status) {
-    if (status == null) return Colors.grey;
+  Color getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'available':
-        return Colors.green;
+        return const Color(0xFF34C759); // --primary (green)
       case 'borrowed':
-        return Colors.yellow;
-      case 'overdue':
-        return Colors.red;
+        return const Color(0xFFFFB300); // Yellow
       default:
-        return Colors.grey;
+        return const Color(0xFFA8B0B2); // --muted-foreground
     }
   }
 
@@ -109,228 +111,360 @@ class _ItemlistState extends State<Itemlist> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ===== Header =====
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: const Color.fromARGB(255, 43, 38, 13),
-            borderRadius: BorderRadius.circular(30),
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Card(
+          color: Colors.transparent, // Transparent background
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10), // 10px rounded corners
           ),
-          child: Text(
-            "Inventory",
-            style: GoogleFonts.ibmPlexMono(
-              color: const Color.fromARGB(255, 195, 171, 126),
-              fontSize: 18,
-              fontWeight: FontWeight.w300,
-              decoration: TextDecoration.none,
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 10),
-
-        // ===== Filter Row =====
-        Row(
-          children: [
-            const LegendIcon(),
-            Expanded(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.vertical,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceVariant.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(
-                      color: colorScheme.outline.withOpacity(0.5),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: ['All', 'Available', 'Borrowed', 'Overdues'].map((
-                      filter,
-                    ) {
-                      final bool isSelected = selectedFilter == filter;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 10),
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              selectedFilter = filter;
-                            });
-                          },
-                          child: Text(
-                            filter,
-                            style: GoogleFonts.ibmPlexMono(
-                              fontSize: 20,
-                              decoration: TextDecoration.none,
-                              color: isSelected
-                                  ? const Color.fromARGB(255, 195, 171, 126)
-                                  : const Color.fromARGB(255, 89, 78, 56),
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
+          elevation: 2,
+          shadowColor: Colors.black.withOpacity(0.2),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Text(
+                  "Inventory",
+                  style: GoogleFonts.ibmPlexMono(
+                    color: const Color(0xFFF5F7F5), // --card-foreground
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.none,
                   ),
                 ),
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 10),
-
-        // ===== Item Table =====
-        if (loading)
-          const Center(child: CircularProgressIndicator())
-        else if (error != null)
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              error!,
-              style: const TextStyle(color: Colors.redAccent, fontSize: 16),
-            ),
-          )
-        else
-          SizedBox(
-            width: double.infinity, // 🔥 force full width
-            child: SingleChildScrollView(
-              scrollDirection: Axis.vertical,
-              physics: const ClampingScrollPhysics(),
-              child: DataTable(
-                columnSpacing: 16.0,
-                horizontalMargin: 16.0,
-                headingRowHeight: 40.0,
-                dataRowHeight: 60.0,
-                dividerThickness: 0,
-                showBottomBorder: false,
-                columns: const [
-                  DataColumn(
-                    label: Text(
-                      "Status",
-                      style: TextStyle(color: Colors.white),
+                const SizedBox(height: 16),
+                // Filter Row
+                Row(
+                  children: [
+                    const LegendIcon(),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: ['All', 'Available', 'Borrowed'].map((
+                            filter,
+                          ) {
+                            final bool isSelected = selectedFilter == filter;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    selectedFilter = filter;
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? const Color(0xFF34C759) // --primary
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    filter,
+                                    style: GoogleFonts.ibmPlexMono(
+                                      fontSize: 14,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w600
+                                          : FontWeight.w400,
+                                      color: isSelected
+                                          ? const Color(
+                                              0xFF1A3C34,
+                                            ) // --primary-foreground
+                                          : const Color(
+                                              0xFFA8B0B2,
+                                            ), // --muted-foreground
+                                      decoration: TextDecoration.none,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
                     ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      "Item Name",
-                      style: TextStyle(color: Colors.white),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Table
+                if (loading)
+                  const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF34C759), // --primary
                     ),
-                  ),
-                  DataColumn(
-                    label: Text(
-                      "Condition",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  DataColumn(
-                    label: Text("Image", style: TextStyle(color: Colors.white)),
-                  ),
-                ],
-                rows: filteredItems.map((item) {
-                  final String? status = item["status"];
-                  final String? condition = item["condition"];
-                  final String? imageUrl = item["image"];
-
-                  return DataRow(
-                    cells: [
-                      DataCell(
-                        Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: _getStatusColor(status),
-                            shape: BoxShape.circle,
+                  )
+                else if (error.isNotEmpty)
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        error,
+                        style: GoogleFonts.ibmPlexMono(
+                          color: const Color(0xFFD33F49), // --destructive
+                          fontSize: 16,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () async {
+                          await _fadeController.reverse();
+                          await fetchItems();
+                          if (mounted) {
+                            await _fadeController.forward();
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF34C759), // --primary
+                          foregroundColor: const Color(
+                            0xFF1A3C34,
+                          ), // --primary-foreground
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          elevation: 2,
+                          shadowColor: Colors.black.withOpacity(0.2),
+                        ),
+                        child: Text(
+                          'Retry',
+                          style: GoogleFonts.ibmPlexMono(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: const Color(
+                              0xFF1A3C34,
+                            ), // --primary-foreground
                           ),
                         ),
                       ),
-                      DataCell(
-                        Text(
-                          item["item_name"] ?? "N/A",
-                          style: GoogleFonts.ibmPlexMono(color: Colors.white),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      DataCell(
-                        Text(
-                          condition ?? "N/A",
-                          style: GoogleFonts.ibmPlexMono(color: Colors.white),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      DataCell(
-                        imageUrl != null && imageUrl.isNotEmpty
-                            ? GestureDetector(
-                                onTap: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (context) {
-                                      return Dialog(
-                                        backgroundColor: Colors.black,
-                                        insetPadding: EdgeInsets.zero,
-                                        child: GestureDetector(
-                                          onTap: () => Navigator.of(
-                                            context,
-                                          ).pop(), // close on tap
-                                          child: InteractiveViewer(
-                                            child: Image.network(
-                                              imageUrl,
-                                              fit: BoxFit.contain,
-                                              errorBuilder:
-                                                  (
-                                                    context,
-                                                    error,
-                                                    stackTrace,
-                                                  ) => const Center(
-                                                    child: Icon(
-                                                      Icons.broken_image,
-                                                      size: 80,
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  );
-                                },
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: Image.network(
-                                    imageUrl,
-                                    width: 40,
-                                    height: 40,
-                                    //fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) => Icon(
-                                          Icons.image_not_supported,
-                                          color: theme
-                                              .colorScheme
-                                              .onSurfaceVariant,
-                                        ),
+                    ],
+                  )
+                else
+                  Container(
+                    width: double.infinity,
+                    decoration: const BoxDecoration(
+                      color: Colors.transparent, // Transparent background
+                      borderRadius: BorderRadius.zero,
+                    ),
+                    child: Column(
+                      children: [
+                        // Table Header
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: const BoxDecoration(
+                            color: Colors.transparent, // Transparent background
+                            borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(10),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 150,
+                                child: Text(
+                                  "Item Name",
+                                  style: GoogleFonts.ibmPlexMono(
+                                    color: const Color(0xFFF5F7F5),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
                                   ),
                                 ),
-                              )
-                            : Icon(
-                                Icons.image_not_supported,
-                                color: theme.colorScheme.onSurfaceVariant,
                               ),
-                      ),
-                    ],
-                  );
-                }).toList(),
-              ),
+                              Container(
+                                width: 100,
+                                child: Text(
+                                  "Condition",
+                                  style: GoogleFonts.ibmPlexMono(
+                                    color: const Color(0xFFF5F7F5),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                width: 60,
+                                child: Text(
+                                  "Image",
+                                  style: GoogleFonts.ibmPlexMono(
+                                    color: const Color(0xFFF5F7F5),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Table Rows
+                        SizedBox(
+                          height: 300, // Fixed height for scrollable table
+                          child: ListView.builder(
+                            itemCount: filteredItems.length,
+                            itemBuilder: (context, index) {
+                              final item = filteredItems[index];
+                              final status = item["current_transaction"] == null
+                                  ? "available"
+                                  : "borrowed";
+                              final condition =
+                                  item["condition"] as String? ?? "N/A";
+                              final imageUrl = item["image"] as String? ?? "";
+
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                decoration: const BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color: Colors
+                                          .transparent, // Transparent divider
+                                      width: 1,
+                                    ),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 10,
+                                      height: 10,
+                                      margin: const EdgeInsets.only(right: 8),
+                                      decoration: BoxDecoration(
+                                        color: getStatusColor(status),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    Container(
+                                      width: 140,
+                                      child: Text(
+                                        item["item_name"] as String? ?? "N/A",
+                                        style: GoogleFonts.ibmPlexMono(
+                                          color: const Color(0xFFF5F7F5),
+                                          fontSize: 14,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    Container(
+                                      width: 90,
+                                      child: Text(
+                                        condition,
+                                        style: GoogleFonts.ibmPlexMono(
+                                          color: const Color(0xFFF5F7F5),
+                                          fontSize: 14,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    Container(
+                                      width: 50,
+                                      child: imageUrl.isNotEmpty
+                                          ? GestureDetector(
+                                              onTap: () {
+                                                showDialog(
+                                                  context: context,
+                                                  builder: (context) => Dialog(
+                                                    backgroundColor:
+                                                        Colors.transparent,
+                                                    insetPadding:
+                                                        const EdgeInsets.all(
+                                                          16,
+                                                        ),
+                                                    child: GestureDetector(
+                                                      onTap: () => Navigator.of(
+                                                        context,
+                                                      ).pop(),
+                                                      child: InteractiveViewer(
+                                                        child: Image.network(
+                                                          imageUrl,
+                                                          fit: BoxFit.contain,
+                                                          errorBuilder:
+                                                              (
+                                                                context,
+                                                                error,
+                                                                stackTrace,
+                                                              ) => const Center(
+                                                                child: Icon(
+                                                                  Icons
+                                                                      .broken_image,
+                                                                  size: 80,
+                                                                  color: Color(
+                                                                    0xFFF5F7F5,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                              child: ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                child: Image.network(
+                                                  imageUrl,
+                                                  width: 40,
+                                                  height: 40,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder:
+                                                      (
+                                                        context,
+                                                        error,
+                                                        stackTrace,
+                                                      ) => Icon(
+                                                        Icons
+                                                            .image_not_supported,
+                                                        color: colorScheme
+                                                            .onSurfaceVariant,
+                                                      ),
+                                                ),
+                                              ),
+                                            )
+                                          : Icon(
+                                              Icons.image_not_supported,
+                                              color:
+                                                  colorScheme.onSurfaceVariant,
+                                            ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
           ),
-      ],
+        ),
+      ),
     );
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    super.dispose();
   }
 }
