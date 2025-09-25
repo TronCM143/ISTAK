@@ -10,15 +10,9 @@ class LegendIcon extends StatefulWidget {
 class _LegendIconState extends State<LegendIcon> {
   bool _showLegend = false;
 
-  void _onHoldStart(_) {
+  void _onTap() {
     setState(() {
-      _showLegend = true;
-    });
-  }
-
-  void _onHoldEnd(_) {
-    setState(() {
-      _showLegend = false;
+      _showLegend = !_showLegend; // toggle on tap
     });
   }
 
@@ -29,8 +23,7 @@ class _LegendIconState extends State<LegendIcon> {
       children: [
         // The Question Mark Icon
         GestureDetector(
-          onLongPressStart: _onHoldStart,
-          onLongPressEnd: _onHoldEnd,
+          onTap: _onTap,
           child: Container(
             padding: const EdgeInsets.all(5),
             child: const Icon(
@@ -47,7 +40,7 @@ class _LegendIconState extends State<LegendIcon> {
             right: -90, // adjust this value to shift position
             top: 40, // show below the icon
             child: Material(
-              color: Colors.black,
+              color: Colors.transparent,
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(

@@ -31,8 +31,8 @@ export  function QrGenerator() {
   const [isOperationLoading, setIsOperationLoading] = useState(false)
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
   const [previewItemId, setPreviewItemId] = useState<number | null>(null)
-
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+
 
   useEffect(() => {
     const accessToken = localStorage.getItem("access_token")

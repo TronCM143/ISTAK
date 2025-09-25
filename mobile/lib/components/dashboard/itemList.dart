@@ -114,16 +114,16 @@ class _ItemlistState extends State<Itemlist>
     return FadeTransition(
       opacity: _fadeAnimation,
       child: Padding(
-        padding: const EdgeInsets.all(12.0),
+        padding: const EdgeInsets.only(left: 1.0, right: 1.0),
+
         child: Card(
           color: Colors.transparent, // Transparent background
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10), // 10px rounded corners
-          ),
+
           elevation: 2,
-          shadowColor: Colors.black.withOpacity(0.2),
+
           child: Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.only(left: 1.0, right: 1.0),
+
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -299,8 +299,9 @@ class _ItemlistState extends State<Itemlist>
                                   ),
                                 ),
                               ),
+                              SizedBox(width: 35),
                               Container(
-                                width: 60,
+                                width: 100,
                                 child: Text(
                                   "Image",
                                   style: GoogleFonts.ibmPlexMono(
@@ -374,6 +375,7 @@ class _ItemlistState extends State<Itemlist>
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
+                                    SizedBox(width: 60),
                                     Container(
                                       width: 50,
                                       child: imageUrl.isNotEmpty

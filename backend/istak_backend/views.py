@@ -20,6 +20,7 @@ from rembg import remove
 from django.core.files.base import ContentFile
 from datetime import date
 from django.db.models import Count
+from sympy import Q
 from .firebase import send_push_notification
 from .models import Transaction, Item, CustomUser, RegistrationRequest, Borrower
 from .serializers import TransactionSerializer, ItemSerializer, RegistrationRequestSerializer, TopBorrowedItemsSerializer
@@ -701,3 +702,155 @@ def update_overdue_transactions(request):
         }, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .models import Item, Transaction
+
+class ItemStatusCountView(APIView):
+    def get(self, request):
+        try:
+            # Count items based on current_transaction status
+            total_items = Item.objects.count()
+            borrowed_items = Item.objects.filter(
+                current_transaction__status='borrowed'
+            ).count()
+            available_items = total_items - borrowed_items
+
+            return Response({
+                'available': available_items,
+                'borrowed': borrowed_items
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+            
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .models import Borrower
+from .serializers import BorrowerSerializer
+
+class BorrowerListView(APIView):
+    def get(self, request):
+        try:
+            if request.user.role != 'user_mobile':
+                return Response(
+                    {'error': 'Only mobile users can access this endpoint'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            borrowers = Borrower.objects.filter(
+                transactions__mobile_user=request.user
+            ).distinct()
+            print(f"User: {request.user}, Role: {request.user.role}, Borrowers found: {borrowers.count()}")  # Debug
+            serializer = BorrowerSerializer(borrowers, many=True, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            print(f"Error: {str(e)}")  # Debug
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from .models import Transaction, Borrower
+from .serializers import TransactionSerializer
+
+class BorrowerTransactionsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, borrower_id):
+        try:
+            transactions = Transaction.objects.filter(
+                borrower_id=borrower_id,
+                mobile_user=request.user
+            ).select_related('item', 'borrower')
+            serializer = TransactionSerializer(transactions, many=True, context={'request': request})
+            return Response(serializer.data)
+        except Borrower.DoesNotExist:
+            return Response({"error": "Borrower not found"}, status=404)
+        
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.contrib.auth import get_user_model
+from .models import Item, Borrower, Transaction
+from .serializers import ReportSerializer
+from django.db.models import Q
+from datetime import datetime
+
+User = get_user_model()
+
+class DamagedLostItemsReportView(APIView):
+    def post(self, request):
+        try:
+            # Get filters from request body
+            data = request.data
+            search = data.get('search', '')
+            status_filter = data.get('status', '')
+            date_from = data.get('dateFrom')
+            date_to = data.get('dateTo')
+
+            # Get the authenticated user
+            user = request.user
+            if not user.is_authenticated:
+                return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+
+            # Filter transactions based on user role
+            if user.role == 'user_web':
+                queryset = Transaction.objects.filter(manager=user)
+            elif user.role == 'user_mobile':
+                queryset = Transaction.objects.filter(mobile_user=user)
+            else:
+                return Response({"error": "Invalid user role"}, status=status.HTTP_403_FORBIDDEN)
+
+            # Apply filters
+            if search:
+                queryset = queryset.filter(
+                    Q(borrower__name__icontains=search) |
+                    Q(item__item_name__icontains=search)
+                )
+
+            if status_filter and status_filter != 'all':
+                queryset = queryset.filter(status=status_filter.lower())
+
+            if date_from:
+                try:
+                    date_from = datetime.strptime(date_from, '%Y-%m-%d').date()
+                    queryset = queryset.filter(return_date__gte=date_from)
+                except ValueError:
+                    return Response({"error": "Invalid dateFrom format"}, status=status.HTTP_400_BAD_REQUEST)
+
+            if date_to:
+                try:
+                    date_to = datetime.strptime(date_to, '%Y-%m-%d').date()
+                    queryset = queryset.filter(return_date__lte=date_to)
+                except ValueError:
+                    return Response({"error": "Invalid dateTo format"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Prepare report data
+            reports = []
+            for transaction in queryset:
+                report = {
+                    "id": str(transaction.id),
+                    "borrowerName": transaction.borrower.name,
+                    "itemStatus": transaction.status.capitalize(),
+                    "itemName": transaction.item.item_name,
+                    "returnedDate": transaction.return_date.strftime('%Y-%m-%d') if transaction.return_date else None,
+                    "condition": transaction.item.condition
+                }
+                reports.append(report)
+
+            # Serialize data
+            serializer = ReportSerializer(reports, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

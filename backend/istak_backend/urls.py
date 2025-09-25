@@ -30,4 +30,9 @@ urlpatterns = [
     path('api/analytics/transactions/', views.AnalyticsTransactionsView.as_view(), name='analytics-transactions'),
     path('api/analytics/monthly-transactions/', views.MonthlyTransactionsView.as_view(), name='monthly-transactions'),
     path('api/update_overdue_transactions/', views.update_overdue_transactions, name='update_overdue_transactions'),
+    
+    path('api/item-status-count/', views.ItemStatusCountView.as_view(), name='item-status-count'),
+    path('api/borrowers/', views.BorrowerListView.as_view(), name='borrower-list'),
+    path('api/borrower-transactions/<int:borrower_id>/', views.BorrowerTransactionsView.as_view(), name='borrower-transactions'),
+    path('api/reports/damaged-lost-items/', views.DamagedLostItemsReportView.as_view(), name='damaged-lost-items'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)   

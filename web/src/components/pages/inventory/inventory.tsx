@@ -76,7 +76,7 @@ export function InventoryPage() {
     image: null as File | null,
   });
   const [addError, setAddError] = React.useState<string | null>(null);
-
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
   const fetchItems = React.useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -87,7 +87,7 @@ export function InventoryPage() {
         setLoading(false);
         return;
       }
-      const resp = await fetch("http://192.168.1.17:8000/api/items/", {
+      const resp = await fetch(`${API_BASE_URL}/api/items/`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -142,7 +142,7 @@ export function InventoryPage() {
         formData.append("image", newItem.image);
       }
 
-      const resp = await fetch("http://192.168.1.17:8000/api/items/", {
+      const resp = await fetch("${API_BASE_URL}/api/items/", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -203,7 +203,7 @@ export function InventoryPage() {
       }
 
       const resp = await fetch(
-        `http://192.168.1.17:8000/api/items/${editItem.id}/`,
+        `${API_BASE_URL}/api/items/${editItem.id}/`,
         {
           method: "PATCH",
           headers: {
@@ -259,7 +259,7 @@ export function InventoryPage() {
       }
 
       for (const id of ids) {
-        const resp = await fetch(`http://192.168.1.17:8000/api/items/${id}/`, {
+        const resp = await fetch(`${API_BASE_URL}/api/items/${id}/`, {
           method: "DELETE",
           headers: {
             Authorization: `Bearer ${token}`,

@@ -5,6 +5,8 @@ import 'package:mobile/components/sidePanel/_mainSidePanel.dart';
 import 'package:mobile/components/transaction/borrow.dart';
 import 'package:mobile/components/transaction/returning.dart';
 import 'package:mobile/notifications/notif.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // 👈 add this import
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -15,37 +17,48 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  String? _accessToken; // store token here
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAccessToken();
+  }
+
+  Future<void> _loadAccessToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _accessToken = prefs.getString('access_token');
+    });
+  }
 
   Future<void> _refreshDashboard() async {
-    // Show loading popup
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) {
-        return const Center(
-          child: CircularProgressIndicator(
-            color: Colors.yellow,
-            strokeWidth: 3,
-          ),
-        );
-      },
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Colors.yellow, strokeWidth: 3),
+      ),
     );
-
-    // Sync transactions
-
-    // Wait a little to simulate "refresh feel"
+    // TODO: your sync logic here
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_accessToken == null) {
+      // show loader until token loads
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: const Color.fromARGB(153, 2, 22, 24),
-      endDrawer: const SidePanel(),
+      endDrawer: SidePanel(access_token: _accessToken!), // ✅ pass token
       drawerScrimColor: const Color.fromARGB(0, 157, 35, 35),
       body: SafeArea(
         child: Column(
           children: [
+            // 🔔 Header
             Container(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
               color: Colors.transparent,
@@ -64,7 +77,7 @@ class _HomeState extends State<Home> {
                   const SizedBox(width: 200),
                   IconButton(
                     icon: const Icon(
-                      Icons.notifications,
+                      CupertinoIcons.bell,
                       color: Color.fromARGB(255, 206, 192, 152),
                       size: 28,
                     ),
@@ -77,7 +90,7 @@ class _HomeState extends State<Home> {
                   ),
                   IconButton(
                     icon: const Icon(
-                      Icons.menu,
+                      CupertinoIcons.bars,
                       color: Color.fromARGB(255, 185, 170, 157),
                       size: 28,
                     ),
@@ -88,9 +101,10 @@ class _HomeState extends State<Home> {
                 ],
               ),
             ),
+
+            // ✅ Borrow & Return buttons
             Container(
               padding: const EdgeInsets.symmetric(vertical: 1, horizontal: 16),
-              color: Colors.transparent,
               child: Row(
                 children: [
                   Expanded(
@@ -102,25 +116,20 @@ class _HomeState extends State<Home> {
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color.fromARGB(255, 56, 39, 17),
-                        foregroundColor: const Color.fromARGB(
-                          255,
-                          178,
-                          178,
-                          178,
-                        ),
+                        backgroundColor: const Color.fromARGB(255, 7, 141, 7),
+                        foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 25),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(5),
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        elevation: 4,
+                        elevation: 0,
                       ),
                       child: Text(
                         'Borrow',
                         style: GoogleFonts.ibmPlexMono(
-                          fontWeight: FontWeight.w300,
+                          fontWeight: FontWeight.w500,
                           fontSize: 30,
-                          color: const Color.fromARGB(255, 195, 171, 126),
+                          color: const Color.fromARGB(255, 20, 16, 16),
                         ),
                       ),
                     ),
@@ -135,25 +144,20 @@ class _HomeState extends State<Home> {
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color.fromARGB(255, 56, 39, 17),
-                        foregroundColor: const Color.fromARGB(
-                          255,
-                          178,
-                          178,
-                          178,
-                        ),
+                        backgroundColor: const Color.fromARGB(255, 7, 141, 7),
+                        foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 25),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(5),
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                        elevation: 4,
+                        elevation: 0,
                       ),
                       child: Text(
                         'Return',
                         style: GoogleFonts.ibmPlexMono(
-                          fontWeight: FontWeight.w300,
+                          fontWeight: FontWeight.w500,
                           fontSize: 30,
-                          color: const Color.fromARGB(255, 195, 171, 126),
+                          color: Colors.black,
                         ),
                       ),
                     ),
@@ -161,16 +165,18 @@ class _HomeState extends State<Home> {
                 ],
               ),
             ),
+
+            // ✅ Dashboard with pull-to-refresh
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _refreshDashboard,
                 backgroundColor: Colors.transparent,
                 color: Colors.yellow,
                 displacement: 40,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
+                child: const SingleChildScrollView(
+                  physics: AlwaysScrollableScrollPhysics(),
                   padding: EdgeInsets.zero,
-                  child: const Dashboard(),
+                  child: Dashboard(),
                 ),
               ),
             ),

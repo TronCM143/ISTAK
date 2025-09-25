@@ -56,30 +56,11 @@ class _DashboardState extends State<Dashboard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ===== Most Borrowed Items Section =====
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color.fromARGB(255, 43, 38, 13),
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: Text(
-              "Most Borrowed Items",
-              style: GoogleFonts.ibmPlexMono(
-                color: const Color.fromARGB(255, 195, 171, 126),
-                fontSize: 18,
-                fontWeight: FontWeight.w300,
-                decoration: TextDecoration.none,
-              ),
-            ),
-          ),
           const SizedBox(height: 10),
           const Features(),
-          const SizedBox(height: 20),
-
           const SizedBox(height: 10),
           const TransactionList(),
-
+          const SizedBox(height: 10),
           // ===== Inventory Section =====
           Itemlist(),
         ],
