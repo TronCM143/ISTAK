@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mobile/components/transaction/borrow.dart';
+import 'package:mobile/components/transaction/borrowing/_mainBorrow.dart';
 import 'package:mobile/components/transaction/returning.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -16,7 +16,7 @@ class SelectTask extends StatelessWidget {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const Borrow()),
+                  MaterialPageRoute(builder: (context) => const BorrowScreen()),
                 );
               },
               child: Container(

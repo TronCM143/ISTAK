@@ -43,7 +43,7 @@ const data = {
       icon: IconDashboard,
     },
     {
-      title: "Inventory",
+      title: "Item  Management",
       url: "/inventory",
       icon: IconListDetails,
     },

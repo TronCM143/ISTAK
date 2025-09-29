@@ -125,62 +125,61 @@ export function InventoryPage() {
   React.useEffect(() => {
     fetchItems();
   }, [fetchItems]);
+const handleAddItem = async () => {
+  setAddError(null);
+  try {
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      setAddError("Not authenticated. Please login.");
+      return;
+    }
 
-  const handleAddItem = async () => {
-    setAddError(null);
-    try {
-      const token = localStorage.getItem("access_token");
-      if (!token) {
-        setAddError("Not authenticated. Please login.");
-        return;
-      }
+    const formData = new FormData();
+    formData.append("item_name", newItem.item_name);
+    formData.append("condition", newItem.condition);
+    if (newItem.image) {
+      formData.append("image", newItem.image);
+    }
 
-      const formData = new FormData();
-      formData.append("item_name", newItem.item_name);
-      formData.append("condition", newItem.condition);
-      if (newItem.image) {
-        formData.append("image", newItem.image);
-      }
+    const resp = await fetch(`${API_BASE_URL}/api/items/`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
 
-      const resp = await fetch("${API_BASE_URL}/api/items/", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      if (!resp.ok) {
-        const errData = await resp.json().catch(() => resp.text());
-        setAddError(
-          `Failed to add item: ${
-            typeof errData === "string" ? errData : JSON.stringify(errData)
-          }`
-        );
-        toast("Failed to add item.", {
-          description:
-            typeof errData === "string" ? errData : JSON.stringify(errData),
-          style: {
-            background: "var(--destructive)",
-            color: "var(--destructive-foreground)",
-          },
-        });
-        return;
-      }
-
-      setIsAddModalOpen(false);
-      setNewItem({ item_name: "", condition: "Good", image: null });
-      fetchItems();
-      toast("Item added successfully.", {
-        description: `Added ${newItem.item_name} to inventory.`,
-      });
-    } catch (err: any) {
-      setAddError(err.message || String(err));
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => resp.text());
+      setAddError(
+        `Failed to add item: ${
+          typeof errData === "string" ? errData : JSON.stringify(errData)
+        }`
+      );
       toast("Failed to add item.", {
-        description: err.message || String(err),
+        description:
+          typeof errData === "string" ? errData : JSON.stringify(errData),
         style: {
           background: "var(--destructive)",
           color: "var(--destructive-foreground)",
+        },
+      });
+      return;
+    }
+
+    setIsAddModalOpen(false);
+    setNewItem({ item_name: "", condition: "Good", image: null });
+    fetchItems();
+    toast("Item added successfully.", {
+      description: `Added ${newItem.item_name} to inventory.`,
+    });
+  } catch (err: any) {
+    setAddError(err.message || String(err));
+    toast("Failed to add item.", {
+      description: err.message || String(err),
+      style: {
+        background: "var(--destructive)",
+        color: "var(--destructive-foreground)",
         },
       });
     }

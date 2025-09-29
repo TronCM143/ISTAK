@@ -11,7 +11,7 @@ router.register(r'requests', views.RegistrationRequestViewSet, basename='request
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include(router.urls)), 
+    path('api/', include(router.urls)),
     path('api/register_mobile/', views.register_mobile, name='register_mobile'),
     path('api/login_manager/', views.login_manager, name='login_manager'),
     path('api/login_mobile/', views.login_mobile, name='login_mobile'),
@@ -21,8 +21,9 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/items/', views.ItemListCreateAPIView.as_view(), name='item-list-create'),
     path('api/items/<int:pk>/', views.ItemRetrieveUpdateDestroyAPIView.as_view(), name='item-detail'),
+    path('api/items/by-id/<int:item_id>/', views.item_by_id, name='item-by-id'),
     path('api/managers/', views.manager_list, name='manager-list'),
-    path('api/borrow_process/', views.borrow_process, name='borrow-process'),
+    path('api/borrowing/create/', views.borrowing_create, name='borrowing-create'),
     path('api/user/', views.UserAPIView.as_view(), name='user-detail'),
     path('api/transactions/', views.TransactionListAPIView.as_view(), name='transaction-list'),
     path('api/update_fcm_token/', views.update_fcm_token, name='update_fcm_token'),
@@ -30,9 +31,10 @@ urlpatterns = [
     path('api/analytics/transactions/', views.AnalyticsTransactionsView.as_view(), name='analytics-transactions'),
     path('api/analytics/monthly-transactions/', views.MonthlyTransactionsView.as_view(), name='monthly-transactions'),
     path('api/update_overdue_transactions/', views.update_overdue_transactions, name='update_overdue_transactions'),
-    
     path('api/item-status-count/', views.ItemStatusCountView.as_view(), name='item-status-count'),
     path('api/borrowers/', views.BorrowerListView.as_view(), name='borrower-list'),
     path('api/borrower-transactions/<int:borrower_id>/', views.BorrowerTransactionsView.as_view(), name='borrower-transactions'),
     path('api/reports/damaged-lost-items/', views.DamagedLostItemsReportView.as_view(), name='damaged-lost-items'),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)   
+    path('api/items/<str:itemId>/borrower/', views.item_borrower_view, name='item_borrower'),
+    path('api/return_item/', views.return_item, name='return_item'),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

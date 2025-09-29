@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/components/dashboard/_dashboard.dart';
 import 'package:mobile/components/sidePanel/_mainSidePanel.dart';
-import 'package:mobile/components/transaction/borrow.dart';
+import 'package:mobile/components/transaction/borrowing/_mainBorrow.dart';
 import 'package:mobile/components/transaction/returning.dart';
 import 'package:mobile/notifications/notif.dart';
 import 'package:flutter/cupertino.dart';
@@ -112,7 +112,9 @@ class _HomeState extends State<Home> {
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const Borrow()),
+                          MaterialPageRoute(
+                            builder: (_) => const BorrowScreen(),
+                          ),
                         );
                       },
                       style: ElevatedButton.styleFrom(

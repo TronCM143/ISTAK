@@ -23,7 +23,7 @@ from django.db.models import Count
 from sympy import Q
 from .firebase import send_push_notification
 from .models import Transaction, Item, CustomUser, RegistrationRequest, Borrower
-from .serializers import TransactionSerializer, ItemSerializer, RegistrationRequestSerializer, TopBorrowedItemsSerializer
+from .serializers import CreateBorrowingSerializer, TransactionSerializer, ItemSerializer, RegistrationRequestSerializer, TopBorrowedItemsSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -353,116 +353,138 @@ class RegistrationRequestViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
+    
+import logging
+import json
+from django.utils import timezone
+from django.core.files.base import ContentFile
+from datetime import date
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.permissions import IsAuthenticated
+from django.db import transaction as db_transaction
+from uuid import UUID
+from istak_backend.models import Item, Borrower, Transaction
+from .serializers import CreateBorrowingSerializer, TransactionSerializer
+
+logger = logging.getLogger(__name__)
 
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
-def borrow_process(request):
-    if request.user.role != 'user_mobile':
-        return Response({"error": "Only mobile users can process borrow requests"}, status=status.HTTP_403_FORBIDDEN)
-    
+def borrowing_create(request):
     try:
-        data = json.loads(request.body)
-        item_id = data.get('item_id')
-        
-        if not item_id:
-            return Response({"error": "item_id is required"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            item_id = int(item_id)
-            item = Item.objects.filter(id=item_id, manager=request.user.manager).first()
-            if not item:
-                return Response({"error": "Item not found or not managed by your manager"}, status=status.HTTP_404_NOT_FOUND)
-        except (ValueError, TypeError):
-            return Response({"error": "Invalid item ID"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        if item.current_transaction is None:
-            borrower_name = data.get('borrower_name')
-            school_id = data.get('school_id')
-            return_date = data.get('return_date')
-            
-            if not all([borrower_name, school_id, return_date]):
-                return Response({"error": "borrower_name, school_id, and return_date are required"}, status=status.HTTP_400_BAD_REQUEST)
-            
+        if not request.user.is_authenticated:
+            return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        # Construct data dictionary
+        data = {
+            'school_id': request.POST.get('school_id'),
+            'name': request.POST.get('name'),
+            'status': request.POST.get('status'),
+            'return_date': request.POST.get('return_date'),
+            'item_ids': request.POST.getlist('item_ids[]')
+        }
+
+        # Fallback to item_ids as JSON string
+        if not data['item_ids'] and request.POST.get('item_ids'):
             try:
-                return_date = date.fromisoformat(return_date)
-            except ValueError:
-                return Response({"error": "Invalid return_date format, use YYYY-MM-DD"}, status=status.HTTP_400_BAD_REQUEST)
-            
-            if return_date < date.today():
-                return Response({"error": "Return date cannot be in the past"}, status=status.HTTP_400_BAD_REQUEST)
-            
+                data['item_ids'] = json.loads(request.POST.get('item_ids'))
+            except json.JSONDecodeError:
+                logger.error(f"Invalid item_ids format: {request.POST.get('item_ids')}")
+                return Response({"error": "Invalid item_ids format"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate required fields
+        if not all([data['school_id'], data['name'], data['status'], data['return_date']]):
+            logger.error(f"Missing required fields: {data}")
+            return Response({"error": "All fields (school_id, name, status, return_date) are required"}, 
+                           status=status.HTTP_400_BAD_REQUEST)
+
+        # Pass data and files to serializer
+        serializer = CreateBorrowingSerializer(data=data, context={'request': request})
+        if not serializer.is_valid():
+            logger.error(f"Validation errors: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        validated = serializer.validated_data
+        school_id = validated['school_id']
+        name = validated['name']
+        status_choice = validated['status']
+        image_file = request.FILES.get('image')
+        return_date = validated['return_date']
+        item_ids = validated['item_ids']
+
+        # Role check
+        if request.user.role not in ['user_mobile', 'user_web']:
+            return Response({"error": "Invalid user role"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Resolve manager context
+        manager = request.user if request.user.role == 'user_web' else request.user.manager
+
+        # Fetch items
+        items = Item.objects.filter(id__in=item_ids, manager=manager)
+        found_ids = list(items.values_list('id', flat=True))
+
+        if len(found_ids) != len(item_ids):
+            missing = set(item_ids) - set(found_ids)
+            logger.error(f"Items not found: {missing}")
+            return Response({"error": f"Items not found: {missing}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        unavailable = [item.id for item in items if item.transactions.filter(status='borrowed').exists()]
+        if unavailable:
+            return Response({"error": f"Items already borrowed: {unavailable}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create borrower + transaction
+        with db_transaction.atomic():
             borrower, created = Borrower.objects.get_or_create(
-                name=borrower_name,
                 school_id=school_id,
-                defaults={'status': 'pending'}
+                defaults={'name': name, 'status': status_choice}
             )
-            
+            borrower.name = name
+            borrower.status = status_choice
+            if image_file:
+                timestamp = timezone.now().strftime("%Y%m%d%H%M%S")
+                orig_name = getattr(image_file, 'name', 'upload')
+                filename = f"{school_id}_{timestamp}_{orig_name}"
+                borrower.image.save(filename, ContentFile(image_file.read()), save=False)
+            borrower.save()
+
             transaction = Transaction.objects.create(
+                borrower=borrower,
+                borrow_date=date.today(),
                 return_date=return_date,
                 status='borrowed',
-                manager=request.user.manager,
-                mobile_user=request.user,
-                item=item,
-                borrower=borrower
+                manager=manager,
+                mobile_user=request.user if request.user.role == 'user_mobile' else None,
             )
-            
-            item.current_transaction = transaction
-            item.save()
-            
-            return Response({
-                "status": "success",
-                "message": f"Item {item.item_name} borrowed successfully",
-                "transaction_id": transaction.id,
-                "borrower": {
-                    "id": borrower.id,
-                    "name": borrower.name,
-                    "school_id": borrower.school_id,
-                    "status": borrower.status
-                }
-            }, status=status.HTTP_201_CREATED)
-        
-        else:
-            condition = data.get('condition')
-            valid_conditions = ["Good", "Fair", "Damaged", "Broken"]
-            
-            if not condition:
-                return Response({"error": "condition is required for return"}, status=status.HTTP_400_BAD_REQUEST)
-            if condition not in valid_conditions:
-                return Response({"error": f"condition must be one of {valid_conditions}"}, status=status.HTTP_400_BAD_REQUEST)
-            
-            if item.current_transaction:
-                transaction = item.current_transaction
-                transaction.status = 'returned'
-                transaction.return_date = date.today()
-                transaction.save()
-                
-                item.condition = condition
-                item.current_transaction = None
-                item.save()
-                
-                if request.user.fcm_token:
-                    result = send_push_notification(
-                        request.user.fcm_token,
-                        "Return Successful",
-                        f"You returned {item.item_name} in {condition} condition"
-                    )
-                    if result is None:
-                        print(f"Failed to send notification to {request.user.fcm_token}")
-                
-                return Response({
-                    "status": "success",
-                    "message": f"Item {item.item_name} returned successfully",
-                    "condition": condition
-                }, status=status.HTTP_200_OK)
-            else:
-                return Response({"error": "No active transaction for this item"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    except json.JSONDecodeError:
-        return Response({"error": "Invalid JSON"}, status=status.HTTP_400_BAD_REQUEST)
+            transaction.items.set(items)
+
+            response_serializer = TransactionSerializer(transaction)
+            logger.info(f"Transaction created: {transaction.id}")
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
     except Exception as e:
+        logger.exception("Error creating borrowing")
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def item_by_id(request, item_id):
+    try:
+        if not request.user.is_authenticated:
+            return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+        item = Item.objects.filter(id=item_id, manager=request.user if request.user.role == 'user_web' else request.user.manager).first()
+        if not item:
+            logger.error(f"Item with ID {item_id} not found")
+            return Response({"error": "Item not found"}, status=status.HTTP_404_NOT_FOUND)
+        serializer = ItemSerializer(item)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Error fetching item by ID: {str(e)}")
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 class UserAPIView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
@@ -854,3 +876,140 @@ class DamagedLostItemsReportView(APIView):
 
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.permissions import IsAuthenticated
+from django.utils import timezone
+from django.db import transaction as db_transaction
+from istak_backend.models import Item, Borrower, Transaction
+from istak_backend.serializers import BorrowerSerializer
+import logging
+
+logger = logging.getLogger(__name__)
+
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def item_borrower_view(request, itemId):
+    try:
+        if not request.user.is_authenticated:
+            logger.error("Unauthenticated request to item_borrower_view")
+            return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        manager = request.user if request.user.role == 'user_web' else request.user.manager
+        if not manager:
+            logger.error(f"No manager assigned for user {request.user.username}")
+            return Response({"error": "No manager assigned for mobile user"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Find the item
+        try:
+            item = Item.objects.get(id=itemId, manager=manager)
+            logger.info(f"Found item {itemId} managed by {manager.username}")
+        except Item.DoesNotExist:
+            logger.error(f"Item {itemId} not found or not managed by {manager.username}")
+            return Response({"error": f"Item {itemId} not found or not managed by your manager"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Find the active transaction for this item
+        transaction = Transaction.objects.filter(
+            items=item,
+            status='borrowed'
+        ).select_related('borrower').first()
+        if not transaction:
+            logger.error(f"No active borrowed transaction for item {itemId}")
+            return Response({"error": f"Item {itemId} is not currently borrowed"}, status=status.HTTP_400_BAD_REQUEST)
+
+        borrower = transaction.borrower
+        # Get all borrowed items for this borrower
+        transactions = Transaction.objects.filter(
+            borrower=borrower,
+            status='borrowed',
+            mobile_user=request.user if request.user.role == 'user_mobile' else None
+        ).prefetch_related('items')
+        borrowed_items = []
+        for t in transactions:
+            for item in t.items.all():
+                borrowed_items.append({
+                    'id': item.id,
+                    'item_name': item.item_name,
+                    'condition': item.condition
+                })
+
+        response_data = {
+            'borrower': BorrowerSerializer(borrower, context={'request': request}).data,
+            'borrowed_items': borrowed_items
+        }
+        logger.info(f"Fetched borrower {borrower.school_id} with {len(borrowed_items)} borrowed items for item {itemId}")
+        return Response(response_data, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        logger.exception(f"Error fetching borrower for item {itemId}")
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def return_item(request):
+    try:
+        if not request.user.is_authenticated:
+            logger.error("Unauthenticated request to return_item")
+            return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        data = json.loads(request.body)
+        item_id = data.get('item_id')
+        condition = data.get('condition')
+        school_id = data.get('school_id')
+
+        if not item_id or not condition or not school_id:
+            logger.error(f"Missing required fields: item_id={item_id}, condition={condition}, school_id={school_id}")
+            return Response({"error": "item_id, condition, and school_id are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        manager = request.user if request.user.role == 'user_web' else request.user.manager
+        if not manager:
+            logger.error(f"No manager assigned for user {request.user.username}")
+            return Response({"error": "No manager assigned for mobile user"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Verify borrower exists
+        try:
+            borrower = Borrower.objects.get(school_id=school_id)
+            logger.info(f"Found borrower with school_id {school_id}")
+        except Borrower.DoesNotExist:
+            logger.error(f"Borrower with school_id {school_id} not found")
+            return Response({"error": f"Borrower with school_id {school_id} not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Verify item exists and belongs to manager
+        try:
+            item = Item.objects.get(id=item_id, manager=manager)
+            logger.info(f"Found item {item_id} managed by {manager.username}")
+        except Item.DoesNotExist:
+            logger.error(f"Item {item_id} not found or not managed by {manager.username}")
+            return Response({"error": f"Item {item_id} not found or not managed by your manager"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Check for active transaction
+        with db_transaction.atomic():
+            transaction = Transaction.objects.filter(
+                items=item,
+                borrower=borrower,
+                status='borrowed'
+            ).first()
+            if not transaction:
+                logger.error(f"No active transaction for item {item_id} by borrower {school_id}")
+                return Response({"error": f"Item {item_id} is not borrowed by this borrower"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Update transaction and item
+            transaction.status = 'returned'
+            transaction.return_date = timezone.now().date()
+            transaction.save()
+            item.condition = condition
+            item.status = 'available'
+            item.save()
+
+        logger.info(f"Successfully returned item {item_id} for borrower {school_id}")
+        return Response({"message": f"Item {item_id} returned successfully"}, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        logger.exception(f"Error processing return for item {item_id}")
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
