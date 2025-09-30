@@ -123,9 +123,11 @@ class ProcessTransaction extends StatelessWidget {
         request.fields['status'] = status;
         request.fields['return_date'] = returnDate;
         // Send item_ids as multiple item_ids[] fields
-        for (var itemId in itemIds) {
-          request.fields['item_ids[]'] = itemId;
-        }
+        // Instead of looping like before:
+        request.fields['item_ids'] = jsonEncode(itemIds);
+
+        // Log item IDs being sent to backend
+        print('📤 Item IDs being sent to backend: $itemIds');
 
         // Log payload
         print('➡️ Request Payload:');

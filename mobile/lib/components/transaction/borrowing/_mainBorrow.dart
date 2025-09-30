@@ -53,6 +53,7 @@ class _BorrowScreenState extends State<BorrowScreen> {
   void _updateScannedItems(List<Map<String, dynamic>> items) {
     setState(() {
       _scannedItems = items;
+      print('📋 Updated scannedItems in BorrowScreen: $_scannedItems');
     });
   }
 

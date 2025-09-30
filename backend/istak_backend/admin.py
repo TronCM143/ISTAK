@@ -76,19 +76,40 @@ class BorrowerAdmin(admin.ModelAdmin):
         """Display Borrower.status."""
         return obj.status.capitalize()
     get_status_display.short_description = "Status"
-
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):
-    list_display = ('borrow_date', 'return_date', 'status', 'manager', 'mobile_user', 'get_items', 'borrower')
+    list_display = (
+        'borrow_date',
+        'return_date',
+        'status',
+        'manager',
+        'mobile_user',
+        'get_borrowed_items',
+        'borrower',
+    )
     list_filter = ('status', 'borrow_date', 'return_date', 'manager', 'mobile_user')
     search_fields = ('borrower__name', 'items__item_name')
     raw_id_fields = ('manager', 'mobile_user', 'borrower')
     autocomplete_fields = ['manager', 'mobile_user', 'borrower']
 
-    def get_items(self, obj):
-        """Display comma-separated list of item names."""
-        return ', '.join([item.item_name for item in obj.items.all()])
-    get_items.short_description = 'Items'
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        """
+        Restrict items to only those already linked to the transaction being edited.
+        """
+        if db_field.name == "items":
+            obj_id = request.resolver_match.kwargs.get("object_id")
+            if obj_id:  # editing existing transaction
+                kwargs["queryset"] = Item.objects.filter(transactions__id=obj_id)
+            else:  # creating new transaction, show nothing
+                kwargs["queryset"] = Item.objects.none()
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
+
+    def get_borrowed_items(self, obj):
+        borrowed_items = obj.items.filter(transactions__status='borrowed').distinct()
+        return ', '.join(item.item_name for item in borrowed_items) or "None"
+    get_borrowed_items.short_description = 'Borrowed Items'
+
+
 
 @admin.register(RegistrationRequest)
 class RegistrationRequestAdmin(admin.ModelAdmin):

@@ -1,10 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/components/dashboard/transactionList.dart';
-import 'package:mobile/components/dashboard/features.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:mobile/components/dashboard/itemList.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -32,7 +29,6 @@ class _DashboardState extends State<Dashboard> {
           borrowedItems = jsonDecode(storedItems);
         });
       }
-      //
     } catch (e) {
       debugPrint("Error loading dashboard data: $e");
     } finally {
@@ -50,21 +46,13 @@ class _DashboardState extends State<Dashboard> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ===== Most Borrowed Items Section =====
-          const SizedBox(height: 10),
-          const Features(),
-          const SizedBox(height: 10),
-          const TransactionList(),
-          const SizedBox(height: 10),
-          // ===== Inventory Section =====
-          Itemlist(),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 10),
+        // Let TransactionList handle its own scrolling
+        Expanded(child: TransactionList()),
+      ],
     );
   }
 }

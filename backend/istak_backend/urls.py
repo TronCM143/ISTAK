@@ -37,4 +37,5 @@ urlpatterns = [
     path('api/reports/damaged-lost-items/', views.DamagedLostItemsReportView.as_view(), name='damaged-lost-items'),
     path('api/items/<str:itemId>/borrower/', views.item_borrower_view, name='item_borrower'),
     path('api/return_item/', views.return_item, name='return_item'),
+    path('api/inventory/', views.InventorySummaryView.as_view(), name='inventory'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

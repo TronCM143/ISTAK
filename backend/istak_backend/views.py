@@ -370,7 +370,7 @@ from istak_backend.models import Item, Borrower, Transaction
 from .serializers import CreateBorrowingSerializer, TransactionSerializer
 
 logger = logging.getLogger(__name__)
-
+# views.py
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
@@ -461,14 +461,15 @@ def borrowing_create(request):
             )
             transaction.items.set(items)
 
-            response_serializer = TransactionSerializer(transaction)
+            response_serializer = TransactionSerializer(transaction, context={'request': request})  # Pass context
             logger.info(f"Transaction created: {transaction.id}")
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
     except Exception as e:
         logger.exception("Error creating borrowing")
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+    
+    
 @api_view(['GET'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
@@ -485,6 +486,8 @@ def item_by_id(request, item_id):
     except Exception as e:
         logger.error(f"Error fetching item by ID: {str(e)}")
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    
 class UserAPIView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
@@ -497,6 +500,15 @@ class UserAPIView(APIView):
             "manager_id": manager_id,
         })
 
+from rest_framework import generics
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from istak_backend.models import Transaction
+from istak_backend.serializers import TransactionSerializer
+import logging
+
+logger = logging.getLogger(__name__)
+
 class TransactionListAPIView(generics.ListAPIView):
     serializer_class = TransactionSerializer
     permission_classes = [IsAuthenticated]
@@ -504,11 +516,18 @@ class TransactionListAPIView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
+        logger.info(f"Fetching transactions for user {user.username} with role {user.role}")
         if user.role == 'user_web':
             return Transaction.objects.filter(manager=user)
         elif user.role == 'user_mobile':
             return Transaction.objects.filter(mobile_user=user)
+        logger.warning(f"No transactions returned for user {user.username} with role {user.role}")
         return Transaction.objects.none()
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
 
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
@@ -751,33 +770,56 @@ class ItemStatusCountView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-            
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Borrower
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.permissions import IsAuthenticated
+from django.db.models import Count, Max
+from .models import Borrower, Transaction
 from .serializers import BorrowerSerializer
+import logging
+
+logger = logging.getLogger(__name__)
 
 class BorrowerListView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
     def get(self, request):
         try:
             if request.user.role != 'user_mobile':
+                logger.error(f"User {request.user.username} with role {request.user.role} attempted to access BorrowerListView")
                 return Response(
                     {'error': 'Only mobile users can access this endpoint'},
                     status=status.HTTP_403_FORBIDDEN
                 )
+
+            # Fetch borrowers with annotated total borrowed items and last borrowed date
             borrowers = Borrower.objects.filter(
                 transactions__mobile_user=request.user
-            ).distinct()
-            print(f"User: {request.user}, Role: {request.user.role}, Borrowers found: {borrowers.count()}")  # Debug
+            ).distinct().annotate(
+                total_borrowed_items=Count(
+                    'transactions__items',
+                    filter=Q(transactions__status='borrowed')
+                ),
+                last_borrowed_date=Max('transactions__borrow_date')
+            )
+
+            logger.info(f"User: {request.user.username}, Role: {request.user.role}, Borrowers found: {borrowers.count()}")
+
             serializer = BorrowerSerializer(borrowers, many=True, context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as e:
+            logger.exception(f"Error fetching borrowers for user {request.user.username}")
             print(f"Error: {str(e)}")  # Debug
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+# Other views remain unchanged
+# ... (Include other views like borrowing_create, item_by_id, etc., as they are not modified)
             
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -1013,3 +1055,56 @@ def return_item(request):
     except Exception as e:
         logger.exception(f"Error processing return for item {item_id}")
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+# views.py
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.permissions import IsAuthenticated
+from django.utils import timezone
+from django.db.models import Count
+from .models import Item, Transaction
+
+class InventorySummaryView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            user = request.user
+            today = timezone.now().date()
+
+            # Filter transactions based on user role
+            if user.role == 'user_web':
+                queryset = Transaction.objects.filter(manager=user)
+                items = Item.objects.filter(manager=user)
+            elif user.role == 'user_mobile':
+                queryset = Transaction.objects.filter(mobile_user=user)
+                items = Item.objects.filter(manager=user.manager) if user.manager else Item.objects.none()
+            else:
+                return Response({"error": "Invalid user role"}, status=status.HTTP_403_FORBIDDEN)
+
+            # Calculate counts
+            total_items = items.count()
+            borrowed = queryset.filter(status='borrowed').aggregate(count=Count('items'))['count'] or 0
+            returning_today = queryset.filter(
+                status='borrowed',
+                return_date=today
+            ).aggregate(count=Count('items'))['count'] or 0
+            overdue = queryset.filter(
+                status='borrowed',
+                return_date__lt=today
+            ).aggregate(count=Count('items'))['count'] or 0
+            available = total_items - borrowed
+
+            return Response({
+                'available': available,
+                'borrowed': borrowed,
+                'returningToday': returning_today,
+                'overdue': overdue
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error in InventorySummaryView: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
