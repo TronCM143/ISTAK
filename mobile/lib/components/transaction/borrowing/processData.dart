@@ -1,8 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/apiURL.dart';
 import 'package:mobile/components/local_database/localDatabaseMain.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,14 +9,12 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:uuid/uuid.dart';
 
 class ProcessTransaction extends StatelessWidget {
-  final File? photo;
   final Map<String, String>? borrowerData;
   final List<Map<String, dynamic>> scannedItems; // id is String
   final VoidCallback onReset;
 
   const ProcessTransaction({
     Key? key,
-    this.photo,
     this.borrowerData,
     required this.scannedItems,
     required this.onReset,
@@ -41,9 +38,7 @@ class ProcessTransaction extends StatelessWidget {
   Future<void> _saveTransaction(BuildContext context) async {
     if (borrowerData == null || scannedItems.isEmpty) {
       print('Validation failed: Incomplete data');
-      print(
-        'photo: ${photo?.path}, borrowerData: $borrowerData, scannedItems: $scannedItems',
-      );
+      print('borrowerData: $borrowerData, scannedItems: $scannedItems');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Incomplete data: Borrower details or items missing'),
@@ -56,16 +51,21 @@ class ProcessTransaction extends StatelessWidget {
     final name = borrowerData!['borrowerName'];
     final status = borrowerData!['status'];
     final returnDate = borrowerData!['return_date'];
+    final borrowImageUrl =
+        borrowerData!['image_url']; // Use distinct name to avoid shadowing
     if (schoolId == null ||
         name == null ||
         status == null ||
-        returnDate == null) {
+        returnDate == null ||
+        borrowImageUrl == null) {
       print('Validation failed: Missing borrower fields');
       print(
-        'schoolId: $schoolId, name: $name, status: $status, returnDate: $returnDate',
+        'schoolId: $schoolId, name: $name, status: $status, returnDate: $returnDate, imageUrl: $borrowImageUrl',
       );
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All borrower fields are required')),
+        const SnackBar(
+          content: Text('All borrower fields and image are required'),
+        ),
       );
       return;
     }
@@ -106,7 +106,7 @@ class ProcessTransaction extends StatelessWidget {
       'return_date': returnDate,
       'item_ids': itemIds,
       'borrow_date': DateTime.now().toIso8601String().split('T')[0],
-      'photo_path': photo?.path ?? '',
+      'image_url': borrowImageUrl,
       'is_synced': '0',
       'request_status': 'pending',
     };
@@ -122,24 +122,13 @@ class ProcessTransaction extends StatelessWidget {
         request.fields['name'] = name;
         request.fields['status'] = status;
         request.fields['return_date'] = returnDate;
-        // Send item_ids as multiple item_ids[] fields
-        // Instead of looping like before:
         request.fields['item_ids'] = jsonEncode(itemIds);
-
-        // Log item IDs being sent to backend
-        print('📤 Item IDs being sent to backend: $itemIds');
-
-        // Log payload
-        print('➡️ Request Payload:');
-        print('Fields: ${request.fields}');
-        if (photo != null) {
-          print('📸 Image file: ${photo!.path}');
-          request.files.add(
-            await http.MultipartFile.fromPath('image', photo!.path),
-          );
-        } else {
-          print('📸 No image file provided');
+        if (borrowImageUrl.isNotEmpty) {
+          request.fields['image_url'] = borrowImageUrl;
         }
+
+        print('📤 Request Payload:');
+        print('Fields: ${request.fields}');
 
         final response = await request.send();
         final responseBody = await response.stream.bytesToString();
@@ -157,13 +146,13 @@ class ProcessTransaction extends StatelessWidget {
             'borrow_date': borrowData['borrow_date'],
             'return_date': returnDate,
             'item_ids': itemIds,
-            'photo_path': photo?.path ?? '',
+            'image_url': borrowImageUrl,
             'transaction_status': 'borrowed',
             'is_synced': '1',
           });
           for (var item in scannedItems) {
             await LocalDatabase().saveItemDetails({
-              'id': item['id'], // Store as string
+              'id': item['id'],
               'item_name': item['item_name'],
               'condition': item['condition'],
             });
@@ -201,6 +190,7 @@ class ProcessTransaction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final displayImageUrl = borrowerData?['image_url'];
     return Card(
       color: Colors.grey[850],
       child: Padding(
@@ -217,12 +207,34 @@ class ProcessTransaction extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            if (photo != null)
-              Image.file(
-                photo!,
+            if (displayImageUrl != null && displayImageUrl.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  displayImageUrl,
+                  height: 200,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    height: 200,
+                    width: double.infinity,
+                    color: Colors.grey[700],
+                    child: Text(
+                      'Failed to load image',
+                      style: GoogleFonts.ibmPlexMono(color: Colors.white),
+                    ),
+                  ),
+                ),
+              )
+            else
+              Container(
                 height: 200,
                 width: double.infinity,
-                fit: BoxFit.cover,
+                color: Colors.grey[700],
+                child: Text(
+                  'No Image',
+                  style: GoogleFonts.ibmPlexMono(color: Colors.white),
+                ),
               ),
             const SizedBox(height: 8),
             if (borrowerData != null) ...[

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
@@ -7,10 +6,8 @@ import 'package:mobile/apiURL.dart';
 import 'package:mobile/components/_landing_page.dart';
 import 'package:mobile/components/helperFunction.dart';
 import 'package:mobile/components/sidePanel/_mainSidePanel.dart';
-import 'package:mobile/components/sidePanel/borrowerList.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'legend.dart';
-import 'package:flutter/cupertino.dart';
 
 class Itemlist extends StatefulWidget {
   const Itemlist({super.key});
@@ -108,10 +105,26 @@ class _ItemlistState extends State<Itemlist>
 
   List<dynamic> getFilteredItems() {
     return items.where((item) {
-      final isAvailable = item["current_transaction"] == null;
-      final status = isAvailable ? 'available' : 'borrowed';
       final itemName = (item["item_name"] as String? ?? "").toLowerCase();
       final query = searchQuery.toLowerCase();
+
+      // Fetch the latest transaction for this item from the backend
+      // Assume item['transactions'] contains transaction data or fetch separately
+      final transactions = item["transactions"] ?? [];
+      final latestTransaction = transactions.isNotEmpty
+          ? transactions.reduce(
+              (a, b) =>
+                  DateTime.parse(
+                    a["borrow_date"],
+                  ).isAfter(DateTime.parse(b["borrow_date"]))
+                  ? a
+                  : b,
+            )
+          : null;
+      final status =
+          latestTransaction != null && latestTransaction["status"] == "borrowed"
+          ? 'borrowed'
+          : 'available';
 
       bool matchesFilter =
           selectedFilter == 'All' ||
@@ -126,11 +139,11 @@ class _ItemlistState extends State<Itemlist>
   Color getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'available':
-        return const Color(0xFF34C759); // --primary (green)
+        return const Color(0xFF34C759); // Green
       case 'borrowed':
         return const Color(0xFFFFB300); // Yellow
       default:
-        return const Color(0xFFA8B0B2); // --muted-foreground
+        return const Color(0xFFA8B0B2); // Muted foreground
     }
   }
 
@@ -145,7 +158,7 @@ class _ItemlistState extends State<Itemlist>
       backgroundColor: Colors.grey[900],
       appBar: AppBar(
         title: Text(
-          'Inventory',
+          'Item List',
           style: GoogleFonts.ibmPlexMono(
             fontWeight: FontWeight.w500,
             color: Colors.white,
@@ -153,30 +166,6 @@ class _ItemlistState extends State<Itemlist>
         ),
         backgroundColor: Colors.grey[900],
         actions: [
-          DropdownButton<String>(
-            value: selectedFilter,
-            dropdownColor: Colors.grey[850],
-            icon: const Icon(Icons.filter_list, color: Colors.white),
-            items: ['All', 'Available', 'Borrowed']
-                .map(
-                  (filter) => DropdownMenuItem(
-                    value: filter,
-                    child: Text(
-                      filter,
-                      style: GoogleFonts.ibmPlexMono(
-                        fontWeight: FontWeight.w300,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: (value) {
-              setState(() {
-                selectedFilter = value!;
-              });
-            },
-          ),
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: () async {
@@ -236,7 +225,7 @@ class _ItemlistState extends State<Itemlist>
                   },
                 ),
               ),
-              // Filter Row
+              // Filter Buttons
               Row(
                 children: [
                   const LegendIcon(),
@@ -363,20 +352,29 @@ class _ItemlistState extends State<Itemlist>
                         itemCount: filteredItems.length,
                         itemBuilder: (context, index) {
                           final item = filteredItems[index];
-                          final status = item["current_transaction"] == null
-                              ? "available"
-                              : "borrowed";
+                          final transactions = item["transactions"] ?? [];
+                          final latestTransaction = transactions.isNotEmpty
+                              ? transactions.reduce(
+                                  (a, b) =>
+                                      DateTime.parse(a["borrow_date"]).isAfter(
+                                        DateTime.parse(b["borrow_date"]),
+                                      )
+                                      ? a
+                                      : b,
+                                )
+                              : null;
+                          final status =
+                              latestTransaction != null &&
+                                  latestTransaction["status"] == "borrowed"
+                              ? "borrowed"
+                              : "available";
                           final condition =
                               item["condition"] as String? ?? "N/A";
                           final imageUrl = item["image"] as String? ?? "";
-                          final returnDate =
-                              item["current_transaction"]?["return_date"]
-                                  ?.toString() ??
-                              "None";
-                          final borrowDate =
-                              item["current_transaction"]?["borrow_date"]
-                                  ?.toString() ??
-                              "None";
+                          final lastBorrowDate = latestTransaction != null
+                              ? latestTransaction["borrow_date"]?.toString() ??
+                                    "None"
+                              : "None";
 
                           return Card(
                             color: Colors.grey[850],
@@ -492,23 +490,11 @@ class _ItemlistState extends State<Itemlist>
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                  // Return Date
+                                  // Last Borrow Date
                                   Expanded(
                                     flex: 2,
                                     child: Text(
-                                      returnDate,
-                                      style: GoogleFonts.ibmPlexMono(
-                                        color: Colors.white,
-                                        fontSize: 14,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  // Borrow Date
-                                  Expanded(
-                                    flex: 2,
-                                    child: Text(
-                                      borrowDate,
+                                      lastBorrowDate,
                                       style: GoogleFonts.ibmPlexMono(
                                         color: Colors.white,
                                         fontSize: 14,
@@ -524,80 +510,6 @@ class _ItemlistState extends State<Itemlist>
                       ),
               ),
             ],
-          ),
-        ),
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(30),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
-                  width: 1.5,
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  IconButton(
-                    icon: const Icon(CupertinoIcons.home),
-                    color: Colors.white,
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const Home()),
-                      );
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(CupertinoIcons.book),
-                    color: Colors.white,
-                    onPressed: () {}, // Disabled, as we're already on Itemlist
-                  ),
-                  IconButton(
-                    icon: const Icon(CupertinoIcons.person),
-                    color: Colors.white,
-                    onPressed: () {
-                      if (_accessToken != null) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                Borrowerlist(access_token: _accessToken!),
-                          ),
-                        );
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Please wait, loading access token...',
-                              style: GoogleFonts.ibmPlexMono(
-                                color: Colors.white,
-                              ),
-                            ),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(CupertinoIcons.line_horizontal_3),
-                    color: Colors.white,
-                    onPressed: () {
-                      _scaffoldKey.currentState?.openEndDrawer();
-                    },
-                  ),
-                ],
-              ),
-            ),
           ),
         ),
       ),

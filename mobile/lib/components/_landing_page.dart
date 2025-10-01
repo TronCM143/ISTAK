@@ -6,7 +6,7 @@ import 'package:mobile/components/dashboard/basicForecasts.dart';
 import 'package:mobile/components/dashboard/itemList.dart';
 import 'package:mobile/components/dashboard/transactionList.dart';
 import 'package:mobile/components/sidePanel/_mainSidePanel.dart';
-import 'package:mobile/components/sidePanel/borrowerList.dart';
+import 'package:mobile/components/dashboard/borrowerList.dart';
 import 'package:mobile/components/transaction/borrowing/_mainBorrow.dart';
 import 'package:mobile/components/transaction/returning.dart';
 import 'package:mobile/notifications/notif.dart';
@@ -262,10 +262,7 @@ class _HomeState extends State<Home> {
                       if (_accessToken != null) {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                Borrowerlist(access_token: _accessToken!),
-                          ),
+                          MaterialPageRoute(builder: (_) => Borrowerlist()),
                         );
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(

@@ -2,7 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart'; // ✅ for CupertinoIcons
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile/components/sidePanel/borrowerList.dart';
+import 'package:mobile/components/dashboard/borrowerList.dart';
 import 'package:mobile/splashPlusLogin.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -130,9 +130,7 @@ class _SidePanelState extends State<SidePanel> {
           } else if (title == 'Borrower') {
             Navigator.pushAndRemoveUntil(
               context,
-              MaterialPageRoute(
-                builder: (_) => Borrowerlist(access_token: widget.access_token),
-              ),
+              MaterialPageRoute(builder: (_) => Borrowerlist()),
 
               (route) => false,
             );

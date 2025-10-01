@@ -823,9 +823,10 @@ class BorrowerListView(APIView):
             
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from .models import Transaction, Borrower
-from .serializers import TransactionSerializer
+from istak_backend.models import Transaction, Borrower
+from istak_backend.serializers import TransactionSerializer
 
 class BorrowerTransactionsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -835,12 +836,14 @@ class BorrowerTransactionsView(APIView):
             transactions = Transaction.objects.filter(
                 borrower_id=borrower_id,
                 mobile_user=request.user
-            ).select_related('item', 'borrower')
+            ).select_related('borrower').prefetch_related('items').order_by('-borrow_date')
+            
             serializer = TransactionSerializer(transactions, many=True, context={'request': request})
-            return Response(serializer.data)
+            return Response(serializer.data, status=status.HTTP_200_OK)
         except Borrower.DoesNotExist:
-            return Response({"error": "Borrower not found"}, status=404)
-        
+            return Response({"error": "Borrower not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"Failed to fetch transactions: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -1108,3 +1111,71 @@ class InventorySummaryView(APIView):
         except Exception as e:
             logger.error(f"Error in InventorySummaryView: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from PIL import Image, ImageDraw, ImageFont
+from django.core.files.base import ContentFile
+from io import BytesIO
+import os
+from datetime import datetime
+from django.conf import settings
+from istak_backend.models import Borrower
+
+class ProcessImageView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            if 'image' not in request.FILES or 'name' not in request.data or 'school_id' not in request.data:
+                return Response({"error": "Image, name, and school_id are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+            image_file = request.FILES['image']
+            if image_file.size > 5 * 1024 * 1024:
+                return Response({"error": "Image size exceeds 5MB"}, status=status.HTTP_400_BAD_REQUEST)
+
+            name = request.data['name']
+            school_id = request.data['school_id']
+            if not isinstance(name, str) or not isinstance(school_id, str):
+                return Response({"error": "Name and school_id must be strings"}, status=status.HTTP_400_BAD_REQUEST)
+            if len(name) > 255 or len(school_id) > 10:
+                return Response({"error": "Name or school_id exceeds maximum length"}, status=status.HTTP_400_BAD_REQUEST)
+
+            image = Image.open(image_file).convert('RGB')
+            draw = ImageDraw.Draw(image)
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            text = f"Name: {name}\nSchool ID: {school_id}\nCaptured: {timestamp}"
+
+            try:
+                font = ImageFont.truetype(os.path.join(settings.BASE_DIR, 'fonts', 'arial.ttf'), 24)
+            except IOError:
+                font = ImageFont.load_default(size=24)
+
+            text_position = (10, 10)
+            draw.multiline_text(text_position, text, font=font, fill=(255, 255, 255, 255), stroke_width=2, stroke_fill=(0, 0, 0, 255))
+
+            buffer = BytesIO()
+            image.save(buffer, format="PNG")
+            buffer.seek(0)
+
+            timestamp_clean = timestamp.replace(":", "-").replace(" ", "_")
+            filename = f"borrower_image_{school_id}_{timestamp_clean}.png"
+            processed_image = ContentFile(buffer.read(), name=filename)
+
+            # Create or update Borrower
+            borrower, created = Borrower.objects.get_or_create(
+                school_id=school_id,
+                defaults={'name': name, 'status': 'active', 'image': processed_image}
+            )
+            if not created:
+                borrower.name = name
+                borrower.image = processed_image
+                borrower.status = 'active'
+                borrower.save()
+
+            image_url = request.build_absolute_uri(borrower.image.url)
+            return Response({"image_url": image_url}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": f"Failed to process image: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
