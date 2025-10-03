@@ -6,6 +6,7 @@ from django.contrib.auth.hashers import make_password
 from django.shortcuts import render, redirect
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
+from jsonschema import ValidationError
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -21,9 +22,11 @@ from django.core.files.base import ContentFile
 from datetime import date
 from django.db.models import Count
 from sympy import Q
+
 from .firebase import send_push_notification
 from .models import Transaction, Item, CustomUser, RegistrationRequest, Borrower
 from .serializers import CreateBorrowingSerializer, TransactionSerializer, ItemSerializer, RegistrationRequestSerializer, TopBorrowedItemsSerializer
+from istak_backend import models
 
 logger = logging.getLogger(__name__)
 
@@ -256,12 +259,10 @@ class ItemRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
         else:
             serializer.save()
 
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if instance.current_transaction:
-            return Response({"error": "Cannot delete item with an active transaction"}, status=status.HTTP_400_BAD_REQUEST)
-        self.perform_destroy(instance)
-        return Response(status=204)
+    def perform_destroy(self, instance):
+        if instance.transactions.exists():
+            raise ValidationError("Cannot delete an item that has associated transactions.")
+        instance.delete()
 
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
@@ -564,109 +565,6 @@ def top_borrowed_items(request):
     return Response(serializer.data)
 
 
-
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from django.utils import timezone
-from datetime import timedelta, datetime
-from django.db.models import Count
-from .models import Transaction
-from .serializers import TransactionSerializer
-
-class AnalyticsTransactionsView(APIView):
-    def get(self, request):
-        try:
-            # Get all transactions
-            transactions = Transaction.objects.all()
-
-            # Calculate date ranges
-            today = timezone.now().date()
-            three_months_ago = today - timedelta(days=90)
-
-            # Weekly aggregation
-            weekly_data = {}
-            for t in transactions:
-                borrow_date = t.borrow_date
-                # Get Monday of the week
-                day = borrow_date.weekday()
-                week_start = borrow_date - timedelta(days=day)
-                week_key = week_start.strftime('%Y-%m-%d')
-
-                if week_key not in weekly_data:
-                    weekly_data[week_key] = {'count': 0, 'items': {}}
-                weekly_data[week_key]['count'] += 1
-                item_name = t.item.item_name
-                weekly_data[week_key]['items'][item_name] = weekly_data[week_key]['items'].get(item_name, 0) + 1
-
-            weekly_result = [
-                {
-                    'week_start': week_key,
-                    'count': data['count'],
-                    'top_items': [
-                        {'item': item, 'count': count}
-                        for item, count in sorted(
-                            data['items'].items(), key=lambda x: x[1], reverse=True
-                        )[:5]
-                    ]
-                }
-                for week_key, data in sorted(weekly_data.items())
-                if datetime.strptime(week_key, '%Y-%m-%d').date() >= three_months_ago
-            ]
-
-            # Monthly aggregation
-            monthly_data = {}
-            for t in transactions:
-                month_key = t.borrow_date.strftime('%Y-%m')
-                if month_key not in monthly_data:
-                    monthly_data[month_key] = {'count': 0, 'items': {}}
-                monthly_data[month_key]['count'] += 1
-                item_name = t.item.item_name
-                monthly_data[month_key]['items'][item_name] = monthly_data[month_key]['items'].get(item_name, 0) + 1
-
-            monthly_result = [
-                {
-                    'month': month_key,
-                    'count': data['count'],
-                    'top_items': [
-                        {'item': item, 'count': count}
-                        for item, count in sorted(
-                            data['items'].items(), key=lambda x: x[1], reverse=True
-                        )[:5]
-                    ]
-                }
-                for month_key, data in sorted(monthly_data.items())
-                if datetime.strptime(month_key, '%Y-%m').date() >= three_months_ago.replace(day=1)
-            ]
-
-            # Three months aggregation (by month within the last 90 days)
-            three_months_result = [
-                {
-                    'month': month_key,
-                    'count': data['count'],
-                    'top_items': [
-                        {'item': item, 'count': count}
-                        for item, count in sorted(
-                            data['items'].items(), key=lambda x: x[1], reverse=True
-                        )[:5]
-                    ]
-                }
-                for month_key, data in sorted(monthly_data.items())
-                if datetime.strptime(month_key, '%Y-%m').date() >= three_months_ago.replace(day=1)
-            ]
-
-            return Response({
-                'weekly': weekly_result,
-                'monthly': monthly_result,
-                'three_months': three_months_result
-            }, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-            
             
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -769,14 +667,13 @@ class ItemStatusCountView(APIView):
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Count, Max
-from .models import Borrower, Transaction
+from django.db.models import Count, Max, Q
+from .models import Borrower
 from .serializers import BorrowerSerializer
 import logging
 
@@ -788,17 +685,29 @@ class BorrowerListView(APIView):
 
     def get(self, request):
         try:
-            if request.user.role != 'user_mobile':
-                logger.error(f"User {request.user.username} with role {request.user.role} attempted to access BorrowerListView")
+            # Allow both mobile and web users
+            if request.user.role not in ['user_mobile', 'user_web']:
+                logger.error(
+                    f"User {request.user.username} with role {request.user.role} "
+                    f"attempted to access BorrowerListView"
+                )
                 return Response(
-                    {'error': 'Only mobile users can access this endpoint'},
+                    {'error': 'Only mobile or web users can access this endpoint'},
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-            # Fetch borrowers with annotated total borrowed items and last borrowed date
-            borrowers = Borrower.objects.filter(
-                transactions__mobile_user=request.user
-            ).distinct().annotate(
+            # Scope queryset differently depending on role
+            if request.user.role == 'user_mobile':
+                borrowers = Borrower.objects.filter(
+                    transactions__mobile_user=request.user
+                )
+            else:  # user_web
+                borrowers = Borrower.objects.filter(
+                    transactions__manager=request.user
+                )
+
+            # Annotate with borrowed items and last borrowed date
+            borrowers = borrowers.distinct().annotate(
                 total_borrowed_items=Count(
                     'transactions__items',
                     filter=Q(transactions__status='borrowed')
@@ -806,13 +715,16 @@ class BorrowerListView(APIView):
                 last_borrowed_date=Max('transactions__borrow_date')
             )
 
-            logger.info(f"User: {request.user.username}, Role: {request.user.role}, Borrowers found: {borrowers.count()}")
+            logger.info(
+                f"User: {request.user.username}, Role: {request.user.role}, "
+                f"Borrowers found: {borrowers.count()}"
+            )
 
             serializer = BorrowerSerializer(borrowers, many=True, context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
+
         except Exception as e:
             logger.exception(f"Error fetching borrowers for user {request.user.username}")
-            print(f"Error: {str(e)}")  # Debug
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -844,83 +756,7 @@ class BorrowerTransactionsView(APIView):
             return Response({"error": "Borrower not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": f"Failed to fetch transactions: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from django.contrib.auth import get_user_model
-from .models import Item, Borrower, Transaction
-from .serializers import ReportSerializer
-from django.db.models import Q
-from datetime import datetime
 
-User = get_user_model()
-
-class DamagedLostItemsReportView(APIView):
-    def post(self, request):
-        try:
-            # Get filters from request body
-            data = request.data
-            search = data.get('search', '')
-            status_filter = data.get('status', '')
-            date_from = data.get('dateFrom')
-            date_to = data.get('dateTo')
-
-            # Get the authenticated user
-            user = request.user
-            if not user.is_authenticated:
-                return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
-
-            # Filter transactions based on user role
-            if user.role == 'user_web':
-                queryset = Transaction.objects.filter(manager=user)
-            elif user.role == 'user_mobile':
-                queryset = Transaction.objects.filter(mobile_user=user)
-            else:
-                return Response({"error": "Invalid user role"}, status=status.HTTP_403_FORBIDDEN)
-
-            # Apply filters
-            if search:
-                queryset = queryset.filter(
-                    Q(borrower__name__icontains=search) |
-                    Q(item__item_name__icontains=search)
-                )
-
-            if status_filter and status_filter != 'all':
-                queryset = queryset.filter(status=status_filter.lower())
-
-            if date_from:
-                try:
-                    date_from = datetime.strptime(date_from, '%Y-%m-%d').date()
-                    queryset = queryset.filter(return_date__gte=date_from)
-                except ValueError:
-                    return Response({"error": "Invalid dateFrom format"}, status=status.HTTP_400_BAD_REQUEST)
-
-            if date_to:
-                try:
-                    date_to = datetime.strptime(date_to, '%Y-%m-%d').date()
-                    queryset = queryset.filter(return_date__lte=date_to)
-                except ValueError:
-                    return Response({"error": "Invalid dateTo format"}, status=status.HTTP_400_BAD_REQUEST)
-
-            # Prepare report data
-            reports = []
-            for transaction in queryset:
-                report = {
-                    "id": str(transaction.id),
-                    "borrowerName": transaction.borrower.name,
-                    "itemStatus": transaction.status.capitalize(),
-                    "itemName": transaction.item.item_name,
-                    "returnedDate": transaction.return_date.strftime('%Y-%m-%d') if transaction.return_date else None,
-                    "condition": transaction.item.condition
-                }
-                reports.append(report)
-
-            # Serialize data
-            serializer = ReportSerializer(reports, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
@@ -1179,3 +1015,250 @@ class ProcessImageView(APIView):
             return Response({"image_url": image_url}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": f"Failed to process image: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        
+#DEFINING OUT MODEL SIMPLE
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
+# 👇 import the helper with an alias to avoid clashing with the view name
+from .forcastingModel import (
+    forecast_next_month_from_excel as forecast_excel_helper,
+)
+
+EXCEL_URL = "https://docs.google.com/spreadsheets/d/1VxUwhlFjFYuRZQd-ERP-s2Fz6fT8l-c5fJ3unp6e44w/export?format=xlsx"
+
+
+@api_view(["GET"])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def forecast_top_items_excel(request):
+    try:
+        top_k = int(request.query_params.get("k", "5"))
+    except ValueError:
+        top_k = 5
+
+    try:
+        results = forecast_excel_helper(EXCEL_URL, top_k=top_k)
+    except Exception as e:
+        return Response({"error": f"Failed to load/parse Excel: {e}"}, status=502)
+
+    month = results[0]["month"] if results else None
+    return Response({"month": month, "top_k": top_k, "results": results})
+
+# views.py
+from datetime import timedelta
+from django.utils.timezone import localdate
+from django.db.models import Q
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
+from .models import Transaction
+
+@api_view(["GET"])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def borrowed_stats(request):
+    """
+    Unified endpoint for borrowed items.
+    Use ?range=yesterday|today|week|month
+    """
+    range_type = request.query_params.get("range", "yesterday")  # default = yesterday
+    today = localdate()
+    qs = Transaction.objects.filter(status="borrowed")
+
+    if range_type == "today":
+        qs = qs.filter(borrow_date=today)
+
+    elif range_type == "yesterday":
+        qs = qs.filter(borrow_date=today - timedelta(days=1))
+
+    elif range_type == "week":
+        start_of_week = today - timedelta(days=today.weekday())  # Monday
+        qs = qs.filter(borrow_date__gte=start_of_week, borrow_date__lte=today)
+
+    elif range_type == "month":
+        start_of_month = today.replace(day=1)
+        qs = qs.filter(borrow_date__gte=start_of_month, borrow_date__lte=today)
+
+    count = qs.count()
+    return Response({
+        "range": range_type,
+        "count": count,
+    })
+
+
+from rest_framework import generics
+from .models import Transaction
+from .serializers import TransactionSerializer
+
+class TransactionRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Transaction.objects.all()
+    serializer_class = TransactionSerializer
+    lookup_field = "pk"
+    
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.utils import timezone
+from datetime import timedelta, datetime
+from django.db.models import Count
+from .models import Transaction
+from .serializers import TransactionSerializer
+
+class AnalyticsTransactionsView(APIView):
+    def get(self, request):
+        try:
+            # Get all transactions
+            transactions = Transaction.objects.all()
+
+            # Calculate date ranges
+            today = timezone.now().date()
+            three_months_ago = today - timedelta(days=90)
+
+            # Weekly aggregation
+            weekly_data = {}
+            for t in transactions:
+                borrow_date = t.borrow_date
+                # Get Monday of the week
+                day = borrow_date.weekday()
+                week_start = borrow_date - timedelta(days=day)
+                week_key = week_start.strftime('%Y-%m-%d')
+
+                if week_key not in weekly_data:
+                    weekly_data[week_key] = {'count': 0, 'items': {}}
+                weekly_data[week_key]['count'] += 1
+                # Iterate over all items in the transaction
+                for item in t.items.all():  # Changed from t.item to t.items.all()
+                    item_name = item.item_name
+                    weekly_data[week_key]['items'][item_name] = weekly_data[week_key]['items'].get(item_name, 0) + 1
+
+            weekly_result = [
+                {
+                    'week_start': week_key,
+                    'count': data['count'],
+                    'top_items': [
+                        {'item': item, 'count': count}
+                        for item, count in sorted(
+                            data['items'].items(), key=lambda x: x[1], reverse=True
+                        )[:5]
+                    ]
+                }
+                for week_key, data in sorted(weekly_data.items())
+                if datetime.strptime(week_key, '%Y-%m-%d').date() >= three_months_ago
+            ]
+
+            # Monthly aggregation
+            monthly_data = {}
+            for t in transactions:
+                month_key = t.borrow_date.strftime('%Y-%m')
+                if month_key not in monthly_data:
+                    monthly_data[month_key] = {'count': 0, 'items': {}}
+                monthly_data[month_key]['count'] += 1
+                # Iterate over all items in the transaction
+                for item in t.items.all():  # Changed from t.item to t.items.all()
+                    item_name = item.item_name
+                    monthly_data[month_key]['items'][item_name] = monthly_data[month_key]['items'].get(item_name, 0) + 1
+
+            monthly_result = [
+                {
+                    'month': month_key,
+                    'count': data['count'],
+                    'top_items': [
+                        {'item': item, 'count': count}
+                        for item, count in sorted(
+                            data['items'].items(), key=lambda x: x[1], reverse=True
+                        )[:5]
+                    ]
+                }
+                for month_key, data in sorted(monthly_data.items())
+                if datetime.strptime(month_key, '%Y-%m').date() >= three_months_ago.replace(day=1)
+            ]
+
+            # Three months aggregation (by month within the last 90 days)
+            three_months_result = [
+                {
+                    'month': month_key,
+                    'count': data['count'],
+                    'top_items': [
+                        {'item': item, 'count': count}
+                        for item, count in sorted(
+                            data['items'].items(), key=lambda x: x[1], reverse=True
+                        )[:5]
+                    ]
+                }
+                for month_key, data in sorted(monthly_data.items())
+                if datetime.strptime(month_key, '%Y-%m').date() >= three_months_ago.replace(day=1)
+            ]
+
+            return Response({
+                'weekly': weekly_result,
+                'monthly': monthly_result,
+                'three_months': three_months_result
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            from rest_framework.views import APIView
+            
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.utils import timezone
+from datetime import timedelta
+from django.db.models import Q  # Import Q from django.db.models
+from .models import Transaction
+from .serializers import DamagedOverdueReportSerializer
+
+class DamagedOverdueReportView(APIView):
+    def post(self, request):
+        try:
+            # Get filters from request body
+            search = request.data.get('search', '')
+            status_filter = request.data.get('status', '').lower()  # Renamed to avoid shadowing
+            date_from = request.data.get('dateFrom')
+            date_to = request.data.get('dateTo')
+
+            # Base queryset: transactions with damaged items or overdue items
+            queryset = Transaction.objects.filter(
+                Q(status='returned', items__condition__iexact='damaged') |
+                Q(status='borrowed', borrow_date__lt=timezone.now().date() - timedelta(days=7))
+            ).distinct()
+
+            # Apply search filter (borrower name, school ID, or item name)
+            if search:
+                queryset = queryset.filter(
+                    Q(borrower__name__icontains=search) |
+                    Q(borrower__school_id__icontains=search) |
+                    Q(items__item_name__icontains=search)
+                )
+
+            # Apply status filter (Damaged or Overdue)
+            if status_filter and status_filter != 'all':
+                if status_filter == 'damaged':
+                    queryset = queryset.filter(status='returned', items__condition__iexact='damaged')
+                elif status_filter == 'overdue':
+                    queryset = queryset.filter(status='borrowed', borrow_date__lt=timezone.now().date() - timedelta(days=7))
+
+            # Apply date range filter
+            if date_from:
+                queryset = queryset.filter(borrow_date__gte=date_from)
+            if date_to:
+                queryset = queryset.filter(borrow_date__lte=date_to)
+
+            # Serialize the data
+            serializer = DamagedOverdueReportSerializer(queryset, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

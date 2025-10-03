@@ -17,6 +17,7 @@ import {
   IconSettings,
   IconHeartHandshake,
   IconQrcode,
+  IconAlien,
 } from "@tabler/icons-react";
 import { NavMain } from "@/components/widgets/nav-main";
 import { NavUser } from "@/components/widgets/nav-user";
@@ -69,13 +70,12 @@ const data = {
       url: "/reports",
       icon: IconReport,
     },
-  
-
-    {
-      title: "Settings",
-      url: "/settings",
-      icon: IconSettings,
+     {
+      title: "Borrower",
+      url: "/borrower",
+      icon: IconAlien,
     },
+  
     ],
 };
 

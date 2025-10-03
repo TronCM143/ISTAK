@@ -12,6 +12,8 @@ import {
   getFilteredRowModel,
   useReactTable,
   flexRender,
+  OnChangeFn,
+  RowSelectionState,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -35,24 +37,27 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
+import { Pencil, Trash2 } from "lucide-react";
 
 type Item = {
-  id: number;
+  id: string;
   item_name: string;
-  condition?: string | null;
-  current_transaction: number | null; // Reflects backend Item model's current_transaction
-  last_transaction_return_date?: string | null; // Derived from last returned transaction
+  condition: "Excellent" | "Good" | "Fair" | "Damaged" | "Broken";
+  current_transaction: number | null;
+  last_transaction_return_date?: string | null;
   image?: string | null;
+  _newFile?: File | null;
 };
 
 export function InventoryPage() {
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
+  const [selectedItems, setSelectedItems] = React.useState<Set<string>>(new Set());
   const router = useRouter();
   const [data, setData] = React.useState<Item[]>([]);
   const [loading, setLoading] = React.useState<boolean>(true);
@@ -61,22 +66,25 @@ export function InventoryPage() {
     { id: "last_transaction_return_date", desc: true },
   ]);
   const [globalFilter, setGlobalFilter] = React.useState<string>("");
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  );
-  const [selectedRows, setSelectedRows] = React.useState<Set<number>>(
-    new Set()
-  );
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  
   const [isAddModalOpen, setIsAddModalOpen] = React.useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
   const [editItem, setEditItem] = React.useState<Item | null>(null);
-  const [newItem, setNewItem] = React.useState({
+  const [newItem, setNewItem] = React.useState<{
+    item_name: string;
+    condition: "Excellent" | "Good" | "Fair" | "Damaged" | "Broken";
+    _newFile: File | null;
+  }>({
     item_name: "",
     condition: "Good",
-    image: null as File | null,
+    _newFile: null,
   });
   const [addError, setAddError] = React.useState<string | null>(null);
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+  const [editError, setEditError] = React.useState<string | null>(null);
+
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
   const fetchItems = React.useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -97,6 +105,7 @@ export function InventoryPage() {
       if (!resp.ok) {
         if (resp.status === 401 || resp.status === 403) {
           setError("Unauthorized. Please login again.");
+          localStorage.removeItem("access_token");
         } else {
           const txt = await resp.text();
           setError(`Failed to fetch items: ${resp.status} ${txt}`);
@@ -105,14 +114,14 @@ export function InventoryPage() {
         return;
       }
       const items = await resp.json();
-      // Transform items to derive status and last_transaction_return_date
       const transformedItems: Item[] = items.map((item: any) => ({
-        id: item.id,
+        id: String(item.id),
         item_name: item.item_name,
-        condition: item.condition,
+        condition: item.condition || "Good",
         current_transaction: item.current_transaction,
-        last_transaction_return_date: item.last_transaction_return_date || null, // From serializer
+        last_transaction_return_date: item.last_transaction_return_date || null,
         image: item.image || null,
+        _newFile: null,
       }));
       setData(transformedItems);
       setLoading(false);
@@ -125,68 +134,21 @@ export function InventoryPage() {
   React.useEffect(() => {
     fetchItems();
   }, [fetchItems]);
-const handleAddItem = async () => {
-  setAddError(null);
-  try {
-    const token = localStorage.getItem("access_token");
-    if (!token) {
-      setAddError("Not authenticated. Please login.");
-      return;
-    }
 
-    const formData = new FormData();
-    formData.append("item_name", newItem.item_name);
-    formData.append("condition", newItem.condition);
-    if (newItem.image) {
-      formData.append("image", newItem.image);
-    }
-
-    const resp = await fetch(`${API_BASE_URL}/api/items/`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: formData,
-    });
-
-    if (!resp.ok) {
-      const errData = await resp.json().catch(() => resp.text());
-      setAddError(
-        `Failed to add item: ${
-          typeof errData === "string" ? errData : JSON.stringify(errData)
-        }`
-      );
-      toast("Failed to add item.", {
-        description:
-          typeof errData === "string" ? errData : JSON.stringify(errData),
-        style: {
-          background: "var(--destructive)",
-          color: "var(--destructive-foreground)",
-        },
-      });
-      return;
-    }
-
-    setIsAddModalOpen(false);
-    setNewItem({ item_name: "", condition: "Good", image: null });
-    fetchItems();
-    toast("Item added successfully.", {
-      description: `Added ${newItem.item_name} to inventory.`,
-    });
-  } catch (err: any) {
-    setAddError(err.message || String(err));
-    toast("Failed to add item.", {
-      description: err.message || String(err),
-      style: {
-        background: "var(--destructive)",
-        color: "var(--destructive-foreground)",
-        },
-      });
-    }
+  const handleRowSelectionChange: OnChangeFn<RowSelectionState> = (updaterOrValue) => {
+    const newRowSelection =
+      typeof updaterOrValue === "function" ? updaterOrValue(rowSelection) : updaterOrValue;
+    setRowSelection(newRowSelection);
+    const selectedRowIndices = Object.keys(newRowSelection)
+      .filter((id) => newRowSelection[id])
+      .map((id) => parseInt(id));
+    const selectedItemIds = selectedRowIndices.map((index) => data[index].id);
+    setSelectedItems(new Set(selectedItemIds));
+    console.log("Selected Items:", selectedItemIds); // Debug selection
   };
 
-  const handleEditItem = async () => {
-    if (!editItem) return;
+  const handleAddItem = async () => {
+    setAddError(null);
     try {
       const token = localStorage.getItem("access_token");
       if (!token) {
@@ -195,33 +157,85 @@ const handleAddItem = async () => {
       }
 
       const formData = new FormData();
-      formData.append("item_name", editItem.item_name);
-      formData.append("condition", editItem.condition || "Good");
-      if (newItem.image) {
-        formData.append("image", newItem.image);
+      formData.append("item_name", newItem.item_name);
+      formData.append("condition", newItem.condition);
+      if (newItem._newFile) {
+        formData.append("image", newItem._newFile);
       }
 
-      const resp = await fetch(
-        `${API_BASE_URL}/api/items/${editItem.id}/`,
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
-      );
+      const resp = await fetch(`${API_BASE_URL}/api/items/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
 
       if (!resp.ok) {
         const errData = await resp.json().catch(() => resp.text());
         setAddError(
-          `Failed to update item: ${
-            typeof errData === "string" ? errData : JSON.stringify(errData)
-          }`
+          `Failed to add item: ${typeof errData === "string" ? errData : JSON.stringify(errData)}`
+        );
+        toast("Failed to add item.", {
+          description: typeof errData === "string" ? errData : JSON.stringify(errData),
+          style: {
+            background: "var(--destructive)",
+            color: "var(--destructive-foreground)",
+          },
+        });
+        return;
+      }
+
+      setIsAddModalOpen(false);
+      setNewItem({ item_name: "", condition: "Good", _newFile: null });
+      fetchItems();
+      toast("Item added successfully.", {
+        description: `Added ${newItem.item_name} to inventory.`,
+      });
+    } catch (err: any) {
+      setAddError(err.message || String(err));
+      toast("Failed to add item.", {
+        description: err.message || String(err),
+        style: {
+          background: "var(--destructive)",
+          color: "var(--destructive-foreground)",
+        },
+      });
+    }
+  };
+
+  const handleEditItem = async () => {
+    if (!editItem) return;
+    setEditError(null);
+    try {
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        setEditError("Not authenticated. Please login.");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("item_name", editItem.item_name);
+      formData.append("condition", editItem.condition);
+      if (editItem._newFile) {
+        formData.append("image", editItem._newFile);
+      }
+
+      const resp = await fetch(`${API_BASE_URL}/api/items/${editItem.id}/`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => resp.text());
+        setEditError(
+          `Failed to update item: ${typeof errData === "string" ? errData : JSON.stringify(errData)}`
         );
         toast("Failed to update item.", {
-          description:
-            typeof errData === "string" ? errData : JSON.stringify(errData),
+          description: typeof errData === "string" ? errData : JSON.stringify(errData),
           style: {
             background: "var(--destructive)",
             color: "var(--destructive-foreground)",
@@ -232,13 +246,12 @@ const handleAddItem = async () => {
 
       setIsEditModalOpen(false);
       setEditItem(null);
-      setNewItem({ item_name: "", condition: "Good", image: null });
       fetchItems();
       toast("Item updated successfully.", {
         description: `Updated ${editItem.item_name}.`,
       });
     } catch (err: any) {
-      setAddError(err.message || String(err));
+      setEditError(err.message || String(err));
       toast("Failed to update item.", {
         description: err.message || String(err),
         style: {
@@ -249,11 +262,19 @@ const handleAddItem = async () => {
     }
   };
 
-  const handleDeleteItems = async (ids: number[]) => {
+  const handleDeleteItems = async () => {
+    const ids = Array.from(selectedItems);
+    if (ids.length === 0) return;
+
     try {
       const token = localStorage.getItem("access_token");
       if (!token) {
-        setError("Not authenticated. Please login.");
+        toast("Not authenticated. Please login.", {
+          style: {
+            background: "var(--destructive)",
+            color: "var(--destructive-foreground)",
+          },
+        });
         return;
       }
 
@@ -266,10 +287,8 @@ const handleAddItem = async () => {
         });
         if (!resp.ok) {
           const errData = await resp.json().catch(() => resp.text());
-          toast("Failed to delete item.", {
-            description: `Item ${id}: ${
-              typeof errData === "string" ? errData : JSON.stringify(errData)
-            }`,
+          toast(`Failed to delete item ${id}`, {
+            description: `Item ${id}: ${typeof errData === "string" ? errData : JSON.stringify(errData)}`,
             style: {
               background: "var(--destructive)",
               color: "var(--destructive-foreground)",
@@ -277,13 +296,13 @@ const handleAddItem = async () => {
           });
         }
       }
-      setSelectedRows(new Set());
+      setSelectedItems(new Set());
+      setRowSelection({});
       fetchItems();
       toast("Selected items deleted.", {
         description: `${ids.length} item(s) removed from inventory.`,
       });
     } catch (err: any) {
-      setError(err.message || String(err));
       toast("Failed to delete items.", {
         description: err.message || String(err),
         style: {
@@ -294,36 +313,40 @@ const handleAddItem = async () => {
     }
   };
 
+  function getAuthHeaders(): HeadersInit {
+    const token = localStorage.getItem("access_token");
+    return {
+      Authorization: `Bearer ${token}`,
+    };
+  }
+
   const columns = React.useMemo<ColumnDef<Item, any>[]>(
     () => [
       {
         id: "select",
         header: ({ table }) => (
           <Checkbox
-            checked={table.getIsAllRowsSelected()}
-            onCheckedChange={(value) => {
-              table.toggleAllRowsSelected(!!value);
-              setSelectedRows(
-                value ? new Set(data.map((item) => item.id)) : new Set()
-              );
-            }}
+            checked={
+              table.getIsAllPageRowsSelected()
+                ? true
+                : table.getIsSomePageRowsSelected()
+                ? "indeterminate"
+                : false
+            }
+            onCheckedChange={(val) => table.toggleAllPageRowsSelected(!!val)}
+            aria-label="Select all"
           />
         ),
         cell: ({ row }) => (
           <Checkbox
-            checked={selectedRows.has(row.original.id)}
-            onCheckedChange={(value) => {
-              const newSelected = new Set(selectedRows);
-              if (value) {
-                newSelected.add(row.original.id);
-              } else {
-                newSelected.delete(row.original.id);
-              }
-              setSelectedRows(newSelected);
-              row.toggleSelected(!!value);
-            }}
+            checked={row.getIsSelected()}
+            onCheckedChange={(val) => row.toggleSelected(!!val)}
+            aria-label="Select row"
           />
         ),
+        enableSorting: false,
+        enableHiding: false,
+        size: 48,
       },
       {
         accessorKey: "item_name",
@@ -342,8 +365,7 @@ const handleAddItem = async () => {
       },
       {
         id: "status",
-        accessorFn: (row) =>
-          row.current_transaction ? "Borrowed" : "Available",
+        accessorFn: (row) => (row.current_transaction ? "Borrowed" : "Available"),
         header: ({ column }) => (
           <div className="flex items-center">
             <div
@@ -356,12 +378,8 @@ const handleAddItem = async () => {
               )}
             </div>
             <Select
-              value={
-                (column.getFilterValue() as string | undefined) || "__all__"
-              }
-              onValueChange={(val) =>
-                column.setFilterValue(val === "__all__" ? undefined : val)
-              }
+              value={(column.getFilterValue() as string) || "__all__"}
+              onValueChange={(val) => column.setFilterValue(val)}
             >
               <SelectTrigger className="ml-2">
                 <SelectValue placeholder="All" />
@@ -391,12 +409,8 @@ const handleAddItem = async () => {
               )}
             </div>
             <Select
-              value={
-                (column.getFilterValue() as string | undefined) || "__all__"
-              }
-              onValueChange={(val) =>
-                column.setFilterValue(val === "__all__" ? undefined : val)
-              }
+              value={(column.getFilterValue() as string) || "__all__"}
+              onValueChange={(val) => column.setFilterValue(val)}
             >
               <SelectTrigger className="ml-2">
                 <SelectValue placeholder="All" />
@@ -408,12 +422,11 @@ const handleAddItem = async () => {
                 <SelectItem value="Fair">Fair</SelectItem>
                 <SelectItem value="Damaged">Damaged</SelectItem>
                 <SelectItem value="Broken">Broken</SelectItem>
-                <SelectItem value="__null__">N/A</SelectItem>
               </SelectContent>
             </Select>
           </div>
         ),
-        cell: (info) => <div>{info.getValue() ?? "N/A"}</div>,
+        cell: (info) => <div>{info.getValue()}</div>,
         filterFn: "equals",
       },
       {
@@ -457,36 +470,6 @@ const handleAddItem = async () => {
             <div>No Image</div>
           ),
       },
-      {
-        id: "actions",
-        header: "Actions",
-        cell: ({ row }) => (
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setEditItem(row.original);
-                setNewItem({
-                  item_name: row.original.item_name,
-                  condition: row.original.condition || "Good",
-                  image: null,
-                });
-                setIsEditModalOpen(true);
-              }}
-            >
-              Edit
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => handleDeleteItems([row.original.id])}
-            >
-              Delete
-            </Button>
-          </div>
-        ),
-      },
     ],
     []
   );
@@ -494,7 +477,8 @@ const handleAddItem = async () => {
   const table = useReactTable({
     data,
     columns,
-    state: { sorting, columnFilters, globalFilter },
+    state: { sorting, columnFilters, globalFilter, rowSelection },
+    onRowSelectionChange: handleRowSelectionChange,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -504,100 +488,58 @@ const handleAddItem = async () => {
     onGlobalFilterChange: setGlobalFilter,
   });
 
+
   return (
     <div className="container mx-auto py-4">
       <Toaster />
-      <div className="mb-4 flex items-center justify-between gap-2">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {/* Left: title & search */}
         <div className="flex items-center gap-2">
           <Input
-            placeholder="Search..."
             value={globalFilter}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            className="max-w-sm"
+            placeholder="Search items..."
+            className="w-[260px]"
           />
-          {selectedRows.size > 0 && (
+        </div>
+
+        {/* Right: actions */}
+        <div className="flex items-center gap-2">
+          <Button onClick={() => { console.log("Add Item clicked"); setIsAddModalOpen(true); }}>
+            Add Item
+          </Button>
+
+          {/* Edit button - only show when exactly 1 item is selected */}
+          {selectedItems.size === 1 && (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                const itemId = Array.from(selectedItems)[0];
+                const item = data.find((i) => i.id === itemId);
+                if (item) {
+                  setEditItem({ ...item, _newFile: null });
+                  setIsEditModalOpen(true);
+                }
+              }}
+            >
+              <Pencil className="mr-2 h-4 w-4" /> Edit
+            </Button>
+          )}
+
+
+          {/* Delete button - show when items are selected */}
+          {selectedItems.size > 0 && (
             <Button
               variant="destructive"
-              onClick={() => handleDeleteItems(Array.from(selectedRows))}
+              onClick={() => { console.log("Delete clicked"); handleDeleteItems(); }}
             >
-              Delete Selected ({selectedRows.size})
+              <Trash2 className="mr-2 h-4 w-4" /> Delete
             </Button>
           )}
         </div>
-        <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-          <DialogTrigger asChild>
-            <Button variant="default">Add Item</Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Add New Item</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="item_name" className="text-right">
-                  Name
-                </Label>
-                <Input
-                  id="item_name"
-                  value={newItem.item_name}
-                  onChange={(e) =>
-                    setNewItem({ ...newItem, item_name: e.target.value })
-                  }
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="condition" className="text-right">
-                  Condition
-                </Label>
-                <Select
-                  value={newItem.condition}
-                  onValueChange={(val) =>
-                    setNewItem({ ...newItem, condition: val })
-                  }
-                >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Excellent">Excellent</SelectItem>
-                    <SelectItem value="Good">Good</SelectItem>
-                    <SelectItem value="Fair">Fair</SelectItem>
-                    <SelectItem value="Damaged">Damaged</SelectItem>
-                    <SelectItem value="Broken">Broken</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="image" className="text-right">
-                  Image
-                </Label>
-                <Input
-                  id="image"
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) =>
-                    setNewItem({
-                      ...newItem,
-                      image: e.target.files?.[0] || null,
-                    })
-                  }
-                  className="col-span-3"
-                />
-              </div>
-            </div>
-            {addError && (
-              <div className="text-red-600 text-center">{addError}</div>
-            )}
-            <DialogFooter>
-              <Button type="submit" onClick={handleAddItem}>
-                Save
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
 
+      {/* Edit Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -605,26 +547,30 @@ const handleAddItem = async () => {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="item_name" className="text-right">
+              <Label htmlFor="edit_item_name" className="text-right">
                 Name
               </Label>
               <Input
-                id="item_name"
-                value={newItem.item_name}
+                id="edit_item_name"
+                value={editItem?.item_name || ""}
                 onChange={(e) =>
-                  setNewItem({ ...newItem, item_name: e.target.value })
+                  setEditItem((prev) =>
+                    prev ? { ...prev, item_name: e.target.value } : null
+                  )
                 }
                 className="col-span-3"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="condition" className="text-right">
+              <Label htmlFor="edit_condition" className="text-right">
                 Condition
               </Label>
               <Select
-                value={newItem.condition}
+                value={editItem?.condition || "Good"}
                 onValueChange={(val) =>
-                  setNewItem({ ...newItem, condition: val })
+                  setEditItem((prev) =>
+                    prev ? { ...prev, condition: val as Item["condition"] } : null
+                  )
                 }
               >
                 <SelectTrigger className="col-span-3">
@@ -640,25 +586,111 @@ const handleAddItem = async () => {
               </Select>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="image" className="text-right">
+              <Label htmlFor="edit_image" className="text-right">
                 Image
               </Label>
               <Input
-                id="image"
+                id="edit_image"
                 type="file"
                 accept="image/*"
                 onChange={(e) =>
-                  setNewItem({ ...newItem, image: e.target.files?.[0] || null })
+                  setEditItem((prev) =>
+                    prev ? { ...prev, _newFile: e.target.files?.[0] || null } : null
+                  )
                 }
                 className="col-span-3"
               />
             </div>
           </div>
-          {addError && (
-            <div className="text-red-600 text-center">{addError}</div>
-          )}
+          {editError && <div className="text-red-600 text-center">{editError}</div>}
           <DialogFooter>
-            <Button type="submit" onClick={handleEditItem}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => { console.log("Cancel edit"); setIsEditModalOpen(false); }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              onClick={() => { console.log("Save edit"); handleEditItem(); }}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Item Modal */}
+      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add New Item</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="add_item_name" className="text-right">
+                Name
+              </Label>
+              <Input
+                id="add_item_name"
+                value={newItem.item_name}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, item_name: e.target.value })
+                }
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="add_condition" className="text-right">
+                Condition
+              </Label>
+              <Select
+                value={newItem.condition}
+                onValueChange={(val) =>
+                  setNewItem({ ...newItem, condition: val as Item["condition"] })
+                }
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Excellent">Excellent</SelectItem>
+                  <SelectItem value="Good">Good</SelectItem>
+                  <SelectItem value="Fair">Fair</SelectItem>
+                  <SelectItem value="Damaged">Damaged</SelectItem>
+                  <SelectItem value="Broken">Broken</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="add_image" className="text-right">
+                Image
+              </Label>
+              <Input
+                id="add_image"
+                type="file"
+                accept="image/*"
+                onChange={(e) =>
+                  setNewItem({ ...newItem, _newFile: e.target.files?.[0] || null })
+                }
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          {addError && <div className="text-red-600 text-center">{addError}</div>}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => { console.log("Cancel add"); setIsAddModalOpen(false); }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              onClick={() => { console.log("Save add"); handleAddItem(); }}
+            >
               Save
             </Button>
           </DialogFooter>
@@ -693,7 +725,10 @@ const handleAddItem = async () => {
             <TableBody>
               {table.getRowModel().rows.length ? (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && "selected"}
+                  >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
                         {flexRender(

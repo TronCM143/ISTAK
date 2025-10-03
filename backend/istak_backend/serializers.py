@@ -106,14 +106,29 @@ class CreateBorrowingSerializer(serializers.Serializer):
         if 'image' in self.context['request'].FILES:
             data['image'] = self.context['request'].FILES['image']
         return data
+from rest_framework import serializers
+from .models import Transaction, Borrower, Item
 
-class ReportSerializer(serializers.Serializer):
-    id = serializers.CharField()
-    borrowerName = serializers.CharField()
-    itemStatus = serializers.CharField()
-    itemName = serializers.CharField()
-    returnedDate = serializers.CharField(allow_null=True)
-    condition = serializers.CharField()
+class DamagedOverdueReportSerializer(serializers.ModelSerializer):
+    borrowerName = serializers.CharField(source='borrower.name')
+    school_id = serializers.CharField(source='borrower.school_id')
+    borrowerImage = serializers.ImageField(source='borrower.image', allow_null=True)
+    itemName = serializers.SerializerMethodField()
+    issue = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Transaction
+        fields = ['id', 'borrowerName', 'school_id', 'borrowerImage', 'itemName', 'issue']
+
+    def get_itemName(self, obj):
+        return ", ".join(item.item_name for item in obj.items.all())
+
+    def get_issue(self, obj):
+        if obj.status == 'returned' and any(item.condition.lower() == 'damaged' for item in obj.items.all()):
+            return 'Damaged'
+        elif obj.status == 'borrowed' and (timezone.now().date() - obj.borrow_date).days > 7:
+            return 'Overdue'
+        return 'Unknown'
 
 class ItemSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
@@ -142,7 +157,7 @@ from istak_backend.models import Borrower, Item, Transaction
 from django.core.files import File
 from io import BytesIO
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 
 class CreateBorrowingSerializer(serializers.Serializer):
     school_id = serializers.CharField(max_length=10)

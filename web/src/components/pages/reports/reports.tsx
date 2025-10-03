@@ -25,10 +25,10 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
 interface Report {
   id: string
   borrowerName: string
-  itemStatus: 'Damaged' | 'Lost' | 'Unreturned' | 'Returned'
+  school_id: string
+  borrowerImage: string | null
   itemName: string
-  returnedDate: string | null
-  condition: string
+  issue: 'Damaged' | 'Overdue'
 }
 
 interface DateRange {
@@ -36,13 +36,13 @@ interface DateRange {
   to?: Date | undefined
 }
 
-const fetchDamagedAndLostItems = async (filters: {
+const fetchDamagedAndOverdueItems = async (filters: {
   search?: string
   status?: string
   dateFrom?: string
   dateTo?: string
 }) => {
-  const token = localStorage.getItem('access_token') // Adjust based on your auth setup
+  const token = localStorage.getItem('access_token')
   if (!API_BASE_URL) throw new Error('API_BASE_URL is not defined')
   const response = await fetch(`${API_BASE_URL}/api/reports/damaged-lost-items/`, {
     method: 'POST',
@@ -67,21 +67,21 @@ const exportToPDF = async (data: Report[], filters: {
   const { jsPDF } = await import('jspdf')
   const autoTable = (await import('jspdf-autotable')).default
   const doc = new jsPDF()
-  doc.text('Damaged and Lost Items Report', 14, 15)
+  doc.text('Damaged and Overdue Items Report', 14, 15)
   autoTable(doc, {
     startY: 20,
-    head: [['Borrower Name', 'Item Status', 'Item Name', 'Returned Date', 'Condition']],
+    head: [['Borrower Image', 'Borrower Name', 'School ID', 'Items', 'Issue']],
     body: data.map(item => [
+      item.borrowerImage ? '[Image]' : 'N/A',
       item.borrowerName,
-      item.itemStatus,
+      item.school_id,
       item.itemName,
-      item.returnedDate ? format(new Date(item.returnedDate), 'PPP') : 'N/A',
-      item.condition,
+      item.issue,
     ]),
     theme: 'striped',
     headStyles: { fillColor: [59, 130, 246] },
   })
-  doc.save('damaged-lost-items-report.pdf')
+  doc.save('damaged-overdue-items-report.pdf')
 }
 
 const exportToExcel = async (data: Report[], filters: {
@@ -92,41 +92,32 @@ const exportToExcel = async (data: Report[], filters: {
   const XLSX = await import('xlsx')
   const ws = XLSX.utils.json_to_sheet(data.map(item => ({
     'Borrower Name': item.borrowerName,
-    'Item Status': item.itemStatus,
-    'Item Name': item.itemName,
-    'Returned Date': item.returnedDate ? format(new Date(item.returnedDate), 'PPP') : 'N/A',
-    Condition: item.condition,
+    'School ID': item.school_id,
+    'Items': item.itemName,
+    'Issue': item.issue,
   })))
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Reports')
-  XLSX.writeFile(wb, 'damaged-lost-items-report.xlsx')
+  XLSX.writeFile(wb, 'damaged-overdue-items-report.xlsx')
 }
 
-const getStatusColor = (status: string) => {
-  switch (status?.toLowerCase()) {
+const getIssueColor = (issue: string) => {
+  switch (issue?.toLowerCase()) {
     case 'damaged':
       return 'bg-destructive text-destructive-foreground'
-    case 'lost':
+    case 'overdue':
       return 'bg-yellow-500 text-yellow-foreground'
-    case 'unreturned':
-      return 'bg-secondary text-secondary-foreground'
-    case 'returned':
-      return 'bg-success text-success-foreground'
     default:
       return 'bg-muted text-muted-foreground'
   }
 }
 
-const getStatusIcon = (status: string) => {
-  switch (status?.toLowerCase()) {
+const getIssueIcon = (issue: string) => {
+  switch (issue?.toLowerCase()) {
     case 'damaged':
       return '⚠️'
-    case 'lost':
-      return '❌'
-    case 'unreturned':
+    case 'overdue':
       return '⏳'
-    case 'returned':
-      return '✅'
     default:
       return 'ℹ️'
   }
@@ -135,21 +126,21 @@ const getStatusIcon = (status: string) => {
 const Reports = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [sortBy, setSortBy] = useState('date')
+  const [sortBy, setSortBy] = useState('borrower')
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined })
   const [selectedColumns, setSelectedColumns] = useState<Record<string, boolean>>({
+    borrowerImage: true,
     borrowerName: true,
-    itemStatus: true,
+    school_id: true,
     itemName: true,
-    returnedDate: true,
-    condition: true,
+    issue: true,
   })
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
   const [exportFormat, setExportFormat] = useState('pdf')
 
   const { data: reportsData, isLoading, error, refetch } = useQuery({
     queryKey: ['reports', searchTerm, statusFilter, dateRange, sortBy],
-    queryFn: () => fetchDamagedAndLostItems({
+    queryFn: () => fetchDamagedAndOverdueItems({
       search: searchTerm,
       status: statusFilter !== 'all' ? statusFilter : undefined,
       dateFrom: dateRange.from?.toISOString().split('T')[0],
@@ -167,31 +158,18 @@ const Reports = () => {
   const filteredData = useMemo(() => {
     if (!reportsData) return []
     let data = [...reportsData]
-    // Apply filters
-    data = data.filter(item => {
-      const matchesSearch = item.borrowerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.itemName.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesStatus = statusFilter === 'all' || item.itemStatus.toLowerCase() === statusFilter.toLowerCase()
-      const matchesDate = (!dateRange.from || (item.returnedDate && new Date(item.returnedDate) >= dateRange.from)) &&
-                          (!dateRange.to || (item.returnedDate && new Date(item.returnedDate) <= dateRange.to))
-      return matchesSearch && matchesStatus && matchesDate
-    })
     // Apply sorting
-    if (sortBy === 'date') {
-      data.sort((a, b) => {
-        const dateA = a.returnedDate ? new Date(a.returnedDate).getTime() : Number.MAX_SAFE_INTEGER
-        const dateB = b.returnedDate ? new Date(b.returnedDate).getTime() : Number.MAX_SAFE_INTEGER
-        return dateB - dateA
-      })
-    } else if (sortBy === 'borrower') {
+    if (sortBy === 'borrower') {
       data.sort((a, b) => a.borrowerName.localeCompare(b.borrowerName))
+    } else if (sortBy === 'school_id') {
+      data.sort((a, b) => a.school_id.localeCompare(b.school_id))
     } else if (sortBy === 'item') {
       data.sort((a, b) => a.itemName.localeCompare(b.itemName))
-    } else if (sortBy === 'status') {
-      data.sort((a, b) => a.itemStatus.localeCompare(b.itemStatus))
+    } else if (sortBy === 'issue') {
+      data.sort((a, b) => a.issue.localeCompare(b.issue))
     }
     return data
-  }, [reportsData, searchTerm, statusFilter, dateRange, sortBy])
+  }, [reportsData, sortBy])
 
   const handleExport = async () => {
     if (!filteredData.length) {
@@ -216,7 +194,7 @@ const Reports = () => {
     setSearchTerm('')
     setStatusFilter('all')
     setDateRange({ from: undefined, to: undefined })
-    setSortBy('date')
+    setSortBy('borrower')
   }
 
   const handleDateRangeSelect = (selected: DateRange | undefined) => {
@@ -224,11 +202,11 @@ const Reports = () => {
   }
 
   const columns = [
+    { key: 'borrowerImage', label: 'Borrower Image', visible: selectedColumns.borrowerImage },
     { key: 'borrowerName', label: 'Borrower Name', visible: selectedColumns.borrowerName },
-    { key: 'itemStatus', label: 'Item Status', visible: selectedColumns.itemStatus },
-    { key: 'itemName', label: 'Item Name', visible: selectedColumns.itemName },
-    { key: 'returnedDate', label: 'Returned Date', visible: selectedColumns.returnedDate },
-    { key: 'condition', label: 'Condition', visible: selectedColumns.condition },
+    { key: 'school_id', label: 'School ID', visible: selectedColumns.school_id },
+    { key: 'itemName', label: 'Items', visible: selectedColumns.itemName },
+    { key: 'issue', label: 'Issue', visible: selectedColumns.issue },
   ]
 
   const visibleColumns = columns.filter(col => col.visible)
@@ -237,7 +215,7 @@ const Reports = () => {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">
-          Damaged and Lost Items Report
+          Damaged and Overdue Items Report
         </h1>
         <div className="flex gap-2">
           <Button
@@ -337,7 +315,7 @@ const Reports = () => {
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="search"
-                  placeholder="Search borrowers or items..."
+                  placeholder="Search borrowers, school ID, or items..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -345,17 +323,15 @@ const Reports = () => {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="status">Issue</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger id="status">
-                  <SelectValue placeholder="All statuses" />
+                  <SelectValue placeholder="All issues" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All</SelectItem>
                   <SelectItem value="damaged">Damaged</SelectItem>
-                  <SelectItem value="lost">Lost</SelectItem>
-                  <SelectItem value="unreturned">Unreturned</SelectItem>
-                  <SelectItem value="returned">Returned</SelectItem>
+                  <SelectItem value="overdue">Overdue</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -402,10 +378,10 @@ const Reports = () => {
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="date">Date Returned</SelectItem>
                   <SelectItem value="borrower">Borrower Name</SelectItem>
-                  <SelectItem value="item">Item Name</SelectItem>
-                  <SelectItem value="status">Status</SelectItem>
+                  <SelectItem value="school_id">School ID</SelectItem>
+                  <SelectItem value="item">Items</SelectItem>
+                  <SelectItem value="issue">Issue</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -427,7 +403,7 @@ const Reports = () => {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle className="text-base font-semibold">
-            Recent Reports ({filteredData.length})
+            Damaged and Overdue Items ({filteredData.length})
           </CardTitle>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" className="h-8 gap-1">
@@ -470,15 +446,21 @@ const Reports = () => {
                     <TableRow key={report.id}>
                       {visibleColumns.map((col) => (
                         <TableCell key={col.key} className="text-muted-foreground">
-                          {col.key === 'itemStatus' ? (
-                            <Badge className={getStatusColor(report.itemStatus)}>
-                              {getStatusIcon(report.itemStatus)} {report.itemStatus}
-                            </Badge>
-                          ) : col.key === 'returnedDate' ? (
-                            report.returnedDate ? format(new Date(report.returnedDate), 'PPP') : 'N/A'
-                          ) : col.key === 'condition' ? (
-                            <Badge variant={report.condition === 'Good' ? 'default' : 'destructive'}>
-                              {report.condition}
+                          {col.key === 'borrowerImage' ? (
+                            report.borrowerImage ? (
+                              <img
+                                src={report.borrowerImage}
+                                alt={report.borrowerName}
+                                className="h-10 w-10 rounded object-cover"
+                              />
+                            ) : (
+                              <div className="h-10 w-10 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground">
+                                No Img
+                              </div>
+                            )
+                          ) : col.key === 'issue' ? (
+                            <Badge className={getIssueColor(report.issue)}>
+                              {getIssueIcon(report.issue)} {report.issue}
                             </Badge>
                           ) : (
                             report[col.key as keyof Report] || 'N/A'
@@ -494,11 +476,11 @@ const Reports = () => {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-destructive">
-              {reportsData?.filter((item: Report) => item.itemStatus === 'Damaged').length || 0}
+              {reportsData?.filter((item: Report) => item.issue === 'Damaged').length || 0}
             </div>
             <p className="text-sm text-muted-foreground">Damaged Items</p>
           </CardContent>
@@ -506,17 +488,9 @@ const Reports = () => {
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-yellow-500">
-              {reportsData?.filter((item: Report) => item.itemStatus === 'Lost').length || 0}
+              {reportsData?.filter((item: Report) => item.issue === 'Overdue').length || 0}
             </div>
-            <p className="text-sm text-muted-foreground">Lost Items</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-secondary-foreground">
-              {reportsData?.filter((item: Report) => item.itemStatus === 'Unreturned').length || 0}
-            </div>
-            <p className="text-sm text-muted-foreground">Unreturned Items</p>
+            <p className="text-sm text-muted-foreground">Overdue Items</p>
           </CardContent>
         </Card>
       </div>
