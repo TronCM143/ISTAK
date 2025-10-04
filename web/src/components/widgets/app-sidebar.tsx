@@ -33,8 +33,8 @@ import {
 
 const data = {
   user: {
-    name: "marist",
-    email: "maristGroup",
+    name: "kariktan",
+    email: "ndmu.edu.com",
     avatar: "/avatars/shadcn.jpg",
   },
   navMain: [
@@ -48,11 +48,7 @@ const data = {
       url: "/inventory",
       icon: IconListDetails,
     },
-    {
-      title: "Requests",
-      url: "/request",
-      icon: IconChartBar,
-    },
+  
     {
       title: "Transactions",
       url: "/transaction",
@@ -69,6 +65,11 @@ const data = {
       title: "Reports",
       url: "/reports",
       icon: IconReport,
+    },
+      {
+      title: "Requests",
+      url: "/request",
+      icon: IconChartBar,
     },
      {
       title: "Borrower",
@@ -91,13 +92,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             >
               <Link href="/dashboard" className="flex items-center gap-2">
                 <Image
-                  src="/istak_LOGO.png"
+                  src="/fullLogo.png"
                   alt="Istak Logo"
-                  width={24}
+                  width={100}
                   height={24}
-                  className="w-6 h-6"
+                  className="w-30 h-7"
                 />
-                <span className="text-base font-bold">Istak</span>
+             {/* <span className="text-base font-bold">Istak</span> */}
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

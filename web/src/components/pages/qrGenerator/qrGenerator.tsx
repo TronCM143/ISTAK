@@ -1,4 +1,5 @@
-"use client"
+
+'use client'
 
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
@@ -7,17 +8,16 @@ import { QRCodeCanvas } from "qrcode.react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import { Checkbox } from "@/components/ui/checkbox"
-import Link from "next/link"
 
 interface Item {
   id: number
   item_name: string
 }
 
-export  function QrGenerator() {
+export function QrGenerator() {
   const router = useRouter()
   const [data, setData] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
@@ -26,13 +26,10 @@ export  function QrGenerator() {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState("")
   const [rowSelection, setRowSelection] = useState({})
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isOperationLoading, setIsOperationLoading] = useState(false)
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
   const [previewItemId, setPreviewItemId] = useState<number | null>(null)
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
-
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
 
   useEffect(() => {
     const accessToken = localStorage.getItem("access_token")
@@ -68,41 +65,6 @@ export  function QrGenerator() {
     }
   }
 
-  const handleDeleteItems = async () => {
-    setIsOperationLoading(true)
-    setDeleteError(null)
-    try {
-      const token = localStorage.getItem("access_token")
-      const selectedItems = table.getSelectedRowModel().flatRows.map((row) => row.original)
-      
-      for (const item of selectedItems) {
-        const resp = await fetch(`${API_BASE_URL}/api/items/${item.id}/`, {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        })
-        if (!resp.ok) {
-          const errData = await resp.text()
-          setDeleteError(`Failed to delete item ${item.item_name}: ${resp.status} ${errData}`)
-          toast.error(`Failed to delete ${item.item_name}`)
-          setIsOperationLoading(false)
-          return
-        }
-      }
-      toast.success("Item(s) deleted successfully!")
-      setIsDeleteModalOpen(false)
-      setRowSelection({})
-      await fetchItems()
-    } catch (err: any) {
-      setDeleteError(err.message || String(err))
-      toast.error("Failed to delete item(s)")
-    } finally {
-      setIsOperationLoading(false)
-    }
-  }
-
   const downloadQrCode = (item: Item) => {
     const canvas = document.getElementById(`qr-${item.id}`) as HTMLCanvasElement
     if (!canvas) {
@@ -116,7 +78,58 @@ export  function QrGenerator() {
   }
 
   const handlePrint = () => {
-    window.print()
+    const selectedItems = table.getSelectedRowModel().flatRows.map((row) => row.original)
+    if (selectedItems.length === 0) {
+      toast.error("Please select at least one item to print QR codes.")
+      return
+    }
+
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      toast.error("Failed to open print window.")
+      return
+    }
+
+    const qrHtml = selectedItems
+      .map((item) => `
+        <div style="text-align: center; margin: 20px;">
+          <h3>${item.item_name}</h3>
+          <canvas id="print-qr-${item.id}"></canvas>
+        </div>
+      `)
+      .join('')
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Print QR Codes</title>
+          <style>
+            body { font-family: Arial, sans-serif; }
+            @media print {
+              body { margin: 0; }
+              div { page-break-inside: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          ${qrHtml}
+          <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.0/build/qrcode.min.js"></script>
+          <script>
+            ${selectedItems.map((item) => `
+              QRCode.toCanvas(document.getElementById('print-qr-${item.id}'), '${item.id}', {
+                width: 200,
+                margin: 2,
+                errorCorrectionLevel: 'H'
+              }, function (error) {
+                if (error) console.error(error)
+              })
+            `).join('')}
+            window.onload = function() { window.print(); window.close(); }
+          </script>
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
   }
 
   const columns = useMemo<ColumnDef<Item, any>[]>(
@@ -125,15 +138,22 @@ export  function QrGenerator() {
         id: "select",
         header: ({ table }) => (
           <Checkbox
-            checked={table.getIsAllRowsSelected()}
-            onCheckedChange={table.getToggleAllRowsSelectedHandler()}
+            checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() ? 'indeterminate' : false)}
+            onCheckedChange={(value) => {
+              table.toggleAllPageRowsSelected(!!value)
+              console.log("Select all toggled:", value, table.getState().rowSelection)
+            }}
+            aria-label="Select all"
           />
         ),
         cell: ({ row }) => (
           <Checkbox
             checked={row.getIsSelected()}
-            disabled={!row.getCanSelect()}
-            onCheckedChange={row.getToggleSelectedHandler()}
+            onCheckedChange={(value) => {
+              row.toggleSelected(!!value)
+              console.log("Row toggled:", row.original.id, value)
+            }}
+            aria-label="Select row"
           />
         ),
       },
@@ -191,12 +211,11 @@ export  function QrGenerator() {
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     onRowSelectionChange: setRowSelection,
+    enableRowSelection: true,
   })
 
   return (
     <div className="container mx-auto py-1">
-   
-
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Input
@@ -211,7 +230,7 @@ export  function QrGenerator() {
             onClick={handlePrint}
             disabled={isOperationLoading}
           >
-            Print
+            Print QR Codes
           </Button>
           {Object.keys(rowSelection).length > 0 && (
             <div className="flex items-center gap-2">
@@ -241,13 +260,6 @@ export  function QrGenerator() {
               >
                 Download QR Code(s)
               </Button>
-              <Button
-                variant="destructive"
-                disabled={isOperationLoading}
-                onClick={() => setIsDeleteModalOpen(true)}
-              >
-                Delete
-              </Button>
             </div>
           )}
         </div>
@@ -276,34 +288,6 @@ export  function QrGenerator() {
               disabled={isOperationLoading}
             >
               Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete {Object.keys(rowSelection).length} item(s)? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          {deleteError && <div className="text-red-600 text-center">{deleteError}</div>}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsDeleteModalOpen(false)}
-              disabled={isOperationLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteItems}
-              disabled={isOperationLoading}
-            >
-              {isOperationLoading ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

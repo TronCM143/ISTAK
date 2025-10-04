@@ -1,12 +1,13 @@
-"use client"
+'use client'
 
 import { useState } from "react"
-import { GalleryVerticalEnd } from "lucide-react"
+import { Eye, EyeOff, GalleryVerticalEnd } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import Image from "next/image";
+import Image from "next/image"
+
 export function LoginForm({
   className,
   ...props
@@ -15,10 +16,10 @@ export function LoginForm({
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
-   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
-   console.log("API_BASE_URL:", API_BASE_URL) // Debug the URL
-
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+  console.log("API_BASE_URL:", API_BASE_URL) // Debug the URL
 
   const handleSubmit = async (e: { preventDefault: () => void }) => {
     e.preventDefault()
@@ -37,12 +38,10 @@ export function LoginForm({
       const data = await response.json()
 
       if (response.ok && data.status === "success") {
-        // Store tokens and user data (e.g., in localStorage or context)
         localStorage.setItem("access_token", data.access)
         localStorage.setItem("refresh_token", data.refresh)
         localStorage.setItem("user", JSON.stringify(data.user))
-        // Redirect or update UI (e.g., to a dashboard)
-        window.location.href = "/dashboard" // Adjust based on your routing
+        window.location.href = "/dashboard"
       } else {
         setError(data.error || "Invalid credentials")
       }
@@ -59,17 +58,17 @@ export function LoginForm({
         <div className="flex flex-col gap-6">
           <div className="flex flex-col items-center gap-2">
             <Image
-        src="/fullLogo.png"
-        alt="Full Logo"
-        width={200}   // adjust size
-        height={200}  // adjust size
-        priority      // loads faster (good for splash/login)
-      />
+              src="/fullLogo.png"
+              alt="Full Logo"
+              width={200}
+              height={200}
+              priority
+            />
           </div>
           <div className="flex flex-col gap-6">
             <div className="grid gap-3">
               <Label htmlFor="username">Username</Label>
-              <Input  
+              <Input
                 id="username"
                 type="text"
                 placeholder="Enter your username"
@@ -78,17 +77,29 @@ export function LoginForm({
                 required
               />
             </div>
-            <div className="grid gap-3">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
+          <div className="grid gap-3">
+  <Label htmlFor="password">Password</Label>
+  <div className="relative">
+    <Input
+      id="password"
+      type={showPassword ? "text" : "password"}
+      placeholder="Enter your password"
+      value={password}
+      onChange={(e) => setPassword(e.target.value)}
+      className="pr-10"  // padding on right for the icon
+      required
+    />
+    <button
+      type="button"
+      onClick={() => setShowPassword(!showPassword)}
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+      aria-label={showPassword ? "Hide password" : "Show password"}
+    >
+      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+    </button>
+  </div>
+</div>
+
             {error && (
               <div className="text-red-500 text-sm text-center">{error}</div>
             )}
@@ -98,7 +109,6 @@ export function LoginForm({
           </div>
         </div>
       </form>
-      
     </div>
   )
 }

@@ -135,11 +135,11 @@ export default function PredictedTopItemsRow() {
   }, [forecast, itemsByName]);
 
   return (
-    <Card className="border-border/60 bg-gradient-to-b from-background/60 to-background">
+    <Card className="border-border/60 bg-gradient-to-b from-background/60 to-background flex flex-col" data-slot="card">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            <span className="text-green-400">Next Month Forecast</span>
+            <span className="text-white-400">Predicted to be borrowed next month</span>
           </CardTitle>
           <div className="flex items-center gap-2">
             <Badge
