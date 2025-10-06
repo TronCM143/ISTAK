@@ -1,10 +1,10 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_code_scanner_plus/qr_code_scanner_plus.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:mobile/apiURL.dart';
 import 'package:mobile/components/local_database/localDatabaseMain.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
@@ -133,7 +133,7 @@ class _ScanItemsQRState extends State<ScanItemsQR> {
         } else if (await _isOnline()) {
           print('🌐 Fetching item $itemId from backend');
           final response = await http.get(
-            Uri.parse('${API.baseUrl}/api/items/by-id/$itemId/'),
+            Uri.parse('${dotenv.env['BASE_URL']}/api/items/by-id/$itemId/'),
             headers: {
               'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',

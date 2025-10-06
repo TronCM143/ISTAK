@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile/apiURL.dart';
 import 'package:mobile/components/local_database/localDatabaseMain.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -115,7 +115,7 @@ class ProcessTransaction extends StatelessWidget {
       try {
         final request = http.MultipartRequest(
           'POST',
-          Uri.parse('${API.baseUrl}/api/borrowing/create/'),
+          Uri.parse('${dotenv.env['BASE_URL']}/api/borrowing/create/'),
         );
         request.headers['Authorization'] = 'Bearer $token';
         request.fields['school_id'] = schoolId;

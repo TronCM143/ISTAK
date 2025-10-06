@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:mobile/apiURL.dart';
 import 'package:mobile/components/_landing_page.dart';
 
 class Borrowerlist extends StatefulWidget {
@@ -75,7 +75,7 @@ class _BorrowerlistState extends State<Borrowerlist>
     });
 
     try {
-      final url = Uri.parse('${API.baseUrl}/api/borrowers/');
+      final url = Uri.parse('${dotenv.env['BASE_URL']}/api/borrowers/');
       final response = await http.get(
         url,
         headers: {
@@ -163,7 +163,7 @@ class _BorrowerlistState extends State<Borrowerlist>
   Future<List<dynamic>> fetchBorrowerTransactions(int borrowerId) async {
     try {
       final url = Uri.parse(
-        '${API.baseUrl}/api/borrowers/$borrowerId/transactions/',
+        '${dotenv.env['BASE_URL']}/api/borrowers/$borrowerId/transactions/',
       );
       final response = await http.get(
         url,

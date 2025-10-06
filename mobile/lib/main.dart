@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:mobile/animatedBackground.dart';
+import 'package:mobile/authentication/page.dart';
 import 'package:mobile/notifications/notif.dart';
 import 'firebase_options.dart';
 import 'package:mobile/splashPlusLogin.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 // Background handler must be top-level and registered before runApp
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -37,6 +40,7 @@ Future<void> main() async {
     debugPrint("$st");
   }
 
+  await dotenv.load(fileName: ".env");
   runApp(const MyApp());
 }
 

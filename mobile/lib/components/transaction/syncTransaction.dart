@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:mobile/apiURl.dart';
 import 'package:mobile/components/local_database/localDatabaseMain.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -58,7 +58,9 @@ class SyncTransactions {
           try {
             final itemId = request['item_id'];
             // Fetch item details
-            final itemUrl = Uri.parse('${API.baseUrl}/api/items/?id=$itemId');
+            final itemUrl = Uri.parse(
+              '${dotenv.env['BASE_URL']}/api/items/?id=$itemId',
+            );
             final itemResponse = await http.get(
               itemUrl,
               headers: {
@@ -121,7 +123,7 @@ class SyncTransactions {
                   };
 
             final response = await http.post(
-              Uri.parse('${API.baseUrl}/api/borrow_process/'),
+              Uri.parse('${dotenv.env['BASE_URL']}/api/borrow_process/'),
               headers: {
                 'Authorization': 'Bearer $token',
                 'Content-Type': 'application/json',

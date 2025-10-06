@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
-import 'package:mobile/apiURL.dart';
 import 'package:mobile/components/_landing_page.dart';
 import 'package:mobile/components/helperFunction.dart';
 import 'package:mobile/components/sidePanel/_mainSidePanel.dart';
@@ -68,7 +68,7 @@ class _ItemlistState extends State<Itemlist>
         return;
       }
 
-      final url = Uri.parse(API.getItems);
+      final url = Uri.parse(dotenv.env['GET_ITEMS']!);
       final response = await http.get(
         url,
         headers: {

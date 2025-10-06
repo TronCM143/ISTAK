@@ -205,17 +205,19 @@ def item_list(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     return Response({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
+from django.db.models import Prefetch
+
 class ItemListCreateAPIView(generics.ListCreateAPIView):
     serializer_class = ItemSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        if self.request.user.role == 'user_web':
-            return Item.objects.filter(manager=self.request.user)
-        else:
-            if self.request.user.manager:
-                return Item.objects.filter(manager=self.request.user.manager)
-            return Item.objects.none()
+        queryset = Item.objects.filter(manager=self.request.user) if self.request.user.role == 'user_web' else \
+                   Item.objects.filter(manager=self.request.user.manager) if self.request.user.manager else \
+                   Item.objects.none()
+        return queryset.prefetch_related(
+            Prefetch('transactions', queryset=Transaction.objects.filter(status='borrowed'), to_attr='borrowed_transactions')
+        )
 
     def perform_create(self, serializer):
         if self.request.user.role == 'user_web':
@@ -679,13 +681,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+from django.db.models import Max, Q
+
 class BorrowerListView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
 
     def get(self, request):
         try:
-            # Allow both mobile and web users
             if request.user.role not in ['user_mobile', 'user_web']:
                 logger.error(
                     f"User {request.user.username} with role {request.user.role} "
@@ -696,7 +699,7 @@ class BorrowerListView(APIView):
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-            # Scope queryset differently depending on role
+            # Scope queryset based on role
             if request.user.role == 'user_mobile':
                 borrowers = Borrower.objects.filter(
                     transactions__mobile_user=request.user
@@ -706,13 +709,16 @@ class BorrowerListView(APIView):
                     transactions__manager=request.user
                 )
 
-            # Annotate with borrowed items and last borrowed date
+            # Annotate with total borrowed items and current borrow date
             borrowers = borrowers.distinct().annotate(
                 total_borrowed_items=Count(
                     'transactions__items',
                     filter=Q(transactions__status='borrowed')
                 ),
-                last_borrowed_date=Max('transactions__borrow_date')
+                current_borrow_date=Max(
+                    'transactions__borrow_date',
+                    filter=Q(transactions__status='borrowed')
+                )
             )
 
             logger.info(
@@ -758,13 +764,11 @@ class BorrowerTransactionsView(APIView):
             return Response({"error": f"Failed to fetch transactions: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         
-        
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated
-from django.utils import timezone
 from django.db import transaction as db_transaction
 from istak_backend.models import Item, Borrower, Transaction
 from istak_backend.serializers import BorrowerSerializer
@@ -786,49 +790,64 @@ def item_borrower_view(request, itemId):
             logger.error(f"No manager assigned for user {request.user.username}")
             return Response({"error": "No manager assigned for mobile user"}, status=status.HTTP_403_FORBIDDEN)
 
-        # Find the item
+        # Find the item with id explicitly selected
         try:
-            item = Item.objects.get(id=itemId, manager=manager)
+            item = Item.objects.only('id', 'manager').get(id=itemId, manager=manager)
             logger.info(f"Found item {itemId} managed by {manager.username}")
         except Item.DoesNotExist:
             logger.error(f"Item {itemId} not found or not managed by {manager.username}")
             return Response({"error": f"Item {itemId} not found or not managed by your manager"}, status=status.HTTP_404_NOT_FOUND)
 
-        # Find the active transaction for this item
-        transaction = Transaction.objects.filter(
+        # Find the active transaction for this item with borrower fields loaded
+        transaction = Transaction.objects.select_related('borrower').prefetch_related('items').filter(
             items=item,
-            status='borrowed'
-        ).select_related('borrower').first()
+            status='borrowed',
+            manager=manager
+        ).first()
         if not transaction:
             logger.error(f"No active borrowed transaction for item {itemId}")
             return Response({"error": f"Item {itemId} is not currently borrowed"}, status=status.HTTP_400_BAD_REQUEST)
 
-        borrower = transaction.borrower
-        # Get all borrowed items for this borrower
-        transactions = Transaction.objects.filter(
-            borrower=borrower,
-            status='borrowed',
-            mobile_user=request.user if request.user.role == 'user_mobile' else None
-        ).prefetch_related('items')
-        borrowed_items = []
-        for t in transactions:
-            for item in t.items.all():
-                borrowed_items.append({
-                    'id': item.id,
-                    'item_name': item.item_name,
-                    'condition': item.condition
-                })
+        # Get all items in this transaction
+        borrowed_items = [
+            {
+                'id': item.id,
+                'item_name': item.item_name,
+                'condition': item.condition
+            }
+            for item in transaction.items.all()
+        ]
+
+        # Serialize the borrower instance with all necessary fields
+        borrower_data = BorrowerSerializer(transaction.borrower, context={'request': request}).data
 
         response_data = {
-            'borrower': BorrowerSerializer(borrower, context={'request': request}).data,
+            'transaction_id': str(transaction.id),
+            'borrower': borrower_data,
             'borrowed_items': borrowed_items
         }
-        logger.info(f"Fetched borrower {borrower.school_id} with {len(borrowed_items)} borrowed items for item {itemId}")
+        logger.info(
+            f"Fetched transaction {transaction.id} for borrower {transaction.borrower.school_id} "
+            f"with {len(borrowed_items)} items for item {itemId}"
+        )
         return Response(response_data, status=status.HTTP_200_OK)
 
     except Exception as e:
         logger.exception(f"Error fetching borrower for item {itemId}")
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.permissions import IsAuthenticated
+from django.utils import timezone
+from django.db import transaction  # Module for atomic()
+import json
+import logging
+from istak_backend.models import Transaction, Item, Borrower
+
+logger = logging.getLogger(__name__)
 
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
@@ -840,18 +859,36 @@ def return_item(request):
             return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
 
         data = json.loads(request.body)
-        item_id = data.get('item_id')
-        condition = data.get('condition')
+        logger.info(f"Received request data: {data}")
+        transaction_id = data.get('transaction_id')
+        items_data = data.get('items', [])  # List of {itemId, condition}
         school_id = data.get('school_id')
 
-        if not item_id or not condition or not school_id:
-            logger.error(f"Missing required fields: item_id={item_id}, condition={condition}, school_id={school_id}")
-            return Response({"error": "item_id, condition, and school_id are required"}, status=status.HTTP_400_BAD_REQUEST)
+        if not transaction_id or not items_data or not school_id:
+            logger.error(
+                f"Missing required fields: transaction_id={transaction_id}, "
+                f"items={items_data}, school_id={school_id}"
+            )
+            return Response(
+                {"error": "transaction_id, items, and school_id are required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Coerce transaction_id to integer
+        try:
+            transaction_id = int(transaction_id)
+            logger.debug(f"Coerced transaction_id to: {transaction_id}, type: {type(transaction_id)}")
+        except (ValueError, TypeError):
+            logger.error(f"Invalid transaction_id: {transaction_id}")
+            return Response({"error": "Invalid transaction_id"}, status=status.HTTP_400_BAD_REQUEST)
 
         manager = request.user if request.user.role == 'user_web' else request.user.manager
         if not manager:
             logger.error(f"No manager assigned for user {request.user.username}")
-            return Response({"error": "No manager assigned for mobile user"}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"error": "No manager assigned for mobile user"},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         # Verify borrower exists
         try:
@@ -859,41 +896,103 @@ def return_item(request):
             logger.info(f"Found borrower with school_id {school_id}")
         except Borrower.DoesNotExist:
             logger.error(f"Borrower with school_id {school_id} not found")
-            return Response({"error": f"Borrower with school_id {school_id} not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": f"Borrower with school_id {school_id} not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
-        # Verify item exists and belongs to manager
+        # Find the transaction with id explicitly selected
         try:
-            item = Item.objects.get(id=item_id, manager=manager)
-            logger.info(f"Found item {item_id} managed by {manager.username}")
-        except Item.DoesNotExist:
-            logger.error(f"Item {item_id} not found or not managed by {manager.username}")
-            return Response({"error": f"Item {item_id} not found or not managed by your manager"}, status=status.HTTP_404_NOT_FOUND)
-
-        # Check for active transaction
-        with db_transaction.atomic():
-            transaction = Transaction.objects.filter(
-                items=item,
+            db_transaction = Transaction.objects.select_related('borrower').prefetch_related('items').get(  # Renamed to db_transaction
+                id=transaction_id,
                 borrower=borrower,
-                status='borrowed'
-            ).first()
-            if not transaction:
-                logger.error(f"No active transaction for item {item_id} by borrower {school_id}")
-                return Response({"error": f"Item {item_id} is not borrowed by this borrower"}, status=status.HTTP_400_BAD_REQUEST)
+                status='borrowed',
+                manager=manager
+            )
+            logger.info(f"Retrieved transaction {transaction_id} with items: {[item.id for item in db_transaction.items.all()]}")
+        except Transaction.DoesNotExist:
+            logger.error(
+                f"No active transaction {transaction_id} found for borrower {school_id} "
+                f"and manager {manager.username}"
+            )
+            return Response(
+                {"error": f"No active transaction found for transaction ID {transaction_id}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except ValueError:
+            logger.error(f"Invalid transaction_id: {transaction_id}")
+            return Response(
+                {"error": "Invalid transaction_id"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-            # Update transaction and item
-            transaction.status = 'returned'
-            transaction.return_date = timezone.now().date()
-            transaction.save()
-            item.condition = condition
-            item.status = 'available'
-            item.save()
+        # Validate that all transaction items are included and no extra items are submitted
+        transaction_item_ids = set(map(int, db_transaction.items.values_list('id', flat=True)))  # Use db_transaction
+        submitted_item_ids = set(int(str(item['itemId'])) for item in items_data)
+        logger.debug(f"Transaction_item_ids: {transaction_item_ids}, type: {type(next(iter(transaction_item_ids)))}")
+        logger.debug(f"Submitted_item_ids: {submitted_item_ids}, type: {type(next(iter(submitted_item_ids)))}")
+        logger.debug(f"Comparison: {transaction_item_ids == submitted_item_ids}")
 
-        logger.info(f"Successfully returned item {item_id} for borrower {school_id}")
-        return Response({"message": f"Item {item_id} returned successfully"}, status=status.HTTP_200_OK)
+        if transaction_item_ids != submitted_item_ids:
+            logger.error(
+                f"Submitted items {submitted_item_ids} do not match transaction items {transaction_item_ids}"
+            )
+            return Response(
+                {"error": "All items in the transaction must be returned together, no extra items allowed"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
+        # Validate items and update conditions within a transaction
+        with transaction.atomic():  # Use the transaction module
+            for item_data in items_data:
+                item_id = int(item_data['itemId'])
+                condition = item_data['condition']
+                
+                try:
+                    item = Item.objects.only('id', 'manager', 'condition').get(id=item_id, manager=manager)
+                except Item.DoesNotExist:
+                    logger.error(f"Item {item_id} not found or not managed by {manager.username}")
+                    return Response(
+                        {"error": f"Item {item_id} not found or not managed by your manager"},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+
+                if condition not in ['Good', 'Fair', 'Damaged', 'Broken']:
+                    logger.error(f"Invalid condition {condition} for item {item_id}")
+                    return Response(
+                        {"error": f"Invalid condition {condition} for item {item_id}"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                item.condition = condition
+                item.save()
+
+            # Update transaction
+            db_transaction.status = 'returned'  # Use db_transaction
+            db_transaction.return_date = timezone.now().date()
+            db_transaction.save()
+
+        logger.info(
+            f"Successfully returned transaction {transaction_id} for borrower {school_id} "
+            f"by user {request.user.username}"
+        )
+        return Response(
+            {"message": f"All items in transaction {transaction_id} returned successfully"},
+            status=status.HTTP_200_OK
+        )
+
+    except json.JSONDecodeError:
+        logger.error("Invalid JSON in request body")
+        return Response(
+            {"error": "Invalid JSON in request body"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
     except Exception as e:
-        logger.exception(f"Error processing return for item {item_id}")
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.exception(f"Error processing return for transaction {transaction_id}")
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
     
 # views.py
 from rest_framework.views import APIView

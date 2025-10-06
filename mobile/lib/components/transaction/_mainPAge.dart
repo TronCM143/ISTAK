@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/components/transaction/borrowing/_mainBorrow.dart';
-import 'package:mobile/components/transaction/returning.dart';
+import 'package:mobile/components/transaction/returning/returning.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class SelectTask extends StatelessWidget {

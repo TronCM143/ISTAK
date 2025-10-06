@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:mobile/apiURL.dart';
 
 class BorrowerInputAndPhoto extends StatefulWidget {
   final Function(Map<String, String>) onDataEntered;
@@ -106,7 +106,7 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto> {
     try {
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('${API.baseUrl}/api/process_image/'),
+        Uri.parse('${dotenv.env['BASE_URL']}/api/process_image/'),
       );
       request.headers['Authorization'] = 'Bearer $_accessToken';
       request.files.add(await http.MultipartFile.fromPath('image', imagePath));

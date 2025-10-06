@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
@@ -232,292 +233,258 @@ class _AuthPageState extends State<AuthPage>
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 400),
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.transparent, // --card
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(height: 200),
-                      Text(
-                        "Username",
-                        style: GoogleFonts.ibmPlexMono(
-                          color: const Color(0xFFA8B0B2), // --muted-foreground
-                          fontSize: 14,
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                    child: Container(
+                      padding: const EdgeInsets.all(22),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(24),
+                        // dark glass: subtle translucent gradient + hairline border + glow
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.white.withOpacity(0.08),
+                            Colors.white.withOpacity(0.04),
+                          ],
                         ),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.16),
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.35),
+                            blurRadius: 28,
+                            offset: const Offset(0, 16),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: usernameController,
-                        style: GoogleFonts.ibmPlexMono(
-                          color: const Color(0xFFF5F7F5), // --card-foreground
-                        ),
-                        cursorColor: const Color(0xFF1A8B4A), // --ring
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: const Color(0xFF3E4648), // --muted
-                          border: const OutlineInputBorder(
-                            borderRadius: BorderRadius.zero,
-                            borderSide: BorderSide(
-                              color: Color(0x26FFFFFF), // --border
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 20),
+
+                          // Username
+                          Text(
+                            "Username",
+                            style: GoogleFonts.ibmPlexMono(
+                              color: const Color(0xFFA8B0B2),
+                              fontSize: 13,
                             ),
                           ),
-                          enabledBorder: const OutlineInputBorder(
-                            borderRadius: BorderRadius.zero,
-                            borderSide: BorderSide(
-                              color: Color(0x3DFFFFFF), // --input
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: usernameController,
+                            style: GoogleFonts.ibmPlexMono(
+                              color: const Color(0xFFF5F7F5),
+                            ),
+                            cursorColor: const Color(0xFF1A8B4A),
+                            decoration: _glassInputDecoration(
+                              hint: "Enter your username",
+                              icon: Icons.person_outline,
                             ),
                           ),
-                          focusedBorder: const OutlineInputBorder(
-                            borderRadius: BorderRadius.zero,
-                            borderSide: BorderSide(
-                              color: Color(0xFF1A8B4A), // --ring
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      if (!isLoginMode) ...[
-                        Text(
-                          "Email",
-                          style: GoogleFonts.ibmPlexMono(
-                            color: const Color(
-                              0xFFA8B0B2,
-                            ), // --muted-foreground
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: emailController,
-                          style: GoogleFonts.ibmPlexMono(
-                            color: const Color(0xFFF5F7F5), // --card-foreground
-                          ),
-                          cursorColor: const Color(0xFF1A8B4A), // --ring
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: const Color(0xFF3E4648), // --muted
-                            border: const OutlineInputBorder(
-                              borderRadius: BorderRadius.zero,
-                              borderSide: BorderSide(
-                                color: Color(0x26FFFFFF), // --border
+
+                          const SizedBox(height: 14),
+
+                          if (!isLoginMode) ...[
+                            // Email
+                            Text(
+                              "Email",
+                              style: GoogleFonts.ibmPlexMono(
+                                color: const Color(0xFFA8B0B2),
+                                fontSize: 13,
                               ),
                             ),
-                            enabledBorder: const OutlineInputBorder(
-                              borderRadius: BorderRadius.zero,
-                              borderSide: BorderSide(
-                                color: Color(0x3DFFFFFF), // --input
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              style: GoogleFonts.ibmPlexMono(
+                                color: const Color(0xFFF5F7F5),
+                              ),
+                              cursorColor: const Color(0xFF1A8B4A),
+                              decoration: _glassInputDecoration(
+                                hint: "you@example.com",
+                                icon: Icons.mail_outline,
                               ),
                             ),
-                            focusedBorder: const OutlineInputBorder(
-                              borderRadius: BorderRadius.zero,
-                              borderSide: BorderSide(
-                                color: Color(0xFF1A8B4A), // --ring
+
+                            const SizedBox(height: 14),
+
+                            // Manager
+                            Text(
+                              "Select Manager",
+                              style: GoogleFonts.ibmPlexMono(
+                                color: const Color(0xFFA8B0B2),
+                                fontSize: 13,
                               ),
                             ),
+                            const SizedBox(height: 8),
+                            isFetchingManagers
+                                ? const Center(
+                                    child: CircularProgressIndicator(
+                                      color: Color(0xFF1A8B4A),
+                                    ),
+                                  )
+                                : (managers.isNotEmpty
+                                      ? DropdownButtonFormField<String>(
+                                          value:
+                                              (managerIdController.text.isEmpty)
+                                              ? null
+                                              : managerIdController.text,
+                                          decoration: _glassInputDecoration(
+                                            hint: "Choose a manager",
+                                            icon: Icons
+                                                .supervisor_account_outlined,
+                                          ),
+                                          dropdownColor: const Color(
+                                            0xFF303638,
+                                          ).withOpacity(0.8),
+                                          style: GoogleFonts.ibmPlexMono(
+                                            color: const Color(0xFFF5F7F5),
+                                          ),
+                                          items: managers.map((m) {
+                                            return DropdownMenuItem<String>(
+                                              value: m['id'].toString(),
+                                              child: Text(
+                                                m['username'],
+                                                style: GoogleFonts.ibmPlexMono(
+                                                  color: const Color(
+                                                    0xFFF5F7F5,
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
+                                          onChanged: (value) {
+                                            if (value != null)
+                                              managerIdController.text = value;
+                                          },
+                                          validator: (value) =>
+                                              (value == null || value.isEmpty)
+                                              ? "Please select a manager"
+                                              : null,
+                                        )
+                                      : Text(
+                                          "No managers available",
+                                          style: GoogleFonts.ibmPlexMono(
+                                            color: const Color(0xFFD33F49),
+                                            fontSize: 14,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        )),
+                            const SizedBox(height: 14),
+                          ],
+
+                          // Password
+                          Text(
+                            "Password",
+                            style: GoogleFonts.ibmPlexMono(
+                              color: const Color(0xFFA8B0B2),
+                              fontSize: 13,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          "Select Manager",
-                          style: GoogleFonts.ibmPlexMono(
-                            color: const Color(
-                              0xFFA8B0B2,
-                            ), // --muted-foreground
-                            fontSize: 14,
+                          const SizedBox(height: 8),
+                          StatefulBuilder(
+                            builder: (context, setSB) {
+                              bool obscure = true;
+                              return _PasswordField(
+                                controller: passwordController,
+                                obscure: obscure,
+                                toggle: () => setSB(() => obscure = !obscure),
+                                decoration: _glassInputDecoration(
+                                  hint: "••••••••",
+                                  icon: Icons.lock_outline,
+                                  // suffix handled in field widget
+                                ),
+                              );
+                            },
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        isFetchingManagers
-                            ? const Center(
-                                child: CircularProgressIndicator(
-                                  color: Color(0xFF1A8B4A), // --ring
-                                ),
-                              )
-                            : managers.isNotEmpty
-                            ? DropdownButtonFormField<String>(
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: const Color(0xFF3E4648), // --muted
-                                  border: const OutlineInputBorder(
-                                    borderRadius: BorderRadius.zero,
-                                    borderSide: BorderSide(
-                                      color: Color(0x26FFFFFF), // --border
-                                    ),
+
+                          if (errorMessage != null) ...[
+                            const SizedBox(height: 14),
+                            Text(
+                              errorMessage!,
+                              style: GoogleFonts.ibmPlexMono(
+                                color: const Color(0xFFD33F49),
+                                fontSize: 14,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+
+                          const SizedBox(height: 20),
+
+                          // Primary button (slightly luminous)
+                          isLoading
+                              ? const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Color(0xFF1A8B4A),
                                   ),
-                                  enabledBorder: const OutlineInputBorder(
-                                    borderRadius: BorderRadius.zero,
-                                    borderSide: BorderSide(
-                                      color: Color(0x3DFFFFFF), // --input
-                                    ),
-                                  ),
-                                  focusedBorder: const OutlineInputBorder(
-                                    borderRadius: BorderRadius.zero,
-                                    borderSide: BorderSide(
-                                      color: Color(0xFF1A8B4A), // --ring
-                                    ),
-                                  ),
-                                ),
-                                dropdownColor: const Color(
-                                  0xFF3E4648,
-                                ), // --muted
-                                style: GoogleFonts.ibmPlexMono(
-                                  color: const Color(
-                                    0xFFF5F7F5,
-                                  ), // --card-foreground
-                                ),
-                                items: managers.map((manager) {
-                                  return DropdownMenuItem<String>(
-                                    value: manager['id'].toString(),
-                                    child: Text(
-                                      manager['username'],
-                                      style: GoogleFonts.ibmPlexMono(
-                                        color: const Color(
-                                          0xFFF5F7F5,
-                                        ), // --card-foreground
+                                )
+                              : SizedBox(
+                                  height: 48,
+                                  child: ElevatedButton(
+                                    onPressed: handleAuth,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(
+                                        0xFF34C759,
+                                      ).withOpacity(0.9),
+                                      foregroundColor: const Color(0xFF0D251F),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      elevation: 8,
+                                      shadowColor: Colors.black.withOpacity(
+                                        0.35,
                                       ),
                                     ),
-                                  );
-                                }).toList(),
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    managerIdController.text = value;
-                                  }
-                                },
-                                validator: (value) =>
-                                    value == null || value.isEmpty
-                                    ? "Please select a manager"
-                                    : null,
-                              )
-                            : Text(
-                                "No managers available",
-                                style: GoogleFonts.ibmPlexMono(
-                                  color: const Color(
-                                    0xFFD33F49,
-                                  ), // --destructive
-                                  fontSize: 14,
+                                    child: Text(
+                                      isLoginMode ? "Sign In" : "Sign Up",
+                                      style: GoogleFonts.ibmPlexMono(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF0D251F),
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                                textAlign: TextAlign.center,
+
+                          const SizedBox(height: 12),
+
+                          // Switch mode (glass accent link)
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                isLoginMode = !isLoginMode;
+                                errorMessage = null;
+                                if (!isLoginMode) {
+                                  fetchManagers();
+                                } else {
+                                  managers.clear();
+                                  managerIdController.clear();
+                                }
+                              });
+                            },
+                            child: Text(
+                              isLoginMode ? "Sign Up" : "Sign In",
+                              style: GoogleFonts.ibmPlexMono(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 14,
+                                decoration: TextDecoration.underline,
+                                decorationColor: Colors.white.withOpacity(0.35),
                               ),
-                        const SizedBox(height: 16),
-                      ],
-                      Text(
-                        "Password",
-                        style: GoogleFonts.ibmPlexMono(
-                          color: const Color(0xFFA8B0B2), // --muted-foreground
-                          fontSize: 14,
-                        ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: passwordController,
-                        obscureText: true,
-                        style: GoogleFonts.ibmPlexMono(
-                          color: const Color(0xFFF5F7F5), // --card-foreground
-                        ),
-                        cursorColor: const Color(0xFF1A8B4A), // --ring
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: const Color(0xFF3E4648), // --muted
-                          border: const OutlineInputBorder(
-                            borderRadius: BorderRadius.zero,
-                            borderSide: BorderSide(
-                              color: Color(0x26FFFFFF), // --border
-                            ),
-                          ),
-                          enabledBorder: const OutlineInputBorder(
-                            borderRadius: BorderRadius.zero,
-                            borderSide: BorderSide(
-                              color: Color(0x3DFFFFFF), // --input
-                            ),
-                          ),
-                          focusedBorder: const OutlineInputBorder(
-                            borderRadius: BorderRadius.zero,
-                            borderSide: BorderSide(
-                              color: Color(0xFF1A8B4A), // --ring
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (errorMessage != null) ...[
-                        const SizedBox(height: 16),
-                        Text(
-                          errorMessage!,
-                          style: GoogleFonts.ibmPlexMono(
-                            color: const Color(0xFFD33F49), // --destructive
-                            fontSize: 14,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                      const SizedBox(height: 24),
-                      isLoading
-                          ? const Center(
-                              child: CircularProgressIndicator(
-                                color: Color(0xFF1A8B4A), // --ring
-                              ),
-                            )
-                          : ElevatedButton(
-                              onPressed: handleAuth,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(
-                                  0xFF34C759,
-                                ), // --primary
-                                foregroundColor: const Color(
-                                  0xFF1A3C34,
-                                ), // --primary-foreground
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                ),
-                                shape: const RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.zero,
-                                ),
-                                elevation: 2,
-                                shadowColor: Colors.black.withOpacity(0.2),
-                              ),
-                              child: Text(
-                                isLoginMode ? "Sign In" : "Sign Up",
-                                style: GoogleFonts.ibmPlexMono(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(
-                                    0xFF1A3C34,
-                                  ), // --primary-foreground
-                                ),
-                              ),
-                            ),
-                      const SizedBox(height: 16),
-                      TextButton(
-                        onPressed: () {
-                          setState(() {
-                            isLoginMode = !isLoginMode;
-                            errorMessage = null;
-                            if (!isLoginMode) {
-                              fetchManagers();
-                            } else {
-                              managers.clear();
-                              managerIdController.clear();
-                            }
-                          });
-                        },
-                        child: Text(
-                          isLoginMode
-                              ? "Don't have an account? Sign Up"
-                              : "Already have an account? Sign In",
-                          style: GoogleFonts.ibmPlexMono(
-                            color: const Color(0xFF3E4648), // --accent
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -536,5 +503,78 @@ class _AuthPageState extends State<AuthPage>
     managerIdController.dispose();
     _fadeController.dispose();
     super.dispose();
+  }
+}
+
+InputDecoration _glassInputDecoration({required String hint, IconData? icon}) {
+  return InputDecoration(
+    hintText: hint,
+    hintStyle: const TextStyle(color: Color(0xFFA8B0B2)),
+    filled: true,
+    fillColor: Colors.white.withOpacity(0.06),
+    prefixIcon: icon == null
+        ? null
+        : Icon(icon, color: Colors.white.withOpacity(0.9)),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: Colors.white.withOpacity(0.14)),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: Colors.white.withOpacity(0.14)),
+    ),
+    focusedBorder: const OutlineInputBorder(
+      borderRadius: BorderRadius.all(Radius.circular(12)),
+      borderSide: BorderSide(color: Color(0xFF1A8B4A), width: 1.4),
+    ),
+  );
+}
+
+class _PasswordField extends StatefulWidget {
+  const _PasswordField({
+    required this.controller,
+    required this.obscure,
+    required this.toggle,
+    required this.decoration,
+  });
+
+  final TextEditingController controller;
+  final bool obscure;
+  final VoidCallback toggle;
+  final InputDecoration decoration;
+
+  @override
+  State<_PasswordField> createState() => _PasswordFieldState();
+}
+
+class _PasswordFieldState extends State<_PasswordField> {
+  late bool _obscure;
+
+  @override
+  void initState() {
+    super.initState();
+    _obscure = widget.obscure;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: widget.controller,
+      obscureText: _obscure,
+      style: GoogleFonts.ibmPlexMono(color: const Color(0xFFF5F7F5)),
+      cursorColor: const Color(0xFF1A8B4A),
+      decoration: widget.decoration.copyWith(
+        suffixIcon: IconButton(
+          onPressed: () => setState(() => _obscure = !_obscure),
+          icon: Icon(
+            _obscure
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined,
+            color: Colors.white.withOpacity(0.9),
+          ),
+        ),
+      ),
+    );
   }
 }

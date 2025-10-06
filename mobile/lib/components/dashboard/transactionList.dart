@@ -1,8 +1,10 @@
+// ignore_for_file: unnecessary_brace_in_string_interps
+
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import 'package:mobile/apiURl.dart';
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -46,6 +48,7 @@ class _TransactionsState extends State<TransactionList>
   }
 
   Future<void> fetchTransactions() async {
+    final String baseUrl = dotenv.env['BASE_URL']!;
     if (!mounted) return;
     setState(() {
       loading = true;
@@ -70,18 +73,16 @@ class _TransactionsState extends State<TransactionList>
         return;
       }
 
-      if (!RegExp(
-        r'^https?://[a-zA-Z0-9\.\-]+(:\d+)?/?$',
-      ).hasMatch(API.baseUrl)) {
+      if (!RegExp(r'^https?://[a-zA-Z0-9\.\-]+(:\d+)?/?$').hasMatch(baseUrl)) {
         setState(() {
-          error = "Invalid API base URL: ${API.baseUrl}";
+          error = "Invalid API base URL: ${baseUrl}";
           loading = false;
         });
-        debugPrint("Invalid API base URL: ${API.baseUrl}");
+        debugPrint("Invalid API base URL: ${baseUrl}");
         return;
       }
 
-      final url = Uri.parse('${API.baseUrl}/api/transactions/');
+      final url = Uri.parse('${baseUrl}/api/transactions/');
       debugPrint("Requesting URL: $url");
 
       final response = await http
@@ -405,7 +406,6 @@ class _TransactionsState extends State<TransactionList>
       builder: (context, constraints) {
         debugPrint("TransactionList constraints: $constraints");
         return Container(
-          color: Colors.grey[900],
           child: Column(
             children: [
               Container(
@@ -415,48 +415,38 @@ class _TransactionsState extends State<TransactionList>
                 ),
                 child: FadeTransition(
                   opacity: _fadeAnimation,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      TextField(
-                        controller: _searchController,
-                        style: GoogleFonts.ibmPlexMono(color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: 'Search by name, school ID',
-                          hintStyle: GoogleFonts.ibmPlexMono(
-                            color: const Color(0xFFA8B0B2),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.2),
+                            width: 1,
                           ),
-                          prefixIcon: const Icon(
-                            Icons.search,
-                            color: Color(0xFFA8B0B2),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey[850],
                         ),
-                        onChanged: _filterTransactions,
-                      ),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () {
-                            debugPrint("View All clicked");
-                          },
-                          child: Text(
-                            'View All',
-                            style: GoogleFonts.ibmPlexMono(
-                              color: const Color(0xFF34C759),
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
+                        child: TextField(
+                          controller: _searchController,
+                          style: GoogleFonts.ibmPlexMono(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: 'Search by name, school ID',
+                            hintStyle: GoogleFonts.ibmPlexMono(
+                              color: const Color(0xFFA8B0B2),
                             ),
+                            prefixIcon: const Icon(
+                              Icons.search,
+                              color: Color(0xFFA8B0B2),
+                            ),
+                            border: InputBorder.none,
                           ),
+                          onChanged: _filterTransactions,
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -584,6 +574,10 @@ class _TransactionsState extends State<TransactionList>
                                     decoration: BoxDecoration(
                                       color: Colors.white.withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.2),
+                                        width: 1,
+                                      ),
                                       boxShadow: [
                                         BoxShadow(
                                           color: Colors.black.withOpacity(0.2),

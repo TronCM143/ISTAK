@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:mobile/apiURl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -15,14 +15,14 @@ class ReturnItem extends StatefulWidget {
 }
 
 class _ReturnItemState extends State<ReturnItem> {
-  final String baseUrl = API.baseUrl;
   bool isLoading = false;
   String? error;
   MobileScannerController scannerController = MobileScannerController();
   List<Map<String, String>> scannedItems = []; // Stores {itemId, condition}
   Map<String, dynamic>? borrowerDetails; // Stores {name, school_id, image}
-  List<Map<String, dynamic>> borrowedItems =
-      []; // Stores borrower's borrowed items
+  List<Map<String, dynamic>> transactionItems =
+      []; // Stores all items in the transaction
+  String? transactionId; // Stores the transaction ID
 
   @override
   void initState() {
@@ -149,7 +149,7 @@ class _ReturnItemState extends State<ReturnItem> {
     );
   }
 
-  Future<void> _fetchBorrowerAndItems(String itemId) async {
+  Future<void> _fetchTransactionItems(String itemId) async {
     setState(() => isLoading = true);
     try {
       final token = await getToken();
@@ -158,7 +158,7 @@ class _ReturnItemState extends State<ReturnItem> {
       }
       final response = await http
           .get(
-            Uri.parse('$baseUrl/api/items/$itemId/borrower/'),
+            Uri.parse('${dotenv.env['BASE_URL']}/api/items/$itemId/borrower/'),
             headers: {'Authorization': 'Bearer $token'},
           )
           .timeout(
@@ -169,7 +169,7 @@ class _ReturnItemState extends State<ReturnItem> {
           );
 
       print(
-        'Borrower and items response: ${response.statusCode} ${response.body}',
+        'Transaction items response: ${response.statusCode} ${response.body}',
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -179,18 +179,19 @@ class _ReturnItemState extends State<ReturnItem> {
             'school_id': data['borrower']['school_id'],
             'image': data['borrower']['image'],
           };
-          borrowedItems = List<Map<String, dynamic>>.from(
+          transactionItems = List<Map<String, dynamic>>.from(
             data['borrowed_items'],
           );
+          transactionId = data['transaction_id']?.toString();
         });
       } else {
         final errorMsg =
             jsonDecode(response.body)['error'] ??
-            'Failed to fetch borrower details';
+            'Failed to fetch transaction details';
         throw Exception(errorMsg);
       }
     } catch (e, stackTrace) {
-      print('Error fetching borrower and items: $e\n$stackTrace');
+      print('Error fetching transaction items: $e\n$stackTrace');
       setState(() => error = 'Error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -206,7 +207,7 @@ class _ReturnItemState extends State<ReturnItem> {
     }
   }
 
-  Future<void> _returnItem(String itemId, String condition) async {
+  Future<void> _returnAllItems() async {
     setState(() => isLoading = true);
     try {
       final token = await getToken();
@@ -215,14 +216,14 @@ class _ReturnItemState extends State<ReturnItem> {
       }
 
       final payload = {
-        'item_id': itemId,
-        'condition': condition,
+        'transaction_id': transactionId,
+        'items': scannedItems,
         'school_id': borrowerDetails?['school_id'],
       };
       print('Sending return request: $payload');
       final response = await http
           .post(
-            Uri.parse('$baseUrl/api/return_item/'),
+            Uri.parse('${dotenv.env['BASE_URL']}/api/return_item/'),
             headers: {
               'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
@@ -239,25 +240,22 @@ class _ReturnItemState extends State<ReturnItem> {
       print('Return response: ${response.statusCode} ${response.body}');
       final responseData = jsonDecode(response.body);
       if (response.statusCode == 200) {
-        setState(() {
-          scannedItems.add({'itemId': itemId, 'condition': condition});
-          borrowedItems.removeWhere((item) => item['id'] == itemId);
-        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              responseData['message'] ?? 'Item $itemId returned successfully',
+              responseData['message'] ?? 'All items returned successfully',
               style: GoogleFonts.ibmPlexMono(color: Colors.white),
             ),
             backgroundColor: Colors.green,
           ),
         );
+        Navigator.pop(context); // Return to previous screen
       } else {
-        throw Exception(responseData['error'] ?? 'Failed to return item');
+        throw Exception(responseData['error'] ?? 'Failed to return items');
       }
     } catch (e, stackTrace) {
-      print('Error returning item $itemId: $e\n$stackTrace');
-      setState(() => error = 'Error returning item: $e');
+      print('Error returning items: $e\n$stackTrace');
+      setState(() => error = 'Error returning items: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -274,6 +272,12 @@ class _ReturnItemState extends State<ReturnItem> {
 
   @override
   Widget build(BuildContext context) {
+    final allItemsScanned =
+        transactionItems.isNotEmpty &&
+        transactionItems.every(
+          (item) => scannedItems.any((s) => s['itemId'] == item['id']),
+        );
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -303,7 +307,7 @@ class _ReturnItemState extends State<ReturnItem> {
           ),
           Row(
             children: [
-              // Left side: Borrower details and borrowed items
+              // Left side: Borrower details and transaction items
               Container(
                 width: 140,
                 color: Colors.grey[900],
@@ -316,7 +320,7 @@ class _ReturnItemState extends State<ReturnItem> {
                         child: borrowerDetails!['image'] != null
                             ? CachedNetworkImage(
                                 imageUrl:
-                                    '$baseUrl${borrowerDetails!['image']}',
+                                    '${dotenv.env['BASE_URL']}${borrowerDetails!['image']}',
                                 width: 60,
                                 height: 60,
                                 fit: BoxFit.cover,
@@ -355,7 +359,7 @@ class _ReturnItemState extends State<ReturnItem> {
                       const SizedBox(height: 16),
                     ],
                     Text(
-                      'Borrowed Items:',
+                      'Transaction Items:',
                       style: GoogleFonts.ibmPlexMono(
                         color: Colors.white,
                         fontWeight: FontWeight.w500,
@@ -363,9 +367,9 @@ class _ReturnItemState extends State<ReturnItem> {
                     ),
                     Expanded(
                       child: ListView.builder(
-                        itemCount: borrowedItems.length,
+                        itemCount: transactionItems.length,
                         itemBuilder: (context, index) {
-                          final item = borrowedItems[index];
+                          final item = transactionItems[index];
                           final isScanned = scannedItems.any(
                             (s) => s['itemId'] == item['id'],
                           );
@@ -380,7 +384,7 @@ class _ReturnItemState extends State<ReturnItem> {
                               ),
                             ),
                             subtitle: Text(
-                              'Condition: ${scannedItems.firstWhere((s) => s['itemId'] == item['id'], orElse: () => {'condition': item['condition']})['condition']}',
+                              'Condition: ${scannedItems.firstWhere((s) => s['itemId'] == item['id'], orElse: () => {'condition': 'Pending'})['condition']}',
                               style: GoogleFonts.ibmPlexMono(
                                 color: Colors.grey[400],
                                 fontSize: 12,
@@ -437,25 +441,25 @@ class _ReturnItemState extends State<ReturnItem> {
                                 continue;
                               }
                               await scannerController.stop();
-                              // Fetch borrower and borrowed items on first scan
-                              if (borrowerDetails == null) {
-                                await _fetchBorrowerAndItems(itemId);
+                              // Fetch transaction items on first scan
+                              if (transactionItems.isEmpty) {
+                                await _fetchTransactionItems(itemId);
                                 if (error != null) {
                                   await scannerController.start();
                                   continue;
                                 }
-                                // Check if item belongs to borrower's borrowed items
-                                if (!borrowedItems.any(
+                                // Check if item belongs to the transaction
+                                if (!transactionItems.any(
                                   (item) => item['id'] == itemId,
                                 )) {
                                   setState(
                                     () => error =
-                                        'Item $itemId not borrowed by this borrower',
+                                        'Item $itemId not part of this transaction',
                                   );
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
-                                        'Item $itemId not borrowed by this borrower',
+                                        'Item $itemId not part of this transaction',
                                         style: GoogleFonts.ibmPlexMono(
                                           color: Colors.white,
                                         ),
@@ -466,18 +470,18 @@ class _ReturnItemState extends State<ReturnItem> {
                                   await scannerController.start();
                                   continue;
                                 }
-                              } else if (!borrowedItems.any(
+                              } else if (!transactionItems.any(
                                 (item) => item['id'] == itemId,
                               )) {
-                                // For subsequent scans, check if item belongs to the same borrower
+                                // For subsequent scans, check if item belongs to the same transaction
                                 setState(
                                   () => error =
-                                      'Item $itemId not borrowed by this borrower',
+                                      'Item $itemId not part of this transaction',
                                 );
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(
-                                      'Item $itemId not borrowed by this borrower',
+                                      'Item $itemId not part of this transaction',
                                       style: GoogleFonts.ibmPlexMono(
                                         color: Colors.white,
                                       ),
@@ -492,7 +496,12 @@ class _ReturnItemState extends State<ReturnItem> {
                                 itemId,
                               );
                               if (condition != null) {
-                                await _returnItem(itemId, condition);
+                                setState(() {
+                                  scannedItems.add({
+                                    'itemId': itemId,
+                                    'condition': condition,
+                                  });
+                                });
                               }
                               await scannerController.start();
                               break;
@@ -520,34 +529,18 @@ class _ReturnItemState extends State<ReturnItem> {
                           ),
                           const SizedBox(width: 16),
                           TextButton(
-                            onPressed: isLoading
+                            onPressed: isLoading || !allItemsScanned
                                 ? null
                                 : () {
-                                    if (scannedItems.isNotEmpty) {
-                                      Navigator.pop(
-                                        context,
-                                      ); // End session after returns
-                                    } else {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'No items scanned to return',
-                                            style: GoogleFonts.ibmPlexMono(
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                          backgroundColor: Colors.redAccent,
-                                        ),
-                                      );
-                                    }
+                                    _returnAllItems();
                                   },
                             child: Text(
                               'Finish',
                               style: GoogleFonts.ibmPlexMono(
                                 fontWeight: FontWeight.w300,
-                                color: Colors.white,
+                                color: allItemsScanned
+                                    ? Colors.white
+                                    : Colors.grey[600],
                               ),
                             ),
                           ),
@@ -599,9 +592,11 @@ class _ReturnItemState extends State<ReturnItem> {
                       onPressed: () {
                         setState(() {
                           error = null;
-                          if (borrowerDetails == null) {
+                          if (transactionItems.isEmpty) {
                             scannedItems.clear();
-                            borrowedItems.clear();
+                            transactionItems.clear();
+                            borrowerDetails = null;
+                            transactionId = null;
                           }
                         });
                         scanItem();

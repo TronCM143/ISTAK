@@ -55,11 +55,12 @@ function normalizeBorrower(b: any): Borrower {
 
   const rawBorrowDate =
     b.current_borrow_date ??
+    b.last_borrowed_date ??
     b.current_transaction?.borrow_date ??
     b.latest_transaction?.borrow_date ??
     null;
 
-  const currentBorrowDate = rawBorrowDate ? String(rawBorrowDate) : "null";
+  const currentBorrowDate = rawBorrowDate ? String(rawBorrowDate) : null;
 
   return {
     id: Number(b.id ?? b.pk ?? 0),

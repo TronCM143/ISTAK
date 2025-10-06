@@ -1,13 +1,12 @@
 import 'dart:convert';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
-import 'package:mobile/apiURl.dart';
 import 'package:flutter/material.dart'; // Added for UI
 
-final String baseUrl = API.baseUrl;
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 List<Map<String, dynamic>> _notifications = []; // Store notifications locally
@@ -23,7 +22,7 @@ Future<void> getAndSendFcmToken(String userToken) async {
 
 Future<void> sendFcmTokenToBackend(String userToken, String fcmToken) async {
   final response = await http.post(
-    Uri.parse("$baseUrl/api/update_fcm_token/"),
+    Uri.parse("${dotenv.env['BASE_URL']}/api/update_fcm_token/"),
     headers: {
       "Content-Type": "application/json",
       "Authorization": "Bearer $userToken",

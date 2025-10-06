@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:mobile/apiURl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AuthService {
-  final String baseUrl = API.baseUrl;
+  final String baseUrl = dotenv.env['BASE_URL']!;
 
   Future<Map<String, dynamic>> registerUser({
     required String username,

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'package:mobile/apiURL.dart';
 import 'package:mobile/components/local_database/localDatabaseMain.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -17,7 +17,7 @@ Future<void> syncPendingRequests() async {
     try {
       final httpRequest = http.MultipartRequest(
         'POST',
-        Uri.parse('${API.baseUrl}/api/borrowing/create/'),
+        Uri.parse('${dotenv.env['BASE_URL']}/api/borrowing/create/'),
       );
       httpRequest.headers['Authorization'] = 'Bearer $token';
       httpRequest.fields['school_id'] = request['school_id'];

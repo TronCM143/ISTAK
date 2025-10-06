@@ -1,10 +1,10 @@
 import { AppSidebar } from "@/components/widgets/app-sidebar"
-import { InventoryPage } from "@/components/pages/inventory/inventory";
 import { SiteHeader } from "@/components/widgets/site-header"
 import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar"
+import { InventoryPage } from "@/components/pages/itemmanager/itemManagement"
 
 
 export default function Page() {

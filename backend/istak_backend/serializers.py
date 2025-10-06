@@ -1,3 +1,7 @@
+from datetime import datetime, timezone
+from io import BytesIO
+from msilib.schema import File
+import requests
 from rest_framework import serializers
 from istak_backend.models import Borrower, RegistrationRequest, Transaction, Item
 from django.contrib.auth import get_user_model
@@ -9,17 +13,17 @@ class RegistrationRequestSerializer(serializers.ModelSerializer):
         model = RegistrationRequest
         fields = ['id', 'username', 'email', 'status']
 
-
 class BorrowerSerializer(serializers.ModelSerializer):
     borrowed_items = serializers.SerializerMethodField()
     transaction_count = serializers.SerializerMethodField()
     image = serializers.SerializerMethodField()
-    total_borrowed_items = serializers.IntegerField(read_only=True)
+    total_borrowed_items = serializers.SerializerMethodField()  # Changed to SerializerMethodField
     last_borrowed_date = serializers.DateField(read_only=True, allow_null=True)
+    current_borrow_date = serializers.SerializerMethodField()
 
     class Meta:
         model = Borrower
-        fields = ['id', 'name', 'school_id', 'status', 'image', 'borrowed_items', 'transaction_count', 'total_borrowed_items', 'last_borrowed_date']
+        fields = ['id', 'name', 'school_id', 'status', 'image', 'borrowed_items', 'transaction_count', 'total_borrowed_items', 'last_borrowed_date', 'current_borrow_date']
 
     def get_borrowed_items(self, obj):
         transactions = Transaction.objects.filter(
@@ -41,13 +45,30 @@ class BorrowerSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.image.url) if request else obj.image.url
         return None
 
+    def get_total_borrowed_items(self, obj):
+        # Compute the total number of items currently borrowed
+        transactions = Transaction.objects.filter(
+            borrower=obj,
+            status='borrowed',
+            mobile_user=self.context['request'].user
+        ).prefetch_related('items')
+        total = sum(len(t.items.all()) for t in transactions)
+        return total
+
+    def get_current_borrow_date(self, obj):
+        transaction = Transaction.objects.filter(
+            borrower=obj,
+            status='borrowed'
+        ).order_by('-borrow_date').first()
+        return transaction.borrow_date if transaction else None
+
 class TransactionSummarySerializer(serializers.ModelSerializer):
     class Meta:
         model = Transaction
-        fields = ['id', 'borrow_date', 'return_date', 'status']  # Minimal fields to avoid circular reference
+        fields = ['id', 'borrow_date', 'return_date', 'status']
 
 class TransactionSerializer(serializers.ModelSerializer):
-    items = serializers.SerializerMethodField()  # Use method to avoid direct ItemSerializer
+    items = serializers.SerializerMethodField()
     borrower = BorrowerSerializer(read_only=True)
     school_id = serializers.CharField(source='borrower.school_id', read_only=True)
     borrower_name = serializers.CharField(source='borrower.name', read_only=True)
@@ -58,7 +79,6 @@ class TransactionSerializer(serializers.ModelSerializer):
 
     def get_items(self, obj):
         items = obj.items.all()
-        # Use minimal item data to avoid circular serialization
         return [{
             'id': item.id,
             'item_name': item.item_name,
@@ -106,8 +126,6 @@ class CreateBorrowingSerializer(serializers.Serializer):
         if 'image' in self.context['request'].FILES:
             data['image'] = self.context['request'].FILES['image']
         return data
-from rest_framework import serializers
-from .models import Transaction, Borrower, Item
 
 class DamagedOverdueReportSerializer(serializers.ModelSerializer):
     borrowerName = serializers.CharField(source='borrower.name')
@@ -134,10 +152,11 @@ class ItemSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
     last_transaction_return_date = serializers.SerializerMethodField()
     transactions = TransactionSummarySerializer(many=True, read_only=True)
+    current_transaction = serializers.SerializerMethodField()
 
     class Meta:
         model = Item
-        fields = ['id', 'item_name', 'condition', 'image', 'last_transaction_return_date', 'transactions']
+        fields = ['id', 'item_name', 'condition', 'image', 'last_transaction_return_date', 'transactions', 'current_transaction']
         extra_kwargs = {'manager': {'read_only': True}}
 
     def get_image(self, obj):
@@ -150,16 +169,11 @@ class ItemSerializer(serializers.ModelSerializer):
         last_transaction = obj.transactions.filter(status='returned').order_by('-return_date').first()
         return last_transaction.return_date if last_transaction else None
 
+    def get_current_transaction(self, obj):
+        transaction = obj.transactions.filter(status='borrowed').first()
+        return transaction.id if transaction else None
 
-
-from rest_framework import serializers
-from istak_backend.models import Borrower, Item, Transaction
-from django.core.files import File
-from io import BytesIO
-import requests
-from datetime import datetime, timezone
-
-class CreateBorrowingSerializer(serializers.Serializer):
+class CreateBorrowingSerializerWithURL(serializers.Serializer):
     school_id = serializers.CharField(max_length=10)
     name = serializers.CharField(max_length=255)
     status = serializers.ChoiceField(choices=['active', 'inactive'], default='active')
@@ -208,7 +222,7 @@ class CreateBorrowingSerializer(serializers.Serializer):
             borrower=borrower,
             mobile_user=self.context['request'].user,
             status='borrowed',
-            borrow_date=datetime.now().date(),
+            borrow_date=datetime.now(timezone.utc).date(),
             return_date=validated_data['return_date'],
         )
         transaction.items.set(validated_data['item_ids'])
