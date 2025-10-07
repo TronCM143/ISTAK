@@ -4,10 +4,11 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile/components/_landing_page.dart';
+import 'package:mobile/components/dashboard/legend.dart';
 import 'package:mobile/components/helperFunction.dart';
 import 'package:mobile/components/sidePanel/_mainSidePanel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'legend.dart';
+import 'dart:ui';
 
 class Itemlist extends StatefulWidget {
   const Itemlist({super.key});
@@ -108,8 +109,6 @@ class _ItemlistState extends State<Itemlist>
       final itemName = (item["item_name"] as String? ?? "").toLowerCase();
       final query = searchQuery.toLowerCase();
 
-      // Fetch the latest transaction for this item from the backend
-      // Assume item['transactions'] contains transaction data or fetch separately
       final transactions = item["transactions"] ?? [];
       final latestTransaction = transactions.isNotEmpty
           ? transactions.reduce(
@@ -155,37 +154,12 @@ class _ItemlistState extends State<Itemlist>
 
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: Colors.grey[900],
-      appBar: AppBar(
-        title: Text(
-          'Item List',
-          style: GoogleFonts.ibmPlexMono(
-            fontWeight: FontWeight.w500,
-            color: Colors.white,
-          ),
-        ),
-        backgroundColor: Colors.grey[900],
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: () async {
-              await _fadeController.reverse();
-              await fetchItems();
-              if (mounted) {
-                await _fadeController.forward();
-              }
-            },
-          ),
-        ],
-      ),
-      endDrawer: _accessToken != null
-          ? SidePanel(access_token: _accessToken!)
-          : null,
-      drawerScrimColor: const Color.fromARGB(0, 157, 35, 35),
+      backgroundColor:
+          Colors.transparent, // Transparent to show animated background
       body: FadeTransition(
         opacity: _fadeAnimation,
         child: Padding(
-          padding: const EdgeInsets.all(8.0),
+          padding: const EdgeInsets.all(20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -193,36 +167,46 @@ class _ItemlistState extends State<Itemlist>
               Container(
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: Colors.grey[850],
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: Colors.white.withOpacity(0.2),
                     width: 1.5,
                   ),
                 ),
-                child: TextField(
-                  style: GoogleFonts.ibmPlexMono(
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Search by item name...',
-                    hintStyle: GoogleFonts.ibmPlexMono(
-                      color: Colors.grey[400],
-                      fontSize: 14,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                    child: TextField(
+                      style: GoogleFonts.ibmPlexMono(
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                      textAlignVertical:
+                          TextAlignVertical.center, // Center text vertically
+                      decoration: InputDecoration(
+                        hintText: 'Search by item name...',
+                        hintStyle: GoogleFonts.ibmPlexMono(
+                          color: Colors.grey[400],
+                          fontSize: 14,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          color: Colors.white70,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setState(() {
+                          searchQuery = value;
+                        });
+                      },
                     ),
-                    prefixIcon: const Icon(Icons.search, color: Colors.white70),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
                   ),
-                  onChanged: (value) {
-                    setState(() {
-                      searchQuery = value;
-                    });
-                  },
                 ),
               ),
               // Filter Buttons
@@ -254,7 +238,7 @@ class _ItemlistState extends State<Itemlist>
                                 ),
                                 decoration: BoxDecoration(
                                   color: isSelected
-                                      ? const Color(0xFF34C759)
+                                      ? const Color(0xFF34C759).withOpacity(0.3)
                                       : Colors.transparent,
                                   borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
@@ -270,7 +254,7 @@ class _ItemlistState extends State<Itemlist>
                                         ? FontWeight.w600
                                         : FontWeight.w400,
                                     color: isSelected
-                                        ? const Color(0xFF1A3C34)
+                                        ? Colors.white
                                         : const Color(0xFFA8B0B2),
                                   ),
                                 ),
@@ -306,31 +290,42 @@ class _ItemlistState extends State<Itemlist>
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () async {
+                            GestureDetector(
+                              onTap: () async {
                                 await _fadeController.reverse();
                                 await fetchItems();
                                 if (mounted) {
                                   await _fadeController.forward();
                                 }
                               },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF34C759),
-                                foregroundColor: const Color(0xFF1A3C34),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
+                              child: Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 24,
                                   vertical: 12,
                                 ),
-                              ),
-                              child: Text(
-                                'Retry',
-                                style: GoogleFonts.ibmPlexMono(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                  color: const Color(0xFF1A3C34),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.2),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(
+                                      sigmaX: 5,
+                                      sigmaY: 5,
+                                    ),
+                                    child: Text(
+                                      'Retry',
+                                      style: GoogleFonts.ibmPlexMono(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -376,133 +371,148 @@ class _ItemlistState extends State<Itemlist>
                                     "None"
                               : "None";
 
-                          return Card(
-                            color: Colors.grey[850],
-                            shape: RoundedRectangleBorder(
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 12,
-                                horizontal: 16,
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.2),
+                                width: 1.5,
                               ),
-                              child: Row(
-                                children: [
-                                  // Status Indicator
-                                  Container(
-                                    width: 10,
-                                    height: 10,
-                                    margin: const EdgeInsets.only(right: 8),
-                                    decoration: BoxDecoration(
-                                      color: getStatusColor(status),
-                                      shape: BoxShape.circle,
-                                    ),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                    horizontal: 16,
                                   ),
-                                  // Image
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    margin: const EdgeInsets.only(right: 8),
-                                    child: imageUrl.isNotEmpty
-                                        ? GestureDetector(
-                                            onTap: () {
-                                              showDialog(
-                                                context: context,
-                                                builder: (context) => Dialog(
-                                                  backgroundColor:
-                                                      Colors.transparent,
-                                                  insetPadding:
-                                                      const EdgeInsets.all(16),
-                                                  child: GestureDetector(
-                                                    onTap: () => Navigator.of(
-                                                      context,
-                                                    ).pop(),
-                                                    child: InteractiveViewer(
-                                                      child: Image.network(
-                                                        imageUrl,
-                                                        fit: BoxFit.contain,
-                                                        errorBuilder:
-                                                            (
+                                  child: Row(
+                                    children: [
+                                      // Status Indicator
+                                      Container(
+                                        width: 10,
+                                        height: 10,
+                                        margin: const EdgeInsets.only(right: 8),
+                                        decoration: BoxDecoration(
+                                          color: getStatusColor(status),
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      // Image
+                                      Container(
+                                        width: 40,
+                                        height: 40,
+                                        margin: const EdgeInsets.only(right: 8),
+                                        child: imageUrl.isNotEmpty
+                                            ? GestureDetector(
+                                                onTap: () {
+                                                  showDialog(
+                                                    context: context,
+                                                    builder: (context) => Dialog(
+                                                      backgroundColor:
+                                                          Colors.transparent,
+                                                      insetPadding:
+                                                          const EdgeInsets.all(
+                                                            16,
+                                                          ),
+                                                      child: GestureDetector(
+                                                        onTap: () =>
+                                                            Navigator.of(
                                                               context,
-                                                              error,
-                                                              stackTrace,
-                                                            ) => const Center(
-                                                              child: Icon(
-                                                                Icons
-                                                                    .broken_image,
-                                                                size: 80,
-                                                                color: Color(
-                                                                  0xFFF5F7F5,
+                                                            ).pop(),
+                                                        child: InteractiveViewer(
+                                                          child: Image.network(
+                                                            imageUrl,
+                                                            fit: BoxFit.contain,
+                                                            errorBuilder:
+                                                                (
+                                                                  context,
+                                                                  error,
+                                                                  stackTrace,
+                                                                ) => const Center(
+                                                                  child: Icon(
+                                                                    Icons
+                                                                        .broken_image,
+                                                                    size: 80,
+                                                                    color: Color(
+                                                                      0xFFF5F7F5,
+                                                                    ),
+                                                                  ),
                                                                 ),
-                                                              ),
-                                                            ),
+                                                          ),
+                                                        ),
                                                       ),
                                                     ),
+                                                  );
+                                                },
+                                                child: ClipRRect(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  child: Image.network(
+                                                    imageUrl,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder:
+                                                        (
+                                                          context,
+                                                          error,
+                                                          stackTrace,
+                                                        ) => Icon(
+                                                          Icons
+                                                              .image_not_supported,
+                                                          color: colorScheme
+                                                              .onSurfaceVariant,
+                                                        ),
                                                   ),
                                                 ),
-                                              );
-                                            },
-                                            child: ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              child: Image.network(
-                                                imageUrl,
-                                                fit: BoxFit.cover,
-                                                errorBuilder:
-                                                    (
-                                                      context,
-                                                      error,
-                                                      stackTrace,
-                                                    ) => Icon(
-                                                      Icons.image_not_supported,
-                                                      color: colorScheme
-                                                          .onSurfaceVariant,
-                                                    ),
+                                              )
+                                            : Icon(
+                                                Icons.image_not_supported,
+                                                color: colorScheme
+                                                    .onSurfaceVariant,
                                               ),
-                                            ),
-                                          )
-                                        : Icon(
-                                            Icons.image_not_supported,
-                                            color: colorScheme.onSurfaceVariant,
+                                      ),
+                                      // Item Name
+                                      Expanded(
+                                        flex: 2,
+                                        child: Text(
+                                          item["item_name"] as String? ?? "N/A",
+                                          style: GoogleFonts.ibmPlexMono(
+                                            color: Colors.white,
+                                            fontSize: 14,
                                           ),
-                                  ),
-                                  // Item Name
-                                  Expanded(
-                                    flex: 2,
-                                    child: Text(
-                                      item["item_name"] as String? ?? "N/A",
-                                      style: GoogleFonts.ibmPlexMono(
-                                        color: Colors.white,
-                                        fontSize: 14,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  // Condition
-                                  Expanded(
-                                    flex: 2,
-                                    child: Text(
-                                      condition,
-                                      style: GoogleFonts.ibmPlexMono(
-                                        color: Colors.white,
-                                        fontSize: 14,
+                                      // Condition
+                                      Expanded(
+                                        flex: 2,
+                                        child: Text(
+                                          condition,
+                                          style: GoogleFonts.ibmPlexMono(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  // Last Borrow Date
-                                  Expanded(
-                                    flex: 2,
-                                    child: Text(
-                                      lastBorrowDate,
-                                      style: GoogleFonts.ibmPlexMono(
-                                        color: Colors.white,
-                                        fontSize: 14,
+                                      // Last Borrow Date
+                                      Expanded(
+                                        flex: 2,
+                                        child: Text(
+                                          lastBorrowDate,
+                                          style: GoogleFonts.ibmPlexMono(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                                    ],
                                   ),
-                                ],
+                                ),
                               ),
                             ),
                           );
@@ -513,6 +523,10 @@ class _ItemlistState extends State<Itemlist>
           ),
         ),
       ),
+      endDrawer: _accessToken != null
+          ? SidePanel(access_token: _accessToken!)
+          : null,
+      drawerScrimColor: const Color.fromARGB(0, 157, 35, 35),
     );
   }
 

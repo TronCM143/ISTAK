@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -43,7 +45,6 @@ class ForecastWidget extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _glassCard(
-            context,
             child: const Center(
               child: CircularProgressIndicator(color: Color(0xFFFFB300)),
             ),
@@ -52,7 +53,6 @@ class ForecastWidget extends StatelessWidget {
 
         if (snapshot.hasError) {
           return _glassCard(
-            context,
             child: Center(
               child: Text(
                 'Error: ${snapshot.error}',
@@ -75,192 +75,175 @@ class ForecastWidget extends StatelessWidget {
             data['borrowed']! +
             data['returningToday']! +
             data['overdue']!);
-
         final borrowedPercent = total > 0
             ? ((data['borrowed']! / total) * 100).round()
             : 0;
 
         return _glassCard(
-          context,
-          child: LayoutBuilder(
-            builder: (context, c) {
-              // Scale typography to card height to avoid overflow
-              final h = c.maxHeight;
-              final scale = (h / 240).clamp(0.8, 1.4);
-
-              return Row(
-                //     crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // LEFT SIDE
-                  Expanded(
-                    child: Column(
-                      //      crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Left Side: Text Information
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
+                    Text(
+                      "Today Forecast",
+                      style: GoogleFonts.ibmPlexMono(
+                        color: Colors.white70,
+                        fontSize: 14,
+                        letterSpacing: 0.6,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Borrowed Percentage
+                    Row(
                       children: [
-                        // Title centered like the reference
-                        Center(
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
                           child: Text(
-                            "Today Forecast",
+                            "$borrowedPercent%",
                             style: GoogleFonts.ibmPlexMono(
-                              color: Colors.white70,
-                              fontSize: 14 * scale,
-                              letterSpacing: 0.6,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-
-                        // Big % + label
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              "$borrowedPercent%",
-                              style: GoogleFonts.ibmPlexMono(
-                                color: Colors.white,
-                                fontSize: 56 * scale,
-                                fontWeight: FontWeight.w700,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black.withOpacity(0.45),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Text(
-                                "Borrowed",
-                                style: GoogleFonts.ibmPlexMono(
-                                  color: Colors.white70,
-                                  fontSize: 14 * scale,
-                                  fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                              fontSize: 48,
+                              fontWeight: FontWeight.w700,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black.withOpacity(0.45),
+                                  blurRadius: max(
+                                    0.0,
+                                    8.0,
+                                  ), // ✅ guarantees non-negative
+                                  offset: const Offset(0, 2),
                                 ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-
-                        // "5 items returning" styling like the image
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              "${data['returningToday']}",
-                              style: GoogleFonts.ibmPlexMono(
-                                color: Colors.white,
-                                fontSize: 28 * scale,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: Text(
-                                "items\nreturning",
-                                style: GoogleFonts.ibmPlexMono(
-                                  color: Colors.white70,
-                                  height: 1.0,
-                                  fontSize: 12 * scale,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-
-                        // Red pill "2 overdues" with depth
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 12 * scale,
-                            vertical: 6 * scale,
-                          ),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.black.withOpacity(0.35),
-                                Colors.black.withOpacity(0.25),
                               ],
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.35),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
                           ),
+                        ),
+                        const SizedBox(width: 4),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 2),
                           child: Text(
-                            "${data['overdue']} overdues",
+                            "Borrowed",
                             style: GoogleFonts.ibmPlexMono(
-                              color: const Color(0xFFD33F49),
-                              fontSize: 14 * scale,
-                              fontWeight: FontWeight.w700,
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-
-                  // RIGHT SIDE: vertical bar in a rounded track
-                  SizedBox(width: 18),
-                  _ForecastBar(
-                    total: total,
-                    available: data['available']!,
-                    borrowed: data['borrowed']!,
-                    returning: data['returningToday']!,
-                    overdue: data['overdue']!,
-                    height: 160 * scale,
-                    width: 32,
-                  ),
-                ],
-              );
-            },
+                    const SizedBox(height: 8),
+                    // Returning Items
+                    Row(
+                      children: [
+                        Text(
+                          "${data['returningToday']}",
+                          style: GoogleFonts.ibmPlexMono(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 2),
+                          child: Text(
+                            "items\nreturning",
+                            style: GoogleFonts.ibmPlexMono(
+                              color: Colors.white70,
+                              height: 1.0,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Overdue Items
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.black.withOpacity(0.35),
+                            Colors.black.withOpacity(0.25),
+                          ],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.35),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        "${data['overdue']} overdue",
+                        style: GoogleFonts.ibmPlexMono(
+                          color: const Color(0xFFD33F49),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Right Side: Forecast Bar
+              _ForecastBar(
+                total: total,
+                available: data['available']!,
+                borrowed: data['borrowed']!,
+                returning: data['returningToday']!,
+                overdue: data['overdue']!,
+                height: 160,
+                width: 28,
+              ),
+            ],
           ),
         );
       },
     );
   }
 
-  // Bigger, responsive glass card to avoid overflow
-  Widget _glassCard(BuildContext context, {required Widget child}) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 240, minWidth: 260),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: Colors.white.withOpacity(0.18), width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.35),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(22),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-              child: child,
-            ),
+  Widget _glassCard({required Widget child}) {
+    return Container(
+      width: 300, // Fixed width
+      height: 240, // Fixed height
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withOpacity(0.18), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.35),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Padding(padding: const EdgeInsets.all(16), child: child),
         ),
       ),
     );
   }
 }
 
-/// Rounded track with stacked segments (green, yellow, orange, red)
 class _ForecastBar extends StatelessWidget {
   final int total, available, borrowed, returning, overdue;
   final double height;
@@ -290,13 +273,37 @@ class _ForecastBar extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: hasData
-            ? Column(
-                mainAxisAlignment: MainAxisAlignment.end,
+            ? Stack(
+                alignment: Alignment.bottomCenter,
                 children: [
-                  _seg(available, const Color(0xFF34C759)), // green
-                  _seg(borrowed, const Color(0xFFFFB300)), // yellow
-                  _seg(returning, const Color(0xFFFF9500)), // orange
-                  _seg(overdue, const Color(0xFFD33F49)), // red
+                  // Background for empty state
+                  Container(color: Colors.white.withOpacity(0.06)),
+                  // Animated segments
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      _buildSegment(
+                        overdue,
+                        total,
+                        const Color(0xFFD33F49),
+                      ), // Red
+                      _buildSegment(
+                        returning,
+                        total,
+                        const Color(0xFFFF9500),
+                      ), // Orange
+                      _buildSegment(
+                        borrowed,
+                        total,
+                        const Color(0xFFFFB300),
+                      ), // Yellow
+                      _buildSegment(
+                        available,
+                        total,
+                        const Color(0xFF34C759),
+                      ), // Green
+                    ],
+                  ),
                 ],
               )
             : Container(color: Colors.white.withOpacity(0.06)),
@@ -304,11 +311,14 @@ class _ForecastBar extends StatelessWidget {
     );
   }
 
-  Widget _seg(int value, Color color) {
-    // Avoid Flex exception when value is 0 by returning a 1px spacer
-    if (value <= 0) {
-      return const SizedBox(height: 1); // keeps edges smooth
-    }
-    return Flexible(child: Container(color: color));
+  Widget _buildSegment(int value, int total, Color color) {
+    if (value <= 0) return const SizedBox.shrink(); // Skip zero values
+    final proportion = value / total;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+      height: height * proportion,
+      color: color,
+    );
   }
 }

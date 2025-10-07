@@ -1,55 +1,111 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
-import 'package:mobile/components/local_database/localDatabaseMain.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> syncPendingRequests() async {
-  final db = await LocalDatabase().database;
-  final requests = await LocalDatabase().getPendingRequests();
-  final token = await SharedPreferences.getInstance().then(
-    (prefs) => prefs.getString('access_token'),
-  );
-  if (token == null) return;
+  final prefs = await SharedPreferences.getInstance();
+  List<String> pending = prefs.getStringList("pending_transactions") ?? [];
 
-  for (var request in requests) {
+  if (pending.isEmpty) {
+    print("🟢 No pending transactions to sync.");
+    return;
+  }
+
+  final token = prefs.getString("access_token");
+  if (token == null) {
+    print("⚠️ Missing access token. Cannot sync now.");
+    return;
+  }
+
+  print("🔄 Syncing ${pending.length} pending transactions...");
+
+  final url = Uri.parse("${dotenv.env['BASE_URL']}/api/borrowing/create/");
+  List<String> successfullySynced = [];
+
+  for (String transactionJson in pending) {
     try {
-      final httpRequest = http.MultipartRequest(
-        'POST',
-        Uri.parse('${dotenv.env['BASE_URL']}/api/borrowing/create/'),
-      );
-      httpRequest.headers['Authorization'] = 'Bearer $token';
-      httpRequest.fields['school_id'] = request['school_id'];
-      httpRequest.fields['name'] = request['name'];
-      httpRequest.fields['status'] = request['status'];
-      httpRequest.fields['return_date'] = request['return_date'];
-      httpRequest.fields['item_ids'] = jsonEncode(request['item_ids']);
-      httpRequest.files.add(
-        await http.MultipartFile.fromPath('image', request['photo_path']),
-      );
+      final transaction = jsonDecode(transactionJson);
+      String? imageUrl = transaction["borrower"]["image_url"];
+      final photoPath = transaction["borrower"]["photo_path"];
 
-      final response = await httpRequest.send();
-      final responseBody = await response.stream.bytesToString();
-      final responseData = jsonDecode(responseBody);
+      // Process image if not already processed
+      if (imageUrl == null &&
+          photoPath != null &&
+          File(photoPath).existsSync()) {
+        final processUrl = Uri.parse(
+          "${dotenv.env['BASE_URL']}/api/process_image/",
+        );
+        final processRequest = http.MultipartRequest('POST', processUrl)
+          ..headers['Authorization'] = 'Bearer $token'
+          ..fields['name'] = transaction["borrower"]["name"]
+          ..fields['school_id'] = transaction["borrower"]["school_id"]
+          ..files.add(await http.MultipartFile.fromPath('image', photoPath));
+
+        final processResponse = await processRequest.send();
+        final processResponseBody = await http.Response.fromStream(
+          processResponse,
+        );
+
+        if (processResponse.statusCode == 200) {
+          final data = jsonDecode(processResponseBody.body);
+          imageUrl = data['image_url'];
+          print("✅ Image processed during sync: $imageUrl");
+        } else {
+          print(
+            "❌ Image processing failed: ${processResponse.statusCode} → ${processResponseBody.body}",
+          );
+          continue; // Skip transaction if image processing fails
+        }
+      }
+
+      final request = http.MultipartRequest('POST', url)
+        ..headers['Authorization'] = 'Bearer $token'
+        ..fields['school_id'] = transaction["borrower"]["school_id"]
+        ..fields['name'] = transaction["borrower"]["name"]
+        ..fields['status'] = transaction["borrower"]["status"]
+        ..fields['return_date'] = transaction["borrower"]["return_date"];
+
+      for (var item in transaction["items"]) {
+        request.fields['item_ids[]'] = item["item_id"];
+      }
+
+      if (imageUrl != null) {
+        request.fields['image_url'] = imageUrl;
+      } else if (photoPath != null && File(photoPath).existsSync()) {
+        request.files.add(
+          await http.MultipartFile.fromPath('image', photoPath),
+        );
+      }
+
+      final response = await request.send();
+      final responseBody = await http.Response.fromStream(response);
 
       if (response.statusCode == 201) {
-        await LocalDatabase().deleteBorrowRequest(request['id']);
-        await LocalDatabase().saveTransaction({
-          'id': responseData['id'],
-          'school_id': request['school_id'],
-          'name': request['name'],
-          'status': request['status'],
-          'borrow_date': request['borrow_date'],
-          'return_date': request['return_date'],
-          'item_ids': request['item_ids'],
-          'photo_path': request['photo_path'],
-          'transaction_status': 'borrowed',
-          'is_synced': '1',
-        });
+        print("✅ Synced successfully: ${transaction["borrower"]["name"]}");
+        successfullySynced.add(transactionJson);
+      } else {
+        print(
+          "❌ Failed to sync transaction for ${transaction["borrower"]["name"]}: "
+          "${response.statusCode} → ${responseBody.body}",
+        );
       }
     } catch (e) {
-      print('Sync error for request ${request['id']}: $e');
+      print("⚠️ Sync error for transaction: $e");
     }
+  }
+
+  if (successfullySynced.isNotEmpty) {
+    pending.removeWhere((item) => successfullySynced.contains(item));
+    await prefs.setStringList("pending_transactions", pending);
+    print(
+      "✅ Sync complete — removed ${successfullySynced.length} transactions, "
+      "${pending.length} remaining",
+    );
+  } else {
+    print(
+      "✅ Sync complete — no transactions synced, ${pending.length} remaining",
+    );
   }
 }

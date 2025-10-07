@@ -1115,37 +1115,100 @@ class ProcessImageView(APIView):
         except Exception as e:
             return Response({"error": f"Failed to process image: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-        
-#DEFINING OUT MODEL SIMPLE
+import logging
+import traceback
+from django.core.cache import cache
+from datetime import date
+from dateutil.relativedelta import relativedelta
+from django.utils import timezone
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-# 👇 import the helper with an alias to avoid clashing with the view name
-from .forcastingModel import (
-    forecast_next_month_from_excel as forecast_excel_helper,
-)
+from .forcastingModel import forecast_next_month_from_excel as forecast_excel_helper
 
-EXCEL_URL = "https://docs.google.com/spreadsheets/d/1VxUwhlFjFYuRZQd-ERP-s2Fz6fT8l-c5fJ3unp6e44w/export?format=xlsx"
+# Setup logging (this writes to Django's console/logs)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+EXCEL_PATH = "dataset.xlsx"  # your local file in same folder as manage.py
+
+def _next_forecast_month_str():
+    try:
+        return (timezone.localdate() + relativedelta(months=1)).strftime("%Y-%m")
+    except Exception:
+        return (date.today() + relativedelta(months=1)).strftime("%Y-%m")
 
 
 @api_view(["GET"])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
 def forecast_top_items_excel(request):
-    try:
-        top_k = int(request.query_params.get("k", "5"))
-    except ValueError:
-        top_k = 5
+    """
+    Debug version of the forecast API — adds verbose logs at every step
+    to locate the exact cause of '502 Bad Gateway' errors.
+    """
+    logger.info("===== /api/forecast-top-items/ called =====")
 
     try:
-        results = forecast_excel_helper(EXCEL_URL, top_k=top_k)
+        # Step 1: Parse params
+        force = str(request.query_params.get("force", "0")).lower() in ("1", "true", "yes")
+        try:
+            top_k = int(request.query_params.get("k", "5"))
+        except ValueError:
+            top_k = 5
+
+        forecast_month = _next_forecast_month_str()
+        cache_key = f"forecast_excel:{forecast_month}:k{top_k}"
+
+        logger.info(f"[PARAMS] top_k={top_k}, force={force}, forecast_month={forecast_month}")
+        logger.info(f"[CACHE_KEY] {cache_key}")
+
+        # Step 2: Try cache first
+        if not force:
+            cached = cache.get(cache_key)
+            if cached is not None:
+                logger.info("[CACHE HIT] Returning cached forecast")
+                return Response(cached, status=200)
+        logger.info("[CACHE MISS] No cached data found or force recompute")
+
+        # Step 3: Try loading Excel file
+        import os
+        abs_path = os.path.abspath(EXCEL_PATH)
+        logger.info(f"[EXCEL LOAD] Attempting to read file: {abs_path}")
+        if not os.path.exists(abs_path):
+            logger.error(f"[ERROR] Excel file not found at {abs_path}")
+            return Response({"error": f"Excel file not found at {abs_path}"}, status=500)
+
+        # Step 4: Run the Prophet forecast helper
+        logger.info("[FORECAST] Starting Prophet model computation...")
+        results = forecast_excel_helper(EXCEL_PATH, top_k=top_k)
+        logger.info(f"[FORECAST] Completed successfully — results count: {len(results)}")
+
+        # Step 5: Prepare payload and cache
+        payload = {
+            "month": results[0]["month"] if results else forecast_month,
+            "top_k": top_k,
+            "results": results,
+            "cached_for_month": forecast_month,
+        }
+        cache.set(cache_key, payload, 35 * 24 * 60 * 60)
+        logger.info("[CACHE SET] Cached new forecast for one month")
+        logger.info("===== /api/forecast-top-items/ finished OK =====")
+
+        return Response(payload, status=200)
+
     except Exception as e:
-        return Response({"error": f"Failed to load/parse Excel: {e}"}, status=502)
+        tb = traceback.format_exc()
+        logger.error("===== /api/forecast-top-items/ FAILED =====")
+        logger.error(f"[EXCEPTION] {str(e)}")
+        logger.error(f"[TRACEBACK]\n{tb}")
+        return Response({
+            "error": str(e),
+            "traceback": tb.splitlines()[-10:],
+        }, status=500)
 
-    month = results[0]["month"] if results else None
-    return Response({"month": month, "top_k": top_k, "results": results})
 
 # views.py
 from datetime import timedelta

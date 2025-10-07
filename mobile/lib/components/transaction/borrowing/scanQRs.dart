@@ -1,400 +1,315 @@
-import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:qr_code_scanner_plus/qr_code_scanner_plus.dart';
-import 'package:http/http.dart' as http;
+import 'dart:async';
 import 'dart:convert';
-import 'package:mobile/components/local_database/localDatabaseMain.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:mobile/components/transaction/borrowing/processData.dart';
 
-class ScanItemsQR extends StatefulWidget {
-  final List<Map<String, dynamic>> scannedItems;
-  final bool isScanning;
-  final Function(List<Map<String, dynamic>>) onItemsScanned;
-  final Function(bool) onScanningStateChanged;
+class QRScannerDialog extends StatefulWidget {
+  final bool allowMultiple;
+  final Set<String>? initial;
+  final void Function(Set<String>) onItemsScanned;
   final VoidCallback onFinish;
 
-  const ScanItemsQR({
-    Key? key,
-    required this.scannedItems,
-    required this.isScanning,
+  const QRScannerDialog({
+    super.key,
+    required this.allowMultiple,
+    this.initial,
     required this.onItemsScanned,
-    required this.onScanningStateChanged,
     required this.onFinish,
-  }) : super(key: key);
+  });
 
   @override
-  _ScanItemsQRState createState() => _ScanItemsQRState();
+  State<QRScannerDialog> createState() => _QRScannerDialogState();
 }
 
-class _ScanItemsQRState extends State<ScanItemsQR> {
-  final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
-  QRViewController? controller;
-  bool isProcessing = false;
+class _QRScannerDialogState extends State<QRScannerDialog> {
+  final MobileScannerController _controller = MobileScannerController(
+    detectionSpeed: DetectionSpeed.noDuplicates,
+    facing: CameraFacing.back,
+  );
 
-  @override
-  void reassemble() {
-    super.reassemble();
-    if (Platform.isAndroid) {
-      controller?.pauseCamera();
-    }
-    controller?.resumeCamera();
-  }
+  final Set<String> _ids = <String>{};
+  int _lastHitMs = 0;
+  bool _isTorchOn = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.onScanningStateChanged(true);
-    });
-  }
-
-  void _onQRViewCreated(QRViewController controller) {
-    this.controller = controller;
-    controller.scannedDataStream.listen(
-      (scanData) async {
-        if (isProcessing || !widget.isScanning) return;
-        setState(() {
-          isProcessing = true;
-        });
-        if (scanData.code != null) {
-          await controller.pauseCamera();
-          await _showScanDialog(scanData.code!);
-        }
-        setState(() {
-          isProcessing = false;
-        });
-      },
-      onError: (error) {
-        print('QR scanner error: $error');
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('QR scanner error: $error')));
-        setState(() {
-          isProcessing = false;
-        });
-      },
-    );
-  }
-
-  Future<void> _showScanDialog(String code) async {
-    final itemId = code.trim();
-    print('🔍 Scanned QR code: $itemId');
-
-    if (itemId.isEmpty) {
-      print('Invalid QR code: Empty ID');
-      await _resumeScanning();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid item ID: QR code is empty')),
-      );
-      return;
-    }
-
-    Map<String, dynamic>? scannedItem;
-    String? errorMessage;
-
-    try {
-      final token = await SharedPreferences.getInstance().then(
-        (prefs) => prefs.getString('access_token'),
-      );
-      print('🔑 Token: ${token != null ? 'Available' : 'Null'}');
-      if (token == null) {
-        errorMessage = 'Please log in to scan items';
-      } else {
-        print('📍 Current scannedItems: ${widget.scannedItems}');
-        // Check local database
-        final localItem = await LocalDatabase().getItemDetails(itemId);
-        print(
-          '📍 Local database check for item $itemId: ${localItem != null ? 'Found' : 'Not found'}',
-        );
-        if (localItem != null) {
-          if (widget.scannedItems.any((i) => i['id'] == itemId)) {
-            errorMessage = 'Item already scanned';
-            print('⚠️ Item $itemId already in scannedItems');
-          } else {
-            final localTransaction = await LocalDatabase()
-                .getTransactionByItemId(itemId);
-            print(
-              '📍 Local transaction check for item $itemId: ${localTransaction != null ? 'Borrowed' : 'Available'}',
-            );
-            if (localTransaction != null) {
-              errorMessage = 'Item $itemId is currently borrowed';
-            } else {
-              scannedItem = {
-                'id': itemId,
-                'item_name': localItem['item_name'],
-                'condition': localItem['condition'],
-              };
-              print('✅ Local item added: $scannedItem');
-            }
-          }
-        } else if (await _isOnline()) {
-          print('🌐 Fetching item $itemId from backend');
-          final response = await http.get(
-            Uri.parse('${dotenv.env['BASE_URL']}/api/items/by-id/$itemId/'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json',
-            },
-          );
-          print(
-            '📡 API Response for item $itemId: Status ${response.statusCode}, Body ${response.body}',
-          );
-
-          if (response.statusCode != 200) {
-            errorMessage = 'Item not found: ${response.statusCode}';
-          } else {
-            final item = jsonDecode(response.body);
-            if (widget.scannedItems.any((i) => i['id'] == item['id'])) {
-              errorMessage = 'Item already scanned';
-              print('⚠️ Item $itemId already in scannedItems');
-            } else if (item['status'] == 'Borrowed') {
-              errorMessage = 'Item $itemId is currently borrowed';
-              print('⚠️ Item $itemId is borrowed: ${item['status']}');
-            } else {
-              await LocalDatabase().saveItemDetails({
-                'id': itemId,
-                'item_name': item['item_name'],
-                'condition': item['condition'],
-              });
-              scannedItem = {
-                'id': itemId, // Use scanned itemId for consistency
-                'item_name': item['item_name'],
-                'condition': item['condition'],
-              };
-              print('✅ Backend item added: $scannedItem');
-            }
-          }
-        } else {
-          errorMessage = 'Offline: Item not found in local database';
-          print('🌐 Offline mode, item $itemId not in local database');
-        }
-      }
-    } catch (e) {
-      errorMessage = 'Error scanning QR: $e';
-      print('❌ QR scan error for item $itemId: $e');
-    }
-
-    if (errorMessage != null) {
-      await _resumeScanning();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(errorMessage)));
-      return;
-    }
-
-    if (!mounted) {
-      print('⚠️ Widget not mounted, skipping dialog');
-      return;
-    }
-
-    print('🖼️ Showing dialog for item: $scannedItem');
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text(
-            'Success',
-            style: GoogleFonts.ibmPlexMono(
-              fontWeight: FontWeight.w500,
-              color: Colors.black,
-            ),
-          ),
-          content: Text(
-            'Scanned item ID: $itemId\nName: ${scannedItem!['item_name']}',
-            style: GoogleFonts.ibmPlexMono(
-              fontWeight: FontWeight.w300,
-              color: Colors.black,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                print('🚫 Dialog cancelled for item $itemId');
-                Navigator.of(context).pop();
-                _resumeScanning();
-              },
-              child: Text(
-                'Cancel',
-                style: GoogleFonts.ibmPlexMono(
-                  fontWeight: FontWeight.w300,
-                  color: Colors.red,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                print('✅ Saving item $itemId to scannedItems');
-                widget.onItemsScanned([...widget.scannedItems, scannedItem!]);
-                Navigator.of(context).pop();
-                _resumeScanning();
-              },
-              child: Text(
-                'Save',
-                style: GoogleFonts.ibmPlexMono(
-                  fontWeight: FontWeight.w300,
-                  color: Colors.green,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<bool> _isOnline() async {
-    try {
-      var connectivityResult = await Connectivity().checkConnectivity();
-      return connectivityResult != ConnectivityResult.none;
-    } catch (e) {
-      print('Connectivity check error: $e');
-      return false;
-    }
-  }
-
-  void _removeItem(String itemId) {
-    widget.onItemsScanned(
-      widget.scannedItems.where((item) => item['id'] != itemId).toList(),
-    );
-  }
-
-  Future<void> _resumeScanning() async {
-    print('📷 Resuming camera');
-    widget.onScanningStateChanged(true);
-    await controller?.resumeCamera();
-    await Future.delayed(
-      const Duration(milliseconds: 100),
-    ); // Ensure camera is ready
-    print('📷 Camera resumed');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Row(
-        children: [
-          Expanded(
-            child: widget.isScanning
-                ? QRView(
-                    key: qrKey,
-                    onQRViewCreated: _onQRViewCreated,
-                    overlay: QrScannerOverlayShape(
-                      borderColor: Colors.white,
-                      borderRadius: 10,
-                      borderLength: 30,
-                      borderWidth: 10,
-                      cutOutSize: 300,
-                    ),
-                  )
-                : Center(
-                    child: TextButton(
-                      onPressed: _resumeScanning,
-                      child: Text(
-                        'Resume Scanning',
-                        style: GoogleFonts.ibmPlexMono(
-                          fontWeight: FontWeight.w300,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-          ),
-          Container(
-            width: 150,
-            color: Colors.grey[850],
-            child: Column(
-              children: [
-                Expanded(
-                  child: widget.scannedItems.isEmpty
-                      ? Center(
-                          child: Text(
-                            'No items scanned',
-                            style: GoogleFonts.ibmPlexMono(
-                              fontWeight: FontWeight.w300,
-                              color: Colors.grey[400],
-                            ),
-                          ),
-                        )
-                      : ListView.builder(
-                          itemCount: widget.scannedItems.length,
-                          itemBuilder: (context, index) {
-                            final item = widget.scannedItems[index];
-                            return ListTile(
-                              title: Text(
-                                'ID: ${item['id']}',
-                                style: GoogleFonts.ibmPlexMono(
-                                  fontWeight: FontWeight.w300,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              subtitle: Text(
-                                item['item_name'],
-                                style: GoogleFonts.ibmPlexMono(
-                                  fontWeight: FontWeight.w300,
-                                  color: Colors.grey[400],
-                                ),
-                              ),
-                              trailing: IconButton(
-                                icon: const Icon(
-                                  Icons.close,
-                                  color: Colors.white,
-                                ),
-                                onPressed: () => _removeItem(item['id']),
-                              ),
-                            );
-                          },
-                        ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      TextButton(
-                        onPressed: () {
-                          widget.onItemsScanned([]);
-                          Navigator.of(context).pop();
-                        },
-                        child: Text(
-                          'Cancel',
-                          style: GoogleFonts.ibmPlexMono(
-                            fontWeight: FontWeight.w300,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: widget.scannedItems.isNotEmpty
-                            ? widget.onFinish
-                            : null,
-                        child: Text(
-                          'Proceed',
-                          style: GoogleFonts.ibmPlexMono(
-                            fontWeight: FontWeight.w300,
-                            color: widget.scannedItems.isNotEmpty
-                                ? Colors.white
-                                : Colors.grey[600],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+    if (widget.initial != null) _ids.addAll(widget.initial!);
   }
 
   @override
   void dispose() {
-    controller?.dispose();
+    _controller.dispose();
     super.dispose();
   }
+
+  void _onDetect(BarcodeCapture capture) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastHitMs < 400) return;
+    _lastHitMs = now;
+
+    for (final b in capture.barcodes) {
+      final raw = b.rawValue?.trim();
+      if (raw == null || raw.isEmpty) continue;
+
+      final id = _extractItemId(raw);
+      if (id == null || id.isEmpty) continue;
+
+      if (!widget.allowMultiple) {
+        widget.onItemsScanned({id});
+        widget.onFinish();
+        return;
+      }
+
+      if (_ids.add(id)) {
+        if (mounted) setState(() {});
+      }
+    }
+  }
+
+  String? _extractItemId(String raw) {
+    try {
+      final obj = json.decode(raw);
+      if (obj is Map) {
+        final v = obj['id'] ?? obj['item_id'] ?? obj['itemId'];
+        if (v != null) return v.toString().trim();
+      }
+    } catch (_) {}
+
+    final uri = Uri.tryParse(raw);
+    if (uri != null && (uri.hasQuery || uri.query.isNotEmpty)) {
+      final v =
+          uri.queryParameters['id'] ??
+          uri.queryParameters['item_id'] ??
+          uri.queryParameters['itemId'];
+      if (v != null && v.trim().isNotEmpty) return v.trim();
+    }
+
+    return raw;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close, color: Colors.white),
+                  ),
+                  Expanded(
+                    child: Text(
+                      widget.allowMultiple ? 'Scan Items' : 'Scan Item',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Toggle Torch',
+                    onPressed: () async {
+                      await _controller.toggleTorch();
+                      setState(() {
+                        _isTorchOn = !_isTorchOn;
+                      });
+                    },
+                    icon: Icon(
+                      _isTorchOn ? Icons.flash_on : Icons.flash_off,
+                      color: _isTorchOn ? Colors.amber : Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            AspectRatio(
+              aspectRatio: 3 / 4,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  MobileScanner(controller: _controller, onDetect: _onDetect),
+                  IgnorePointer(child: CustomPaint(painter: _CornersPainter())),
+                ],
+              ),
+            ),
+            if (widget.allowMultiple)
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  color: Colors.black,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Collected: ',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: Colors.white70,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Chip(
+                            label: Text(
+                              '${_ids.length}',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            backgroundColor: Colors.blueGrey.shade700,
+                          ),
+                          const Spacer(),
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.white70,
+                            ),
+                            onPressed: _ids.isEmpty
+                                ? null
+                                : () => setState(() => _ids.clear()),
+                            icon: const Icon(Icons.delete_outline),
+                            label: const Text('Clear'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: _ids.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'Point camera at QR codes',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: Colors.white38,
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: _ids.length,
+                                separatorBuilder: (_, __) =>
+                                    const Divider(color: Colors.white12),
+                                itemBuilder: (_, i) {
+                                  final id = _ids.elementAt(i);
+                                  return Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          id,
+                                          style: theme.textTheme.bodyMedium
+                                              ?.copyWith(color: Colors.white),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Remove',
+                                        onPressed: () =>
+                                            setState(() => _ids.remove(id)),
+                                        icon: const Icon(
+                                          Icons.close,
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white24),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (_ids.isEmpty) return;
+                        widget.onItemsScanned(_ids);
+                        widget.onFinish();
+                      },
+                      child: Text(
+                        widget.allowMultiple ? 'Done' : 'Use this ID',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CornersPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = Colors.white70
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+
+    const w = 32.0;
+    const pad = 18.0;
+
+    canvas.drawLine(Offset(pad, pad), Offset(pad + w, pad), p);
+    canvas.drawLine(Offset(pad, pad), Offset(pad, pad + w), p);
+    canvas.drawLine(
+      Offset(size.width - pad - w, pad),
+      Offset(size.width - pad, pad),
+      p,
+    );
+    canvas.drawLine(
+      Offset(size.width - pad, pad),
+      Offset(size.width - pad, pad + w),
+      p,
+    );
+    canvas.drawLine(
+      Offset(pad, size.height - pad - w),
+      Offset(pad, size.height - pad),
+      p,
+    );
+    canvas.drawLine(
+      Offset(pad, size.height - pad),
+      Offset(pad + w, size.height - pad),
+      p,
+    );
+    canvas.drawLine(
+      Offset(size.width - pad, size.height - pad - w),
+      Offset(size.width - pad, size.height - pad),
+      p,
+    );
+    canvas.drawLine(
+      Offset(size.width - pad - w, size.height - pad),
+      Offset(size.width - pad, size.height - pad),
+      p,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

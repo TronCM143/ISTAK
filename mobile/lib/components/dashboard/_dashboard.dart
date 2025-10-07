@@ -49,7 +49,7 @@ class _DashboardState extends State<Dashboard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 10),
+        // const SizedBox(height: 10),
         // Let TransactionList handle its own scrolling
         Expanded(child: TransactionList()),
       ],

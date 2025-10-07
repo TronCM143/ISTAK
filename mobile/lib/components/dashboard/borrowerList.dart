@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile/components/_landing_page.dart';
+import 'dart:ui';
 
 class Borrowerlist extends StatefulWidget {
   const Borrowerlist({super.key});
@@ -87,7 +88,6 @@ class _BorrowerlistState extends State<Borrowerlist>
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data is List) {
-          // Unify duplicate borrowers
           final unifiedBorrowers = _unifyBorrowers(data);
           setState(() {
             borrowers = unifiedBorrowers;
@@ -132,18 +132,16 @@ class _BorrowerlistState extends State<Borrowerlist>
           'last_borrowed_date': borrower['last_borrowed_date'],
         };
       } else {
-        // Merge borrowed items and update counts
         borrowerMap[key]['borrowed_items'] = [
           ...borrowerMap[key]['borrowed_items'],
           ...(borrower['borrowed_items'] ?? []),
-        ].toSet().toList(); // Remove duplicates
+        ].toSet().toList();
         borrowerMap[key]['transaction_count'] =
             (borrowerMap[key]['transaction_count'] ?? 0) +
             (borrower['transaction_count'] ?? 0);
         borrowerMap[key]['total_borrowed_items'] =
             (borrowerMap[key]['total_borrowed_items'] ?? 0) +
             (borrower['total_borrowed_items'] ?? 0);
-        // Use the most recent last_borrowed_date
         final currentDate = borrower['last_borrowed_date'] != null
             ? DateTime.tryParse(borrower['last_borrowed_date'])
             : null;
@@ -208,26 +206,12 @@ class _BorrowerlistState extends State<Borrowerlist>
   Widget build(BuildContext context) {
     final filteredBorrowers = getFilteredBorrowers();
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Borrowers',
-          style: GoogleFonts.ibmPlexMono(
-            fontWeight: FontWeight.w500,
-            color: Colors.white,
-          ),
-        ),
-        backgroundColor: Colors.grey[900],
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: fetchBorrowers,
-          ),
-        ],
-      ),
+      backgroundColor:
+          Colors.transparent, // Transparent to show animated background
       body: FadeTransition(
         opacity: _fadeAnimation,
         child: Padding(
-          padding: const EdgeInsets.all(8.0),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -235,36 +219,45 @@ class _BorrowerlistState extends State<Borrowerlist>
               Container(
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: Colors.grey[850],
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: Colors.white.withOpacity(0.2),
                     width: 1.5,
                   ),
                 ),
-                child: TextField(
-                  style: GoogleFonts.ibmPlexMono(
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Search by name or school ID...',
-                    hintStyle: GoogleFonts.ibmPlexMono(
-                      color: Colors.grey[400],
-                      fontSize: 14,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                    child: TextField(
+                      style: GoogleFonts.ibmPlexMono(
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                      textAlignVertical: TextAlignVertical.center,
+                      decoration: InputDecoration(
+                        hintText: 'Search by name or school ID...',
+                        hintStyle: GoogleFonts.ibmPlexMono(
+                          color: Colors.grey[400],
+                          fontSize: 14,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          color: Colors.white70,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setState(() {
+                          searchQuery = value;
+                        });
+                      },
                     ),
-                    prefixIcon: const Icon(Icons.search, color: Colors.white70),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
                   ),
-                  onChanged: (value) {
-                    setState(() {
-                      searchQuery = value;
-                    });
-                  },
                 ),
               ),
               // Filter Buttons
@@ -288,14 +281,14 @@ class _BorrowerlistState extends State<Borrowerlist>
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: isSelected
-                                ? const Color(0xFF34C759)
-                                : Colors.transparent,
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: Colors.white.withOpacity(0.2),
                               width: 1.5,
                             ),
+                            color: isSelected
+                                ? const Color(0xFF34C759).withOpacity(0.3)
+                                : Colors.transparent,
                           ),
                           child: Text(
                             filter,
@@ -305,7 +298,7 @@ class _BorrowerlistState extends State<Borrowerlist>
                                   ? FontWeight.w600
                                   : FontWeight.w400,
                               color: isSelected
-                                  ? const Color(0xFF1A3C34)
+                                  ? Colors.white
                                   : const Color(0xFFA8B0B2),
                             ),
                           ),
@@ -339,24 +332,36 @@ class _BorrowerlistState extends State<Borrowerlist>
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: _loadTokenAndFetchBorrowers,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF34C759),
-                                foregroundColor: const Color(0xFF1A3C34),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
+                            GestureDetector(
+                              onTap: _loadTokenAndFetchBorrowers,
+                              child: Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 24,
                                   vertical: 12,
                                 ),
-                              ),
-                              child: Text(
-                                'Retry',
-                                style: GoogleFonts.ibmPlexMono(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.2),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(
+                                      sigmaX: 5,
+                                      sigmaY: 5,
+                                    ),
+                                    child: Text(
+                                      'Retry',
+                                      style: GoogleFonts.ibmPlexMono(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -384,234 +389,336 @@ class _BorrowerlistState extends State<Borrowerlist>
                           final totalBorrowedItems =
                               borrower['total_borrowed_items'] ?? 0;
 
-                          return Card(
-                            color: Colors.grey[850],
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: ListTile(
-                              leading: GestureDetector(
-                                onTap: borrower['image'] != null
-                                    ? () {
-                                        showDialog(
-                                          context: context,
-                                          builder: (context) => Dialog(
-                                            backgroundColor: Colors.transparent,
-                                            insetPadding: const EdgeInsets.all(
-                                              16,
-                                            ),
-                                            child: GestureDetector(
-                                              onTap: () =>
-                                                  Navigator.of(context).pop(),
-                                              child: InteractiveViewer(
-                                                child: Image.network(
-                                                  borrower['image'],
-                                                  fit: BoxFit.contain,
-                                                  errorBuilder:
-                                                      (
-                                                        context,
-                                                        error,
-                                                        stackTrace,
-                                                      ) => const Center(
-                                                        child: Icon(
-                                                          Icons.broken_image,
-                                                          size: 80,
-                                                          color: Color(
-                                                            0xFFF5F7F5,
-                                                          ),
-                                                        ),
+                          return GestureDetector(
+                            onTap: () async {
+                              try {
+                                final transactions =
+                                    await fetchBorrowerTransactions(
+                                      borrower['id'],
+                                    );
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => Dialog(
+                                    backgroundColor: Colors.transparent,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(0.2),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: BackdropFilter(
+                                          filter: ImageFilter.blur(
+                                            sigmaX: 5,
+                                            sigmaY: 5,
+                                          ),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(16),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  'Borrowed Items: ${borrower['name']} (${borrower['school_id']})',
+                                                  style:
+                                                      GoogleFonts.ibmPlexMono(
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                        color: Colors.white,
+                                                        fontSize: 16,
                                                       ),
                                                 ),
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    : null,
-                                child: borrower['image'] != null
-                                    ? CircleAvatar(
-                                        radius: 25,
-                                        backgroundImage: NetworkImage(
-                                          borrower['image'],
-                                        ),
-                                        onBackgroundImageError: (error, stack) {
-                                          debugPrint(
-                                            "Image load error for ${borrower['image']}: $error",
-                                          );
-                                        },
-                                      )
-                                    : CircleAvatar(
-                                        radius: 25,
-                                        child: Text(
-                                          borrower['name']?[0] ?? 'B',
-                                          style: GoogleFonts.ibmPlexMono(
-                                            fontWeight: FontWeight.w500,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ),
-                              ),
-                              title: Text(
-                                '${borrower['name']}: ${borrower['school_id']}',
-                                style: GoogleFonts.ibmPlexMono(
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              subtitle: Text(
-                                'Last Borrowed: $lastBorrowedDate',
-                                style: GoogleFonts.ibmPlexMono(
-                                  fontWeight: FontWeight.w300,
-                                  color: Colors.grey[400],
-                                ),
-                              ),
-                              trailing: Text(
-                                'Items: $totalBorrowedItems',
-                                style: GoogleFonts.ibmPlexMono(
-                                  fontWeight: FontWeight.w300,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              onTap: () async {
-                                try {
-                                  final transactions =
-                                      await fetchBorrowerTransactions(
-                                        borrower['id'],
-                                      );
-                                  showDialog(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      backgroundColor: Colors.grey[850],
-                                      title: Text(
-                                        'Borrowed Items: ${borrower['name']} (${borrower['school_id']})',
-                                        style: GoogleFonts.ibmPlexMono(
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      content: Container(
-                                        width: double.maxFinite,
-                                        constraints: const BoxConstraints(
-                                          maxHeight: 400,
-                                        ),
-                                        child: transactions.isEmpty
-                                            ? Text(
-                                                'No transactions found for this borrower.',
-                                                style: GoogleFonts.ibmPlexMono(
-                                                  fontWeight: FontWeight.w300,
-                                                  color: Colors.white,
-                                                ),
-                                              )
-                                            : ListView.builder(
-                                                shrinkWrap: true,
-                                                itemCount: transactions.length,
-                                                itemBuilder: (context, index) {
-                                                  final transaction =
-                                                      transactions[index];
-                                                  final items =
-                                                      transaction['items'] ??
-                                                      [];
-                                                  final itemNames = items
-                                                      .map(
-                                                        (item) =>
-                                                            item['item_name'] ??
-                                                            'Unknown Item',
-                                                      )
-                                                      .join(', ');
-                                                  final borrowDate =
-                                                      transaction['borrow_date'] !=
-                                                          null
-                                                      ? DateFormat(
-                                                          'MMM d, yyyy',
-                                                        ).format(
-                                                          DateTime.parse(
-                                                            transaction['borrow_date'],
-                                                          ),
+                                                const SizedBox(height: 16),
+                                                Container(
+                                                  width: double.maxFinite,
+                                                  constraints:
+                                                      const BoxConstraints(
+                                                        maxHeight: 400,
+                                                      ),
+                                                  child: transactions.isEmpty
+                                                      ? Text(
+                                                          'No transactions found for this borrower.',
+                                                          style:
+                                                              GoogleFonts.ibmPlexMono(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w300,
+                                                                color: Colors
+                                                                    .white,
+                                                              ),
                                                         )
-                                                      : 'N/A';
-                                                  final returnDate =
-                                                      transaction['return_date'] !=
-                                                          null
-                                                      ? DateFormat(
-                                                          'MMM d, yyyy',
-                                                        ).format(
-                                                          DateTime.parse(
-                                                            transaction['return_date'],
-                                                          ),
-                                                        )
-                                                      : 'Not returned';
-                                                  final status =
-                                                      transaction['status']
-                                                          ?.toString() ??
-                                                      'Unknown';
+                                                      : ListView.builder(
+                                                          shrinkWrap: true,
+                                                          itemCount:
+                                                              transactions
+                                                                  .length,
+                                                          itemBuilder: (context, index) {
+                                                            final transaction =
+                                                                transactions[index];
+                                                            final items =
+                                                                transaction['items'] ??
+                                                                [];
+                                                            final itemNames = items
+                                                                .map(
+                                                                  (item) =>
+                                                                      item['item_name'] ??
+                                                                      'Unknown Item',
+                                                                )
+                                                                .join(', ');
+                                                            final borrowDate =
+                                                                transaction['borrow_date'] !=
+                                                                    null
+                                                                ? DateFormat(
+                                                                    'MMM d, yyyy',
+                                                                  ).format(
+                                                                    DateTime.parse(
+                                                                      transaction['borrow_date'],
+                                                                    ),
+                                                                  )
+                                                                : 'N/A';
+                                                            final returnDate =
+                                                                transaction['return_date'] !=
+                                                                    null
+                                                                ? DateFormat(
+                                                                    'MMM d, yyyy',
+                                                                  ).format(
+                                                                    DateTime.parse(
+                                                                      transaction['return_date'],
+                                                                    ),
+                                                                  )
+                                                                : 'Not returned';
+                                                            final status =
+                                                                transaction['status']
+                                                                    ?.toString() ??
+                                                                'Unknown';
 
-                                                  return Card(
-                                                    color: Colors.grey[800],
-                                                    child: ListTile(
-                                                      title: Text(
-                                                        itemNames.isEmpty
-                                                            ? 'No items in this transaction'
-                                                            : itemNames,
-                                                        style:
-                                                            GoogleFonts.ibmPlexMono(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w400,
-                                                              color:
-                                                                  Colors.white,
-                                                            ),
-                                                      ),
-                                                      subtitle: Text(
-                                                        'Status: $status\nBorrowed: $borrowDate\nReturned: $returnDate',
-                                                        style:
-                                                            GoogleFonts.ibmPlexMono(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w300,
-                                                              color: Colors
-                                                                  .grey[400],
+                                                            return Container(
+                                                              margin:
+                                                                  const EdgeInsets.only(
+                                                                    bottom: 8,
+                                                                  ),
+                                                              decoration: BoxDecoration(
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      10,
+                                                                    ),
+                                                                border: Border.all(
+                                                                  color: Colors
+                                                                      .white
+                                                                      .withOpacity(
+                                                                        0.2,
+                                                                      ),
+                                                                  width: 1.5,
+                                                                ),
+                                                              ),
+                                                              child: ClipRRect(
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      10,
+                                                                    ),
+                                                                child: BackdropFilter(
+                                                                  filter:
+                                                                      ImageFilter.blur(
+                                                                        sigmaX:
+                                                                            5,
+                                                                        sigmaY:
+                                                                            5,
+                                                                      ),
+                                                                  child: Container(
+                                                                    padding:
+                                                                        const EdgeInsets.all(
+                                                                          12,
+                                                                        ),
+                                                                    child: Column(
+                                                                      crossAxisAlignment:
+                                                                          CrossAxisAlignment
+                                                                              .start,
+                                                                      children: [
+                                                                        Text(
+                                                                          itemNames.isEmpty
+                                                                              ? 'No items in this transaction'
+                                                                              : itemNames,
+                                                                          style: GoogleFonts.ibmPlexMono(
+                                                                            fontWeight:
+                                                                                FontWeight.w400,
+                                                                            color:
+                                                                                Colors.white,
+                                                                          ),
+                                                                        ),
+                                                                        Text(
+                                                                          'Status: $status\nBorrowed: $borrowDate\nReturned: $returnDate',
+                                                                          style: GoogleFonts.ibmPlexMono(
+                                                                            fontWeight:
+                                                                                FontWeight.w300,
+                                                                            color:
+                                                                                Colors.grey[400],
+                                                                          ),
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            );
+                                                          },
+                                                        ),
+                                                ),
+                                                const SizedBox(height: 16),
+                                                TextButton(
+                                                  onPressed: () => Navigator.of(
+                                                    context,
+                                                  ).pop(),
+                                                  child: Text(
+                                                    'Close',
+                                                    style:
+                                                        GoogleFonts.ibmPlexMono(
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                          color: const Color(
+                                                            0xFF34C759,
+                                                          ),
+                                                          fontSize: 14,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      e.toString().contains(
+                                            'Borrower not found',
+                                          )
+                                          ? 'Borrower or transactions not found'
+                                          : 'Failed to load transactions. Please try again.',
+                                      style: GoogleFonts.ibmPlexMono(
+                                        fontWeight: FontWeight.w300,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    backgroundColor: const Color(0xFFD33F49),
+                                    duration: const Duration(seconds: 3),
+                                  ),
+                                );
+                              }
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.2),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(
+                                    sigmaX: 5,
+                                    sigmaY: 5,
+                                  ),
+                                  child: ListTile(
+                                    leading: GestureDetector(
+                                      onTap: borrower['image'] != null
+                                          ? () {
+                                              showDialog(
+                                                context: context,
+                                                builder: (context) => Dialog(
+                                                  backgroundColor:
+                                                      Colors.transparent,
+                                                  insetPadding:
+                                                      const EdgeInsets.all(16),
+                                                  child: GestureDetector(
+                                                    onTap: () => Navigator.of(
+                                                      context,
+                                                    ).pop(),
+                                                    child: InteractiveViewer(
+                                                      child: Image.network(
+                                                        borrower['image'],
+                                                        fit: BoxFit.contain,
+                                                        errorBuilder:
+                                                            (
+                                                              context,
+                                                              error,
+                                                              stackTrace,
+                                                            ) => const Center(
+                                                              child: Icon(
+                                                                Icons
+                                                                    .broken_image,
+                                                                size: 80,
+                                                                color: Color(
+                                                                  0xFFF5F7F5,
+                                                                ),
+                                                              ),
                                                             ),
                                                       ),
                                                     ),
-                                                  );
-                                                },
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          : null,
+                                      child: borrower['image'] != null
+                                          ? CircleAvatar(
+                                              radius: 25,
+                                              backgroundImage: NetworkImage(
+                                                borrower['image'],
                                               ),
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.of(context).pop(),
-                                          child: Text(
-                                            'Close',
-                                            style: GoogleFonts.ibmPlexMono(
-                                              fontWeight: FontWeight.w500,
-                                              color: const Color(0xFF34C759),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                } catch (e) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        e.toString().contains(
-                                              'Borrower not found',
+                                              onBackgroundImageError:
+                                                  (error, stack) {
+                                                    debugPrint(
+                                                      "Image load error for ${borrower['image']}: $error",
+                                                    );
+                                                  },
                                             )
-                                            ? 'Borrower or transactions not found'
-                                            : 'Failed to load transactions. Please try again.',
-                                        style: GoogleFonts.ibmPlexMono(
-                                          fontWeight: FontWeight.w300,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      backgroundColor: const Color(0xFFD33F49),
-                                      duration: const Duration(seconds: 3),
+                                          : CircleAvatar(
+                                              radius: 25,
+                                              child: Text(
+                                                borrower['name']?[0] ?? 'B',
+                                                style: GoogleFonts.ibmPlexMono(
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
                                     ),
-                                  );
-                                }
-                              },
+                                    title: Text(
+                                      '${borrower['name']}: ${borrower['school_id']}',
+                                      style: GoogleFonts.ibmPlexMono(
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.white,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    subtitle: Text(
+                                      'Last Borrowed: $lastBorrowedDate',
+                                      style: GoogleFonts.ibmPlexMono(
+                                        fontWeight: FontWeight.w300,
+                                        color: Colors.grey[400],
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    trailing: Text(
+                                      'Items: $totalBorrowedItems',
+                                      style: GoogleFonts.ibmPlexMono(
+                                        fontWeight: FontWeight.w300,
+                                        color: Colors.white,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                           );
                         },
@@ -621,7 +728,6 @@ class _BorrowerlistState extends State<Borrowerlist>
           ),
         ),
       ),
-      backgroundColor: Colors.grey[900],
     );
   }
 

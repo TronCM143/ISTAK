@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
+from celery.schedules import crontab
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -53,6 +55,25 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Manila'
+
+
+
+CELERY_BEAT_SCHEDULE = {
+    "notify-due-overdue-every-2min": {
+        "task": "istak_backend.tasks.notify_due_items",
+        "schedule": 60,  # every 2 minutes (good for testing)
+    },
+    # Or: run every minute
+    # "notify-every-minute": {
+    #     "task": "istak_backend.tasks.notify_due_items",
+    #     "schedule": 60.0,
+    # },
+    # Or using crontab:
+    # "notify-*/2min": {
+    #     "task": "istak_backend.tasks.notify_due_items",
+    #     "schedule": crontab(minute="*/2"),
+    # },
+}
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
@@ -170,3 +191,12 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "istak-default-cache",
+        "TIMEOUT": None,  # we set per-key TTLs in code
+    }
+}

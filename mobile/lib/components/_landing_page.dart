@@ -1,20 +1,18 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import 'package:mobile/animatedBackground.dart';
 import 'package:mobile/components/dashboard/_dashboard.dart';
 import 'package:mobile/components/dashboard/basicForecasts.dart';
 import 'package:mobile/components/dashboard/itemList.dart';
 import 'package:mobile/components/dashboard/transactionList.dart';
+import 'package:mobile/components/nav.dart';
 import 'package:mobile/components/sidePanel/_mainSidePanel.dart';
 import 'package:mobile/components/dashboard/borrowerList.dart';
-import 'package:mobile/components/transaction/borrowing/_mainBorrow.dart';
+import 'package:mobile/components/transaction/borrowing/inputData.dart';
 import 'package:mobile/components/transaction/returning/returning.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:mobile/notifications/notif.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:lottie/lottie.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -23,14 +21,27 @@ class Home extends StatefulWidget {
   State<Home> createState() => _HomeState();
 }
 
-class _HomeState extends State<Home> {
+class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String? _accessToken;
+  late AnimationController _lottieController;
+  // Adjustable QR animation size
+  final double qrAnimationSize = 100; // Set to 50x50 or adjust as needed
+  // Adjustable top margin for _getBody content
+  final double topMargin = 100; // Adjust this to control distance from top
+  int _selectedIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _loadAccessToken();
+    // Initialize Lottie AnimationController with adjustable duration
+    _lottieController = AnimationController(
+      vsync: this,
+      duration: const Duration(
+        seconds: 4,
+      ), // Adjust this for speed (higher = slower)
+    )..repeat(); // Loop the animation
   }
 
   Future<void> _loadAccessToken() async {
@@ -55,298 +66,227 @@ class _HomeState extends State<Home> {
   }
 
   @override
+  void dispose() {
+    _lottieController.dispose(); // Dispose the Lottie controller
+    super.dispose();
+  }
+
+  void _onNavItemTapped(int index) {
+    if (index == 3) {
+      _scaffoldKey.currentState?.openEndDrawer();
+    } else {
+      setState(() {
+        _selectedIndex = index;
+      });
+    }
+  }
+
+  Widget _getBody(int index) {
+    switch (index) {
+      case 0:
+        return Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.only(top: topMargin), // Adjustable top margin
+              child: Container(
+                margin: const EdgeInsets.only(top: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  children: [
+                    Column(
+                      children: [
+                        SizedBox(
+                          child: _AppleGlassCard(
+                            padding: const EdgeInsets.all(1),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const BorrowerInputAndPhoto(),
+                                ),
+                              );
+                            },
+                            // child: Center(
+                            //   child: Lottie.asset(
+                            //     'assets/finalQR.json',
+                            //     width: qrAnimationSize,
+                            //     height: qrAnimationSize,
+                            //     fit: BoxFit.contain,
+                            //     controller: _lottieController,
+                            //   ),
+                            // ),
+                            child: Center(
+                              child: Icon(
+                                Icons
+                                    .qr_code_scanner, // 📷 built-in QR scanner icon
+                                size:
+                                    qrAnimationSize, // reuse your existing size variable
+                                color: const Color.fromARGB(
+                                  255,
+                                  176,
+                                  176,
+                                  176,
+                                ), // you can change to any color
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 10),
+                        Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.28),
+                              width: 1,
+                            ),
+                          ),
+                          child: Material(
+                            type: MaterialType.transparency,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(24),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const ReturnItem(),
+                                  ),
+                                );
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 22,
+                                  vertical: 12,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      width: 100,
+                                      child: Center(
+                                        child: Text(
+                                          'Return',
+                                          style: DefaultTextStyle.of(context)
+                                              .style
+                                              .copyWith(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 16,
+                                                color: Colors.white,
+                                                letterSpacing: 0.2,
+                                                decoration: TextDecoration.none,
+                                              ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: ForecastWidget(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            //r  Dashboard(),
+            SizedBox(height: 560, child: TransactionList()),
+          ],
+        );
+      case 1:
+        return Padding(
+          padding: EdgeInsets.only(top: topMargin), // Apply same top margin
+          child: Itemlist(),
+        );
+      case 2:
+        return Padding(
+          padding: EdgeInsets.only(top: topMargin), // Apply same top margin
+          child: Borrowerlist(),
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     debugPrint("Home constraints: ${MediaQuery.of(context).size}");
     if (_accessToken == null) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final transactions =
-        TransactionList.globalKey.currentState?.transactions ?? [];
-
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: Colors.white, // Solid white background
+      backgroundColor: Colors.white,
       endDrawer: SidePanel(access_token: _accessToken!),
       body: Stack(
         children: [
-          /// --- Fullscreen animated background ---
-          CloudyBackground(),
+          //ANIMATED BACKGROUND
+          //    CloudyBackground(),
 
-          /// --- Foreground UI ---
-          SafeArea(
-            child: Column(
-              children: [
-                // Header
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 16,
-                  ),
-                  color: const Color.fromARGB(0, 205, 204, 204),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Hero(
-                        tag: "istakLogo",
-                        child: Image(
-                          image: AssetImage("assets/fullLogo.png"),
-                          width: 120,
-                          height: 60,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                      const SizedBox(width: 200),
-                      IconButton(
-                        icon: const Icon(
-                          CupertinoIcons.bell,
-                          color: Color.fromARGB(255, 206, 192, 152),
-                          size: 28,
-                        ),
-                        onPressed: () {
-                          showDialog(
-                            context: context,
-                            builder: (context) => const NotificationScreen(),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+          //STATIS IMAGE BACKGROUND
+          Positioned.fill(
+            child: Image.asset(
+              'assets/bg.jpg',
+              fit: BoxFit.cover, // fills the screen
+            ),
+          ),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+            child: KeyedSubtree(
+              key: ValueKey<int>(_selectedIndex),
+              child: SafeArea(
+                top:
+                    false, // Avoid extra top padding since header is positioned
+                child: _getBody(_selectedIndex),
+              ),
+            ),
+          ),
+
+          /// --- Fixed Header ---
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            //bottom: 5,
+            child: SafeArea(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 1,
+                  // horizontal: 16,
                 ),
-
-                Container(
-                  child: Row(
-                    //crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // LEFT: Scanner takes 2 parts
-                      // SizedBox(
-                      //   child: Column(
-                      //     children: [
-                      //       Center(
-                      //         child: SizedBox(
-                      //           width: 500, // now respected
-                      //           height: 500,
-                      //           child: _AppleGlassCard(
-                      //             onTap: () {
-                      //               Navigator.push(
-                      //                 context,
-                      //                 MaterialPageRoute(
-                      //                   builder: (_) => const BorrowScreen(),
-                      //                 ),
-                      //               );
-                      //             },
-                      //             child: const Icon(
-                      //               CupertinoIcons.qrcode_viewfinder,
-                      //               size: 68,
-                      //               color: Colors.white,
-                      //             ),
-                      //           ),
-                      //         ),
-                      //       ),
-                      //       const SizedBox(height: 12),
-                      //       // ... your Return button here ...
-                      //     ],
-                      //   ),
-                      // ),
-                      SizedBox(width: 10),
-                      Column(
-                        children: [
-                          SizedBox(
-                            child: _AppleGlassCard(
-                              padding: const EdgeInsets.all(
-                                10,
-                              ), // 10px margin on all sides
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const BorrowScreen(),
-                                  ),
-                                );
-                              },
-                              child: Lottie.asset(
-                                'assets/qr.json',
-                                width: 120, // adjust to fit your design
-                                height: 120,
-                                fit: BoxFit.contain,
-                                repeat: true, // loop animation
-                              ),
-                            ),
-                          ),
-                          SizedBox(height: 10),
-                          Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.28),
-                                width: 1,
-                              ),
-                            ),
-                            child: Material(
-                              type: MaterialType.transparency,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(24),
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const ReturnItem(),
-                                    ),
-                                  );
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 22,
-                                    vertical: 12,
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        'Return',
-                                        style: DefaultTextStyle.of(context)
-                                            .style
-                                            .copyWith(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 16,
-                                              color: Colors.white,
-                                              letterSpacing: 0.2,
-                                            ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      // RIGHT: Forecast takes 1 part
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(
-                            10,
-                          ), // 10px margin on all sides
-                          child: ForecastWidget(),
-                        ),
-                      ),
-                    ],
+                color: const Color.fromARGB(0, 205, 204, 204),
+                child: Center(
+                  child: const Hero(
+                    tag: "istakLogo",
+                    child: Image(
+                      image: AssetImage("assets/fullLogo.png"),
+                      width: 150,
+                      height: 80,
+                      fit: BoxFit.contain,
+                    ),
                   ),
+
+                  //      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 ),
-
-                // Dashboard with pull-to-refresh
-                // Expanded(
-                //   child: RefreshIndicator(
-                //     onRefresh: _refreshDashboard,
-                //     backgroundColor: Colors.transparent,
-                //     color: Colors.yellow,
-                //     displacement: 40,
-                Expanded(child: Dashboard()),
-
-                //   ),
-                // ),
-              ],
+              ),
             ),
           ),
 
           /// --- Floating Bottom Navigation Bar ---
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(30),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.transparent, // Explicitly transparent
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.25),
-                      width: 1.2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      IconButton(
-                        icon: const Icon(CupertinoIcons.home),
-                        color: Colors.white,
-                        onPressed: () {},
-                      ),
-                      IconButton(
-                        icon: const Icon(CupertinoIcons.book),
-                        color: Colors.white,
-                        onPressed: () {
-                          if (_accessToken != null) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => Itemlist()),
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Please wait, loading access token...',
-                                  style: GoogleFonts.ibmPlexMono(
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(CupertinoIcons.person),
-                        color: Colors.white,
-                        onPressed: () {
-                          if (_accessToken != null) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => Borrowerlist()),
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Please wait, loading access token...',
-                                  style: GoogleFonts.ibmPlexMono(
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(CupertinoIcons.line_horizontal_3),
-                        color: Colors.white,
-                        onPressed: () {
-                          _scaffoldKey.currentState?.openEndDrawer();
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          GlassBottomBar(
+            selectedIndex: _selectedIndex,
+            onItemTapped: _onNavItemTapped,
           ),
         ],
       ),
@@ -375,7 +315,7 @@ class _AppleGlassCard extends StatelessWidget {
       borderRadius: radius,
       child: Stack(
         children: [
-          // Frosted blurr
+          // Frosted blur
           Positioned.fill(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
@@ -388,7 +328,7 @@ class _AppleGlassCard extends StatelessWidget {
             width: 170,
             padding: EdgeInsets.all(2),
             decoration: BoxDecoration(
-              color: Colors.transparent, // No background color
+              color: Colors.transparent,
               borderRadius: radius,
               border: Border.all(
                 color: Colors.white.withOpacity(0.25),

@@ -112,6 +112,7 @@ class Transaction(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=['status', 'manager']),
+            models.Index(fields=['return_date'])
         ]
 
     def clean(self):

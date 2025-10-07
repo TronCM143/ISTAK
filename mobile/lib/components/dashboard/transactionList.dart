@@ -31,6 +31,9 @@ class _TransactionsState extends State<TransactionList>
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
   final TextEditingController _searchController = TextEditingController();
+  final List<String> _filterValues = ['ALL', 'AVAILABLE', 'BORROWED'];
+  final List<String> _filterLabels = ['All', 'Available', 'Borrowed'];
+  String _selectedFilter = 'ALL';
 
   @override
   void initState() {
@@ -138,9 +141,7 @@ class _TransactionsState extends State<TransactionList>
               final items = transaction['items'] is List
                   ? transaction['items'] as List
                   : [];
-              debugPrint(
-                "Transaction items: ${jsonEncode(items)}",
-              ); // Debug items
+              debugPrint("Transaction items: ${jsonEncode(items)}");
 
               if (transaction['borrower'] is! Map<String, dynamic>?) {
                 debugPrint(
@@ -179,10 +180,10 @@ class _TransactionsState extends State<TransactionList>
                 'items': items,
               };
             }).toList();
-            filteredTransactions = transactions;
             loading = false;
             retryCount = 0;
           });
+          _applyFilters(_searchController.text);
           debugPrint("Fetched ${transactions.length} transactions");
         }
       } else if (response.statusCode >= 500 && retryCount < maxRetries) {
@@ -221,29 +222,63 @@ class _TransactionsState extends State<TransactionList>
     );
   }
 
-  void _filterTransactions(String query) {
+  bool _isOverdue(Map<String, dynamic> transaction) {
+    if (transaction['return_date'] == "N/A") return false;
+    try {
+      final returnDate = DateTime.parse(transaction['return_date']);
+      return returnDate.isBefore(
+        DateTime.now().subtract(const Duration(days: 1)),
+      );
+    } catch (e) {
+      debugPrint("Error parsing return date: $e");
+      return false;
+    }
+  }
+
+  void _applyFilters(String query) {
     setState(() {
       filteredTransactions = transactions.where((transaction) {
         final borrowerName = transaction['borrower_name'].toLowerCase();
         final schoolId = transaction['school_id'].toLowerCase();
         final itemName = transaction['item_name'].toLowerCase();
         final searchQuery = query.toLowerCase();
-        return borrowerName.contains(searchQuery) ||
+        final matchesQuery =
+            borrowerName.contains(searchQuery) ||
             schoolId.contains(searchQuery) ||
             itemName.contains(searchQuery);
+
+        bool matchesFilter = false;
+        final status = transaction['status'];
+
+        switch (_selectedFilter) {
+          case 'ALL':
+            matchesFilter = true;
+            break;
+          case 'AVAILABLE':
+            matchesFilter = status == 'RETURNED';
+            break;
+          case 'BORROWED':
+            matchesFilter = status == 'BORROWED';
+            break;
+        }
+
+        return matchesQuery && matchesFilter;
       }).toList();
     });
     debugPrint("Filtered transactions: ${filteredTransactions.length}");
   }
 
-  Color getStatusColor(String status) {
-    switch (status.toUpperCase()) {
-      case 'BORROWED':
-        return const Color(0xFFFFB300); // Yellow
-      case 'RETURNED':
-        return const Color(0xFF34C759); // Green
-      default:
-        return const Color(0xFFA8B0B2); // Muted
+  Color getStatusColor(Map<String, dynamic> transaction) {
+    final status = transaction['status'];
+    if (status == 'BORROWED') {
+      if (_isOverdue(transaction)) {
+        return const Color(0xFFD33F49); // Red for overdue
+      }
+      return const Color(0xFFFFB300); // Yellow for borrowed
+    } else if (status == 'RETURNED') {
+      return const Color(0xFF34C759); // Green for returned
+    } else {
+      return const Color(0xFFA8B0B2); // Muted
     }
   }
 
@@ -266,29 +301,33 @@ class _TransactionsState extends State<TransactionList>
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
+              color: Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.18),
+                width: 1,
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 10,
-                  spreadRadius: 1,
+                  color: Colors.black.withOpacity(0.35),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
               child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                 child: Container(
-                  color: Colors.white.withOpacity(0.05),
+                  padding: const EdgeInsets.all(12),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         'Borrowed Items (${items.length})',
                         style: GoogleFonts.ibmPlexMono(
-                          color: const Color(0xFFF5F7F5),
+                          color: Colors.white,
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
                         ),
@@ -297,13 +336,13 @@ class _TransactionsState extends State<TransactionList>
                       Container(
                         constraints: BoxConstraints(
                           maxHeight: MediaQuery.of(context).size.height * 0.4,
-                          minWidth: 200, // Ensure dialog is wide enough
+                          minWidth: 200,
                         ),
                         child: items.isEmpty
                             ? Text(
                                 'No items borrowed',
                                 style: GoogleFonts.ibmPlexMono(
-                                  color: const Color(0xFFA8B0B2),
+                                  color: Colors.white70,
                                   fontSize: 12,
                                 ),
                               )
@@ -361,7 +400,7 @@ class _TransactionsState extends State<TransactionList>
                                             child: Text(
                                               itemName,
                                               style: GoogleFonts.ibmPlexMono(
-                                                color: const Color(0xFFF5F7F5),
+                                                color: Colors.white,
                                                 fontSize: 12,
                                               ),
                                               overflow: TextOverflow.ellipsis,
@@ -399,373 +438,360 @@ class _TransactionsState extends State<TransactionList>
 
   @override
   Widget build(BuildContext context) {
-    debugPrint(
-      "Building TransactionList, constraints: ${BoxConstraints(maxHeight: MediaQuery.of(context).size.height, maxWidth: MediaQuery.of(context).size.width)}",
-    );
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        debugPrint("TransactionList constraints: $constraints");
-        return Container(
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 8.0,
-                ),
-                child: FadeTransition(
+    return Container(
+      width: 700, // Fixed width to match ForecastWidget
+      //height: 300, // Fixed height as requested
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.18), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.35),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // // Title
+                // Text(
+                //   'Transactions',
+                //   style: GoogleFonts.ibmPlexMono(
+                //     color: Colors.white70,
+                //     fontSize: 14,
+                //     fontWeight: FontWeight.w600,
+                //   ),
+                // ),
+                // const SizedBox(height: 12),
+                // // Search Bar
+                FadeTransition(
                   opacity: _fadeAnimation,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.2),
-                            width: 1,
-                          ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      style: GoogleFonts.ibmPlexMono(color: Colors.white),
+                      textAlignVertical: TextAlignVertical.center,
+                      decoration: InputDecoration(
+                        hintText: 'Search by name, school ID, or item',
+                        hintStyle: GoogleFonts.ibmPlexMono(
+                          color: const Color(0xFFA8B0B2),
                         ),
-                        child: TextField(
-                          controller: _searchController,
-                          style: GoogleFonts.ibmPlexMono(color: Colors.white),
-                          decoration: InputDecoration(
-                            hintText: 'Search by name, school ID',
-                            hintStyle: GoogleFonts.ibmPlexMono(
-                              color: const Color(0xFFA8B0B2),
-                            ),
-                            prefixIcon: const Icon(
-                              Icons.search,
-                              color: Color(0xFFA8B0B2),
-                            ),
-                            border: InputBorder.none,
-                          ),
-                          onChanged: _filterTransactions,
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          color: Color(0xFFA8B0B2),
                         ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                        ),
+                        border: InputBorder.none,
                       ),
+                      onChanged: _applyFilters,
                     ),
                   ),
                 ),
-              ),
-              Expanded(
-                child: CustomScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      sliver: loading
-                          ? const SliverToBoxAdapter(
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  color: Color(0xFF34C759),
+                const SizedBox(height: 12),
+                // Filter Buttons
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: _filterValues.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final value = entry.value;
+                      final label = _filterLabels[index];
+                      final isSelected = _selectedFilter == value;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedFilter = value;
+                            });
+                            _applyFilters(_searchController.text);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFF34C759).withOpacity(0.2)
+                                  : Colors.white.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              label,
+                              style: GoogleFonts.ibmPlexMono(
+                                fontWeight: FontWeight.w500,
+                                color: isSelected
+                                    ? const Color(0xFF34C759)
+                                    : Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Transaction List
+                SizedBox(
+                  height:
+                      550 -
+                      16 * 2 -
+                      14 -
+                      12 * 3 -
+                      44 -
+                      36, // Adjust for title, padding, search bar, filters
+                  child: loading
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF34C759),
+                          ),
+                        )
+                      : error.isNotEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                error,
+                                style: GoogleFonts.ibmPlexMono(
+                                  color: const Color(0xFFD33F49),
+                                  fontSize: 12,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 12),
+                              GestureDetector(
+                                onTap: () async {
+                                  await _fadeController.reverse();
+                                  await fetchTransactions();
+                                  if (mounted) {
+                                    await _fadeController.forward();
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(
+                                      0xFF34C759,
+                                    ).withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    'Retry',
+                                    style: GoogleFonts.ibmPlexMono(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
+                                      color: const Color(0xFF34C759),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            )
-                          : error.isNotEmpty
-                          ? SliverToBoxAdapter(
-                              child: Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
+                            ],
+                          ),
+                        )
+                      : filteredTransactions.isEmpty
+                      ? Center(
+                          child: Text(
+                            "No transactions available",
+                            style: GoogleFonts.ibmPlexMono(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          itemCount: filteredTransactions.length,
+                          itemBuilder: (context, index) {
+                            final transaction = filteredTransactions[index];
+                            final borrowDate =
+                                transaction['borrow_date'] != "N/A"
+                                ? DateFormat("MMM d, yyyy").format(
+                                    DateTime.parse(transaction['borrow_date']),
+                                  )
+                                : "—";
+                            final returnDate =
+                                transaction['return_date'] != "N/A"
+                                ? DateFormat("MMM d, yyyy").format(
+                                    DateTime.parse(transaction['return_date']),
+                                  )
+                                : "—";
+                            final borrowerName =
+                                transaction['borrower_name'] as String;
+                            final schoolId = transaction['school_id'] as String;
+                            final image = transaction['image'] as String?;
+                            final items = transaction['items'] as List<dynamic>;
+                            final displayItemName = items.isNotEmpty
+                                ? items.length > 1
+                                      ? "${items[0]['item_name']} (+${items.length - 1})"
+                                      : items[0]['item_name'] as String? ??
+                                            "Unknown Item"
+                                : "Unknown Item";
+
+                            return GestureDetector(
+                              onTap: () => _showItemsDialog(context, items),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      error,
-                                      style: GoogleFonts.ibmPlexMono(
-                                        color: const Color(0xFFD33F49),
-                                        fontSize: 14,
-                                      ),
-                                      textAlign: TextAlign.center,
+                                    ClipOval(
+                                      child: image != null && image.isNotEmpty
+                                          ? CachedNetworkImage(
+                                              imageUrl: image,
+                                              width: 40,
+                                              height: 40,
+                                              fit: BoxFit.cover,
+                                              placeholder: (context, url) =>
+                                                  const CircularProgressIndicator(
+                                                    color: Color(0xFF34C759),
+                                                  ),
+                                              errorWidget: (context, url, error) {
+                                                debugPrint(
+                                                  "Image load error for URL: $url, error: $error",
+                                                );
+                                                return const Icon(
+                                                  Icons.person,
+                                                  color: Colors.white,
+                                                  size: 40,
+                                                );
+                                              },
+                                            )
+                                          : const Icon(
+                                              Icons.person,
+                                              color: Colors.white,
+                                              size: 40,
+                                            ),
                                     ),
-                                    const SizedBox(height: 12),
-                                    ElevatedButton(
-                                      onPressed: () async {
-                                        await _fadeController.reverse();
-                                        await fetchTransactions();
-                                        if (mounted) {
-                                          await _fadeController.forward();
-                                        }
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFF34C759,
-                                        ),
-                                        foregroundColor: const Color(
-                                          0xFF1A3C34,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            10,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Flexible(
+                                                child: Text(
+                                                  borrowerName,
+                                                  style:
+                                                      GoogleFonts.ibmPlexMono(
+                                                        color: Colors.white,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        fontSize: 14,
+                                                      ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              Flexible(
+                                                child: Text(
+                                                  schoolId,
+                                                  style:
+                                                      GoogleFonts.ibmPlexMono(
+                                                        color: Colors.white70,
+                                                        fontSize: 12,
+                                                      ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 20,
-                                          vertical: 10,
-                                        ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Flexible(
+                                                child: Text(
+                                                  'Borrowed: $borrowDate',
+                                                  style:
+                                                      GoogleFonts.ibmPlexMono(
+                                                        color: Colors.white70,
+                                                        fontSize: 10,
+                                                      ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              Flexible(
+                                                child: Text(
+                                                  'Due: $returnDate',
+                                                  style:
+                                                      GoogleFonts.ibmPlexMono(
+                                                        color: Colors.white70,
+                                                        fontSize: 10,
+                                                      ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            displayItemName,
+                                            style: GoogleFonts.ibmPlexMono(
+                                              color: Colors.white70,
+                                              fontSize: 10,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
                                       ),
-                                      child: Text(
-                                        'Retry',
-                                        style: GoogleFonts.ibmPlexMono(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 12,
-                                          color: const Color(0xFF1A3C34),
-                                        ),
+                                    ),
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      margin: const EdgeInsets.only(left: 8),
+                                      decoration: BoxDecoration(
+                                        color: getStatusColor(transaction),
+                                        shape: BoxShape.circle,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                            )
-                          : filteredTransactions.isEmpty
-                          ? SliverToBoxAdapter(
-                              child: Center(
-                                child: Text(
-                                  "No transactions available",
-                                  style: GoogleFonts.ibmPlexMono(
-                                    color: Color(0xFFA8B0B2),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            )
-                          : SliverList(
-                              delegate: SliverChildBuilderDelegate((
-                                context,
-                                index,
-                              ) {
-                                final transaction = filteredTransactions[index];
-                                final status = transaction['status'] as String;
-                                final borrowDate =
-                                    transaction['borrow_date'] != "N/A"
-                                    ? DateFormat("MMM d, yyyy").format(
-                                        DateTime.parse(
-                                          transaction['borrow_date'],
-                                        ),
-                                      )
-                                    : "—";
-                                final returnDate =
-                                    transaction['return_date'] != "N/A"
-                                    ? DateFormat("MMM d, yyyy").format(
-                                        DateTime.parse(
-                                          transaction['return_date'],
-                                        ),
-                                      )
-                                    : "—";
-                                final borrowerName =
-                                    transaction['borrower_name'] as String;
-                                final schoolId =
-                                    transaction['school_id'] as String;
-                                final image = transaction['image'] as String?;
-                                final items =
-                                    transaction['items'] as List<dynamic>;
-                                final displayItemName = items.isNotEmpty
-                                    ? items.length > 1
-                                          ? "${items[0]['item_name']} (+${items.length - 1})"
-                                          : items[0]['item_name'] as String? ??
-                                                "Unknown Item"
-                                    : "Unknown Item";
-
-                                return GestureDetector(
-                                  onTap: () => _showItemsDialog(context, items),
-                                  child: Container(
-                                    margin: const EdgeInsets.only(bottom: 12),
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(0.2),
-                                        width: 1,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.2),
-                                          blurRadius: 10,
-                                          spreadRadius: 1,
-                                        ),
-                                      ],
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(10),
-                                      child: BackdropFilter(
-                                        filter: ImageFilter.blur(
-                                          sigmaX: 5,
-                                          sigmaY: 5,
-                                        ),
-                                        child: Container(
-                                          color: Colors.white.withOpacity(0.05),
-                                          child: Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              ClipOval(
-                                                child:
-                                                    image != null &&
-                                                        image.isNotEmpty
-                                                    ? CachedNetworkImage(
-                                                        imageUrl: image,
-                                                        width: 40,
-                                                        height: 40,
-                                                        fit: BoxFit.cover,
-                                                        placeholder:
-                                                            (context, url) =>
-                                                                const CircularProgressIndicator(
-                                                                  color: Color(
-                                                                    0xFF34C759,
-                                                                  ),
-                                                                ),
-                                                        errorWidget:
-                                                            (
-                                                              context,
-                                                              url,
-                                                              error,
-                                                            ) {
-                                                              debugPrint(
-                                                                "Image load error for URL: $url, error: $error",
-                                                              );
-                                                              return const Icon(
-                                                                Icons.person,
-                                                                color: Colors
-                                                                    .white,
-                                                                size: 40,
-                                                              );
-                                                            },
-                                                      )
-                                                    : const Icon(
-                                                        Icons.person,
-                                                        color: Colors.white,
-                                                        size: 40,
-                                                      ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Row(
-                                                      mainAxisAlignment:
-                                                          MainAxisAlignment
-                                                              .spaceBetween,
-                                                      children: [
-                                                        Flexible(
-                                                          child: Text(
-                                                            borrowerName,
-                                                            style: GoogleFonts.ibmPlexMono(
-                                                              color:
-                                                                  const Color(
-                                                                    0xFFF5F7F5,
-                                                                  ),
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w600,
-                                                              fontSize: 14,
-                                                            ),
-                                                            overflow:
-                                                                TextOverflow
-                                                                    .ellipsis,
-                                                          ),
-                                                        ),
-                                                        Flexible(
-                                                          child: Text(
-                                                            schoolId,
-                                                            style: GoogleFonts.ibmPlexMono(
-                                                              color:
-                                                                  const Color(
-                                                                    0xFFA8B0B2,
-                                                                  ),
-                                                              fontSize: 12,
-                                                            ),
-                                                            overflow:
-                                                                TextOverflow
-                                                                    .ellipsis,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    const SizedBox(height: 8),
-                                                    Row(
-                                                      mainAxisAlignment:
-                                                          MainAxisAlignment
-                                                              .spaceBetween,
-                                                      children: [
-                                                        Flexible(
-                                                          child: Text(
-                                                            'Borrowed: $borrowDate',
-                                                            style: GoogleFonts.ibmPlexMono(
-                                                              color:
-                                                                  const Color(
-                                                                    0xFFA8B0B2,
-                                                                  ),
-                                                              fontSize: 10,
-                                                            ),
-                                                            overflow:
-                                                                TextOverflow
-                                                                    .ellipsis,
-                                                          ),
-                                                        ),
-                                                        Flexible(
-                                                          child: Text(
-                                                            'Returned: $returnDate',
-                                                            style: GoogleFonts.ibmPlexMono(
-                                                              color:
-                                                                  const Color(
-                                                                    0xFFA8B0B2,
-                                                                  ),
-                                                              fontSize: 10,
-                                                            ),
-                                                            overflow:
-                                                                TextOverflow
-                                                                    .ellipsis,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    const SizedBox(height: 8),
-                                                    Text(
-                                                      displayItemName,
-                                                      style:
-                                                          GoogleFonts.ibmPlexMono(
-                                                            color: const Color(
-                                                              0xFFA8B0B2,
-                                                            ),
-                                                            fontSize: 10,
-                                                          ),
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              Container(
-                                                width: 8,
-                                                height: 8,
-                                                margin: const EdgeInsets.only(
-                                                  left: 8,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: getStatusColor(status),
-                                                  shape: BoxShape.circle,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }, childCount: filteredTransactions.length),
-                            ),
-                    ),
-                  ],
+                            );
+                          },
+                        ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
