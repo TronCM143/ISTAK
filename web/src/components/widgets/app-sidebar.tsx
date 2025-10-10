@@ -55,12 +55,6 @@ const data = {
       icon: IconHeartHandshake,
     },
 
-
-    {
-      title: "Print QR Codes",
-      url: "/qrGenerator",
-      icon: IconQrcode,
-    },
     {
       title: "Reports",
       url: "/reports",
