@@ -96,7 +96,7 @@ class _SplashScreenState extends State<SplashScreen>
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          const CloudyBackground(),
+          AbstractWavesBackground(),
 
           /// --- Logo pinned on top ---
           Positioned(

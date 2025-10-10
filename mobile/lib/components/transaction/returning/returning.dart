@@ -565,46 +565,225 @@ class _ReturnItemState extends State<ReturnItem> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: const BorderRadius.vertical(
-              bottom: Radius.circular(10),
-            ),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.2),
-              width: 1.5,
-            ),
-          ),
-          child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-              bottom: Radius.circular(10),
-            ),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-              child: AppBar(
-                title: Text(
-                  'Return Item',
-                  style: GoogleFonts.ibmPlexMono(
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white,
-                    fontSize: 18,
-                  ),
-                ),
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-              ),
-            ),
-          ),
-        ),
-      ),
       body: Stack(
         children: [
-          Row(
+          Column(
             children: [
-              Container(
-                width: 140,
+              Expanded(
+                child: MobileScanner(
+                  controller: scannerController,
+                  onDetect: (capture) async {
+                    final List<Barcode> barcodes = capture.barcodes;
+                    for (final barcode in barcodes) {
+                      if (barcode.rawValue != null) {
+                        final itemId = barcode.rawValue!.trim();
+                        print('Scanned QR code: $itemId');
+                        if (!_isValidItemId(itemId)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Invalid item ID: $itemId',
+                                style: GoogleFonts.ibmPlexMono(
+                                  color: Colors.white,
+                                ),
+                              ),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                          continue;
+                        }
+                        await scannerController.stop();
+
+                        final isOnline = await _isOnline();
+                        final token = isOnline ? await getToken() : null;
+
+                        if (isOnline && token != null) {
+                          final transactionData = await _fetchTransactionItems(
+                            itemId,
+                            token,
+                          );
+                          if (transactionData == null) {
+                            setState(() {
+                              error = 'Item $itemId not found or not borrowed';
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Item $itemId not found or not borrowed',
+                                  style: GoogleFonts.ibmPlexMono(
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                backgroundColor: Colors.redAccent,
+                              ),
+                            );
+                            await scannerController.start();
+                            continue;
+                          }
+                          if (!transactionData['borrowed_items'].any(
+                            (item) => item['id'] == itemId,
+                          )) {
+                            setState(() {
+                              error =
+                                  'Item $itemId not part of this transaction';
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Item $itemId not part of this transaction',
+                                  style: GoogleFonts.ibmPlexMono(
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                backgroundColor: Colors.redAccent,
+                              ),
+                            );
+                            await scannerController.start();
+                            continue;
+                          }
+                          setState(() {
+                            borrowerDetails = transactionData['borrower'];
+                            transactionItems =
+                                transactionData['borrowed_items'];
+                            transactionId = transactionData['transaction_id'];
+                          });
+                        } else {
+                          final existingTransaction = await LocalDatabase()
+                              .getTransactionByItemId(itemId);
+                          if (existingTransaction != null) {
+                            setState(() {
+                              borrowerDetails = {
+                                'name': existingTransaction['borrower_name'],
+                                'school_id': existingTransaction['school_id'],
+                                'image': existingTransaction['image_url'],
+                              };
+                              transactionItems = [
+                                {
+                                  'id': itemId,
+                                  'item_name':
+                                      existingTransaction['item_name'] ??
+                                      'Unknown',
+                                },
+                              ];
+                              transactionId = existingTransaction['id'];
+                            });
+                          } else {
+                            setState(() {
+                              borrowerDetails = {
+                                'name': 'Unknown',
+                                'school_id': 'Unknown',
+                                'image': null,
+                              };
+                              transactionItems = [
+                                {'id': itemId, 'item_name': 'Unknown'},
+                              ];
+                              transactionId = const Uuid().v4();
+                            });
+                          }
+                        }
+
+                        final condition = await _showConditionDialog(itemId);
+                        if (condition != null) {
+                          setState(() {
+                            // Remove existing entry if re-scanned
+                            scannedItems.removeWhere(
+                              (item) => item['itemId'] == itemId,
+                            );
+                            scannedItems.add({
+                              'itemId': itemId,
+                              'condition': condition,
+                            });
+                          });
+                        }
+                        await scannerController.start();
+                        break;
+                      }
+                    }
+                  },
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    GestureDetector(
+                      onTap: isLoading ? null : () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.2),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                            child: Text(
+                              'Cancel',
+                              style: GoogleFonts.ibmPlexMono(
+                                fontWeight: FontWeight.w300,
+                                color: Colors.redAccent,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: isLoading || !allItemsScanned
+                          ? null
+                          : () => _returnAllItems(),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.2),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                            child: Text(
+                              'Finish',
+                              style: GoogleFonts.ibmPlexMono(
+                                fontWeight: FontWeight.w300,
+                                color: allItemsScanned
+                                    ? const Color(0xFF34C759)
+                                    : Colors.grey[600],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (borrowerDetails != null)
+            Positioned(
+              left: 16,
+              top: 16,
+              bottom: 100,
+              width: 140,
+              child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
@@ -621,49 +800,47 @@ class _ReturnItemState extends State<ReturnItem> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (borrowerDetails != null) ...[
-                            ClipOval(
-                              child: borrowerDetails!['image'] != null
-                                  ? CachedNetworkImage(
-                                      imageUrl:
-                                          '${dotenv.env['BASE_URL']}${borrowerDetails!['image']}',
-                                      width: 60,
-                                      height: 60,
-                                      fit: BoxFit.cover,
-                                      placeholder: (context, url) =>
-                                          const CircularProgressIndicator(),
-                                      errorWidget: (context, url, error) =>
-                                          const Icon(
-                                            Icons.person,
-                                            color: Colors.white,
-                                            size: 60,
-                                          ),
-                                    )
-                                  : const Icon(
-                                      Icons.person,
-                                      color: Colors.white,
-                                      size: 60,
-                                    ),
+                          ClipOval(
+                            child: borrowerDetails!['image'] != null
+                                ? CachedNetworkImage(
+                                    imageUrl:
+                                        '${dotenv.env['BASE_URL']}${borrowerDetails!['image']}',
+                                    width: 60,
+                                    height: 60,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) =>
+                                        const CircularProgressIndicator(),
+                                    errorWidget: (context, url, error) =>
+                                        const Icon(
+                                          Icons.person,
+                                          color: Colors.white,
+                                          size: 60,
+                                        ),
+                                  )
+                                : const Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                    size: 60,
+                                  ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            borrowerDetails!['name'] ?? 'Unknown',
+                            style: GoogleFonts.ibmPlexMono(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 14,
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              borrowerDetails!['name'] ?? 'Unknown',
-                              style: GoogleFonts.ibmPlexMono(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 14,
-                              ),
-                              overflow: TextOverflow.ellipsis,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            borrowerDetails!['school_id'] ?? 'Unknown',
+                            style: GoogleFonts.ibmPlexMono(
+                              color: Colors.grey[400],
+                              fontSize: 12,
                             ),
-                            Text(
-                              borrowerDetails!['school_id'] ?? 'Unknown',
-                              style: GoogleFonts.ibmPlexMono(
-                                color: Colors.grey[400],
-                                fontSize: 12,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
+                          ),
+                          const SizedBox(height: 16),
                           Text(
                             'Transaction Items:',
                             style: GoogleFonts.ibmPlexMono(
@@ -756,233 +933,7 @@ class _ReturnItemState extends State<ReturnItem> {
                   ),
                 ),
               ),
-              Expanded(
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: MobileScanner(
-                        controller: scannerController,
-                        onDetect: (capture) async {
-                          final List<Barcode> barcodes = capture.barcodes;
-                          for (final barcode in barcodes) {
-                            if (barcode.rawValue != null) {
-                              final itemId = barcode.rawValue!.trim();
-                              print('Scanned QR code: $itemId');
-                              if (!_isValidItemId(itemId)) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Invalid item ID: $itemId',
-                                      style: GoogleFonts.ibmPlexMono(
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    backgroundColor: Colors.redAccent,
-                                  ),
-                                );
-                                continue;
-                              }
-                              await scannerController.stop();
-
-                              final isOnline = await _isOnline();
-                              final token = isOnline ? await getToken() : null;
-
-                              if (isOnline && token != null) {
-                                final transactionData =
-                                    await _fetchTransactionItems(itemId, token);
-                                if (transactionData == null) {
-                                  setState(() {
-                                    error =
-                                        'Item $itemId not found or not borrowed';
-                                  });
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Item $itemId not found or not borrowed',
-                                        style: GoogleFonts.ibmPlexMono(
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      backgroundColor: Colors.redAccent,
-                                    ),
-                                  );
-                                  await scannerController.start();
-                                  continue;
-                                }
-                                if (!transactionData['borrowed_items'].any(
-                                  (item) => item['id'] == itemId,
-                                )) {
-                                  setState(() {
-                                    error =
-                                        'Item $itemId not part of this transaction';
-                                  });
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Item $itemId not part of this transaction',
-                                        style: GoogleFonts.ibmPlexMono(
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      backgroundColor: Colors.redAccent,
-                                    ),
-                                  );
-                                  await scannerController.start();
-                                  continue;
-                                }
-                                setState(() {
-                                  borrowerDetails = transactionData['borrower'];
-                                  transactionItems =
-                                      transactionData['borrowed_items'];
-                                  transactionId =
-                                      transactionData['transaction_id'];
-                                });
-                              } else {
-                                final existingTransaction =
-                                    await LocalDatabase()
-                                        .getTransactionByItemId(itemId);
-                                if (existingTransaction != null) {
-                                  setState(() {
-                                    borrowerDetails = {
-                                      'name':
-                                          existingTransaction['borrower_name'],
-                                      'school_id':
-                                          existingTransaction['school_id'],
-                                      'image': existingTransaction['image_url'],
-                                    };
-                                    transactionItems = [
-                                      {
-                                        'id': itemId,
-                                        'item_name':
-                                            existingTransaction['item_name'] ??
-                                            'Unknown',
-                                      },
-                                    ];
-                                    transactionId = existingTransaction['id'];
-                                  });
-                                } else {
-                                  setState(() {
-                                    borrowerDetails = {
-                                      'name': 'Unknown',
-                                      'school_id': 'Unknown',
-                                      'image': null,
-                                    };
-                                    transactionItems = [
-                                      {'id': itemId, 'item_name': 'Unknown'},
-                                    ];
-                                    transactionId = const Uuid().v4();
-                                  });
-                                }
-                              }
-
-                              final condition = await _showConditionDialog(
-                                itemId,
-                              );
-                              if (condition != null) {
-                                setState(() {
-                                  // Remove existing entry if re-scanned
-                                  scannedItems.removeWhere(
-                                    (item) => item['itemId'] == itemId,
-                                  );
-                                  scannedItems.add({
-                                    'itemId': itemId,
-                                    'condition': condition,
-                                  });
-                                });
-                              }
-                              await scannerController.start();
-                              break;
-                            }
-                          }
-                        },
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          GestureDetector(
-                            onTap: isLoading
-                                ? null
-                                : () => Navigator.pop(context),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.2),
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: BackdropFilter(
-                                  filter: ImageFilter.blur(
-                                    sigmaX: 8,
-                                    sigmaY: 8,
-                                  ),
-                                  child: Text(
-                                    'Cancel',
-                                    style: GoogleFonts.ibmPlexMono(
-                                      fontWeight: FontWeight.w300,
-                                      color: Colors.redAccent,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          GestureDetector(
-                            onTap: isLoading || !allItemsScanned
-                                ? null
-                                : () => _returnAllItems(),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.2),
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: BackdropFilter(
-                                  filter: ImageFilter.blur(
-                                    sigmaX: 8,
-                                    sigmaY: 8,
-                                  ),
-                                  child: Text(
-                                    'Finish',
-                                    style: GoogleFonts.ibmPlexMono(
-                                      fontWeight: FontWeight.w300,
-                                      color: allItemsScanned
-                                          ? const Color(0xFF34C759)
-                                          : Colors.grey[600],
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            ),
           if (isLoading)
             Container(
               decoration: BoxDecoration(

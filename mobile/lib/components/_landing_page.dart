@@ -229,8 +229,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
       body: Stack(
         children: [
           //ANIMATED BACKGROUND
-          //    CloudyBackground(),
-
+          //  AbstractWavesBackground(), //animated background
           //STATIS IMAGE BACKGROUND
           Positioned.fill(
             child: Image.asset(
