@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 // ✅ Import Firebase notification setup
-import 'package:mobile/notifications/notif.dart';
+import 'package:mobile/components/utils/notif.dart';
 
 class AuthService {
   final String baseUrl = dotenv.env['BASE_URL']!;

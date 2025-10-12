@@ -1,28 +1,28 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { TrendingUp } from "lucide-react"
-import { RadialBarChart, RadialBar, PolarGrid, PolarRadiusAxis, Label } from "recharts"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { ChartContainer } from "@/components/ui/chart"
-import { Button } from "@/components/ui/button"
+import { useState, useEffect } from "react";
+import { TrendingUp } from "lucide-react";
+import { RadialBarChart, RadialBar, PolarGrid, PolarRadiusAxis, Label } from "recharts";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChartContainer } from "@/components/ui/chart";
+import { Button } from "@/components/ui/button";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
-type RangeOption = "yesterday" | "today" | "week" | "month"
+type RangeOption = "yesterday" | "today" | "week" | "month";
 
 export function BorrowedStatsCard() {
-  const [count, setCount] = useState<number>(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [selectedRange, setSelectedRange] = useState<RangeOption>("yesterday")
+  const [count, setCount] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedRange, setSelectedRange] = useState<RangeOption>("yesterday");
 
   useEffect(() => {
     const fetchData = async () => {
-      const token = localStorage.getItem("access_token")
+      const token = localStorage.getItem("access_token");
       try {
-        setLoading(true)
-        setError(null)
+        setLoading(true);
+        setError(null);
 
         const resp = await fetch(
           `${API_BASE_URL}/api/analytics/borrowed-stats/?range=${selectedRange}`,
@@ -32,26 +32,26 @@ export function BorrowedStatsCard() {
               Authorization: `Bearer ${token}`,
             },
           }
-        )
+        );
 
         if (!resp.ok) {
-          setError(`Failed: ${resp.status}`)
-          setLoading(false)
-          return
+          setError(`Failed: ${resp.status}`);
+          setLoading(false);
+          return;
         }
 
-        const data = await resp.json()
-        setCount(data.count ?? 0)
-        setLoading(false)
+        const data = await resp.json();
+        setCount(data.count ?? 0);
+        setLoading(false);
       } catch (err: any) {
-        setError(err.message || "Network error")
-        setLoading(false)
+        setError(err.message || "Network error");
+        setLoading(false);
       }
-    }
-    fetchData()
-  }, [selectedRange])
+    };
+    fetchData();
+  }, [selectedRange]);
 
-  const chartData = [{ name: "Borrowed", value: count, fill: "var(--chart-1)" }]
+  const chartData = [{ name: "Borrowed", value: count, fill: "var(--chart-1)" }];
 
   return (
     <Card className="flex flex-col" data-slot="card">
@@ -59,13 +59,14 @@ export function BorrowedStatsCard() {
         <CardTitle>Borrowed Items</CardTitle>
         <CardDescription>Snapshot ({selectedRange})</CardDescription>
 
-        <div className="flex gap-2 mt-3">
+        <div className="flex flex-wrap justify-center gap-2 mt-3 w-full px-2">
           {(["yesterday", "today", "week", "month"] as RangeOption[]).map((range) => (
             <Button
               key={range}
               size="sm"
               variant={selectedRange === range ? "default" : "outline"}
               onClick={() => setSelectedRange(range)}
+              className="flex-1 min-w-[80px] max-w-[100px] text-xs"
             >
               {range.charAt(0).toUpperCase() + range.slice(1)}
             </Button>
@@ -99,25 +100,25 @@ export function BorrowedStatsCard() {
                             Borrowed
                           </tspan>
                         </text>
-                      )
+                      );
                     }
                   }}
                 />
               </PolarRadiusAxis>
-            </RadialBarChart>
-          </ChartContainer>
-        )}
-      </CardContent>
+              </RadialBarChart>
+            </ChartContainer>
+          )}
+        </CardContent>
 
-      <CardFooter className="flex-col gap-2 text-sm">
-        <div className="flex items-center gap-2 leading-none font-medium">
-          {count > 0 ? "Borrowing activity detected" : "No items borrowed in this period"}
-          <TrendingUp className="h-4 w-4" />
-        </div>
-        <div className="text-muted-foreground leading-none">
-          Showing borrowed items count for {selectedRange}
-        </div>
-      </CardFooter>
+        <CardFooter className="flex-col gap-2 text-sm">
+          <div className="flex items-center gap-2 leading-none font-medium">
+            {count > 0 ? "Borrowing activity detected" : "No items borrowed in this period"}
+            <TrendingUp className="h-4 w-4" />
+          </div>
+          <div className="text-muted-foreground leading-none">
+            Showing borrowed items count for {selectedRange}
+          </div>
+        </CardFooter>
     </Card>
-  )
+  );
 }

@@ -11,21 +11,42 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:ui';
 import 'package:mobile/components/transaction/borrowing/scanQRs.dart';
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 
 class BorrowerInputAndPhoto extends StatefulWidget {
-  const BorrowerInputAndPhoto({Key? key}) : super(key: key);
+  const BorrowerInputAndPhoto({
+    Key? key,
+    required void Function(String borrowerName) onSuccess,
+  }) : super(key: key);
 
   @override
   _BorrowerInputAndPhotoState createState() => _BorrowerInputAndPhotoState();
 }
 
-class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto> {
+class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto>
+    with SingleTickerProviderStateMixin {
   final _nameController = TextEditingController();
   final _schoolIdController = TextEditingController();
   DateTime? _returnDate;
   File? _photo;
   String? _imageUrl;
   final ImagePicker _picker = ImagePicker();
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeInOut,
+    );
+    _fadeController.forward();
+  }
 
   Future<void> _selectDate(BuildContext context) async {
     final picked = await showDatePicker(
@@ -43,8 +64,71 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto> {
 
   Future<void> _capturePhoto() async {
     if (_nameController.text.isEmpty || _schoolIdController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter name and school ID first')),
+      await showDialog(
+        context: context,
+        barrierDismissible: true,
+        barrierColor: Colors.black.withOpacity(0.6),
+        builder: (context) => Dialog(
+          backgroundColor: Colors.transparent,
+          child: LiquidGlass(
+            shape: LiquidRoundedSuperellipse(
+              borderRadius: const Radius.circular(16),
+            ),
+            settings: const LiquidGlassSettings(
+              thickness: 5,
+              glassColor: Color(0x33FF5555), // Red-tinted glass
+              lightIntensity: 1.2,
+              ambientStrength: 0.5,
+              saturation: 1.2,
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Error',
+                    style: GoogleFonts.ibmPlexMono(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Please enter name and school ID first',
+                    style: GoogleFonts.ibmPlexMono(
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  FakeGlass(
+                    shape: LiquidRoundedSuperellipse(
+                      borderRadius: const Radius.circular(10),
+                    ),
+                    settings: const LiquidGlassSettings(
+                      blur: 5,
+                      glassColor: Color(0xFF34C759),
+                    ),
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(
+                        'OK',
+                        style: GoogleFonts.ibmPlexMono(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       );
       return;
     }
@@ -59,11 +143,10 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto> {
       if (pickedFile != null) {
         setState(() {
           _photo = File(pickedFile.path);
-          _imageUrl = null; // Reset image_url
+          _imageUrl = null;
           print('📸 Photo captured: ${pickedFile.path}');
         });
 
-        // Check connectivity and process image if online
         final connectivity = await Connectivity().checkConnectivity();
         if (connectivity != ConnectivityResult.none) {
           await _processImage();
@@ -73,9 +156,72 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error capturing photo: $e')));
+        await showDialog(
+          context: context,
+          barrierDismissible: true,
+          barrierColor: Colors.black.withOpacity(0.6),
+          builder: (context) => Dialog(
+            backgroundColor: Colors.transparent,
+            child: LiquidGlass(
+              shape: LiquidRoundedSuperellipse(
+                borderRadius: const Radius.circular(16),
+              ),
+              settings: const LiquidGlassSettings(
+                thickness: 5,
+                glassColor: Color(0x33FF5555),
+                lightIntensity: 1.2,
+                ambientStrength: 0.5,
+                saturation: 1.2,
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Error',
+                      style: GoogleFonts.ibmPlexMono(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Error capturing photo: $e',
+                      style: GoogleFonts.ibmPlexMono(
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    FakeGlass(
+                      shape: LiquidRoundedSuperellipse(
+                        borderRadius: const Radius.circular(10),
+                      ),
+                      settings: const LiquidGlassSettings(
+                        blur: 5,
+                        glassColor: Color(0xFF34C759),
+                      ),
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text(
+                          'OK',
+                          style: GoogleFonts.ibmPlexMono(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
         print('❌ Capture error: $e');
       }
     }
@@ -110,12 +256,74 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error processing image: $e')));
+        await showDialog(
+          context: context,
+          barrierDismissible: true,
+          barrierColor: Colors.black.withOpacity(0.6),
+          builder: (context) => Dialog(
+            backgroundColor: Colors.transparent,
+            child: LiquidGlass(
+              shape: LiquidRoundedSuperellipse(
+                borderRadius: const Radius.circular(16),
+              ),
+              settings: const LiquidGlassSettings(
+                thickness: 5,
+                glassColor: Color(0x33FF5555),
+                lightIntensity: 1.2,
+                ambientStrength: 0.5,
+                saturation: 1.2,
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Error',
+                      style: GoogleFonts.ibmPlexMono(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Error processing image: $e',
+                      style: GoogleFonts.ibmPlexMono(
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    FakeGlass(
+                      shape: LiquidRoundedSuperellipse(
+                        borderRadius: const Radius.circular(10),
+                      ),
+                      settings: const LiquidGlassSettings(
+                        blur: 5,
+                        glassColor: Color(0xFF34C759),
+                      ),
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text(
+                          'OK',
+                          style: GoogleFonts.ibmPlexMono(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
         print('❌ Image processing error: $e');
       }
-      // Fallback to using raw photo if processing fails
       setState(() {
         _imageUrl = null;
       });
@@ -127,9 +335,70 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto> {
         _schoolIdController.text.isEmpty ||
         _returnDate == null ||
         _photo == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill all fields and capture a photo'),
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        barrierColor: Colors.black.withOpacity(0.6),
+        builder: (context) => Dialog(
+          backgroundColor: Colors.transparent,
+          child: LiquidGlass(
+            shape: LiquidRoundedSuperellipse(
+              borderRadius: const Radius.circular(16),
+            ),
+            settings: const LiquidGlassSettings(
+              thickness: 5,
+              glassColor: Color(0x33FF5555),
+              lightIntensity: 1.2,
+              ambientStrength: 0.5,
+              saturation: 1.2,
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Error',
+                    style: GoogleFonts.ibmPlexMono(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Please fill all fields and capture a photo',
+                    style: GoogleFonts.ibmPlexMono(
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  FakeGlass(
+                    shape: LiquidRoundedSuperellipse(
+                      borderRadius: const Radius.circular(10),
+                    ),
+                    settings: const LiquidGlassSettings(
+                      blur: 5,
+                      glassColor: Color(0xFF34C759),
+                    ),
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(
+                        'OK',
+                        style: GoogleFonts.ibmPlexMono(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       );
       return;
@@ -174,104 +443,120 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[900],
-      body: SafeArea(
-        child: Container(
-          margin: const EdgeInsets.all(16.0),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.2),
-              width: 1.5,
-            ),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      height: 200,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.2),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                          child: _photo != null
-                              ? Image.file(
-                                  _photo!,
-                                  height: 200,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                )
-                              : Center(
-                                  child: Text(
-                                    'No Photo',
-                                    style: GoogleFonts.ibmPlexMono(
-                                      color: Colors.white,
-                                      fontSize: 16,
+    return Stack(
+      children: [
+        // Background content (optional, can be customized based on app's theme)
+        // Positioned.fill(
+        //   child: Container(
+        //     color: Colors.grey[900], // Dark background for contrast
+        //   ),
+        // ),
+        FadeTransition(
+          opacity: _fadeAnimation,
+          child: Center(
+            child: LiquidGlassLayer(
+              settings: const LiquidGlassSettings(
+                thickness: 5,
+                glassColor: Color(0x1AFFFFFF),
+                lightIntensity: 1.2,
+                blend: 40,
+
+                saturation: 1.2,
+                blur: 5.0,
+              ),
+              child: Container(
+                width: MediaQuery.of(context).size.width * 0.9,
+                margin: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: LiquidGlass(
+                  shape: LiquidRoundedSuperellipse(
+                    borderRadius: const Radius.circular(20),
+                  ),
+                  settings: const LiquidGlassSettings(
+                    thickness: 5,
+                    glassColor: Color(0x1AFFFFFF),
+                    lightIntensity: 1.2,
+                    saturation: 1.2,
+                    blur: 5.0,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          height: 200,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: _photo != null
+                                ? Image.file(
+                                    _photo!,
+                                    height: 200,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Center(
+                                    child: Text(
+                                      'No Photo',
+                                      style: GoogleFonts.ibmPlexMono(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                      ),
                                     ),
                                   ),
-                                ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    GestureDetector(
-                      onTap: _capturePhoto,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.2),
-                            width: 1.5,
                           ),
                         ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                            child: Text(
-                              _photo == null ? 'Take Photo' : 'Retake Photo',
-                              style: GoogleFonts.ibmPlexMono(
-                                fontWeight: FontWeight.w500,
-                                color: const Color(0xFF34C759),
-                                fontSize: 14,
+                        const SizedBox(height: 16),
+                        FakeGlass(
+                          shape: LiquidRoundedSuperellipse(
+                            borderRadius: const Radius.circular(12),
+                          ),
+                          settings: const LiquidGlassSettings(
+                            blur: 5,
+                            glassColor: Color(0xFF34C759),
+                          ),
+                          child: GestureDetector(
+                            onTap: _capturePhoto,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 12,
+                              ),
+                              child: Text(
+                                _photo == null ? 'Take Photo' : 'Retake Photo',
+                                style: GoogleFonts.ibmPlexMono(
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.2),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                        const SizedBox(height: 16),
+                        LiquidGlass(
+                          shape: LiquidRoundedSuperellipse(
+                            borderRadius: const Radius.circular(12),
+                          ),
+                          settings: const LiquidGlassSettings(
+                            thickness: 3,
+                            glassColor: Color(0x1AFFFFFF),
+                            blur: 5.0,
+                          ),
                           child: TextField(
                             controller: _nameController,
                             textAlignVertical: TextAlignVertical.center,
@@ -289,21 +574,16 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto> {
                             style: GoogleFonts.ibmPlexMono(color: Colors.white),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.2),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                        const SizedBox(height: 12),
+                        LiquidGlass(
+                          shape: LiquidRoundedSuperellipse(
+                            borderRadius: const Radius.circular(12),
+                          ),
+                          settings: const LiquidGlassSettings(
+                            thickness: 3,
+                            glassColor: Color(0x1AFFFFFF),
+                            blur: 5.0,
+                          ),
                           child: TextField(
                             controller: _schoolIdController,
                             textAlignVertical: TextAlignVertical.center,
@@ -321,24 +601,18 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto> {
                             style: GoogleFonts.ibmPlexMono(color: Colors.white),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: () => _selectDate(context),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.2),
-                            width: 1.5,
+                        const SizedBox(height: 12),
+                        FakeGlass(
+                          shape: LiquidRoundedSuperellipse(
+                            borderRadius: const Radius.circular(12),
                           ),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                            child: Padding(
+                          settings: const LiquidGlassSettings(
+                            blur: 5,
+                            glassColor: Color(0x1AFFFFFF),
+                          ),
+                          child: GestureDetector(
+                            onTap: () => _selectDate(context),
+                            child: Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 12,
@@ -367,82 +641,74 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto> {
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        GestureDetector(
-                          onTap: () => Navigator.pop(context),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
-                                width: 1.5,
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            FakeGlass(
+                              shape: LiquidRoundedSuperellipse(
+                                borderRadius: const Radius.circular(12),
                               ),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                                child: Text(
-                                  'Cancel',
-                                  style: GoogleFonts.ibmPlexMono(
-                                    fontWeight: FontWeight.w300,
-                                    color: Colors.white,
-                                    fontSize: 14,
+                              settings: const LiquidGlassSettings(
+                                blur: 5,
+                                glassColor: Color(0x1AFFFFFF),
+                              ),
+                              child: GestureDetector(
+                                onTap: () => Navigator.pop(context),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  child: Text(
+                                    'Cancel',
+                                    style: GoogleFonts.ibmPlexMono(
+                                      fontWeight: FontWeight.w300,
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: _submitData,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
-                                width: 1.5,
+                            const SizedBox(width: 12),
+                            FakeGlass(
+                              shape: LiquidRoundedSuperellipse(
+                                borderRadius: const Radius.circular(12),
                               ),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                                child: Text(
-                                  'Next',
-                                  style: GoogleFonts.ibmPlexMono(
-                                    fontWeight: FontWeight.w300,
-                                    color: Colors.white,
-                                    fontSize: 14,
+                              settings: const LiquidGlassSettings(
+                                blur: 5,
+                                glassColor: Color(0xFF34C759),
+                              ),
+                              child: GestureDetector(
+                                onTap: _submitData,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  child: Text(
+                                    'Next',
+                                    style: GoogleFonts.ibmPlexMono(
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -450,6 +716,7 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto> {
   void dispose() {
     _nameController.dispose();
     _schoolIdController.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
 }

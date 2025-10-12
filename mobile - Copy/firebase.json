@@ -1,0 +1,21 @@
+{
+    "flutter": {
+        "platforms": {
+            "android": {
+                "default": {
+                    "projectId": "istak-40153",
+                    "appId": "1:56921049628:android:dcb9f90718c9dcac096dd9",
+                    "fileOutput": "android/app/google-services.json"
+                }
+            },
+            "dart": {
+                "lib/firebase_options.dart": {
+                    "projectId": "istak-40153",
+                    "configurations": {
+                        "android": "1:56921049628:android:dcb9f90718c9dcac096dd9"
+                    }
+                }
+            }
+        }
+    }
+}

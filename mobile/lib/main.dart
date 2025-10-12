@@ -4,12 +4,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'firebase_options.dart';
-import 'package:mobile/splashPlusLogin.dart';
-import 'package:mobile/notifications/notif.dart';
+
+import 'components/utils/firebase_options.dart';
+import 'package:mobile/components/utils/splashPlusLogin.dart';
+import 'package:mobile/components/utils/notif.dart';
 import 'package:mobile/components/transaction/borrowing/sync.dart';
 
-/// Handle background FCM messages
+// ✅ Put GlassShowcase in lib/glass_showcase.dart and import that:
+
+/// Handle background FCM messages (must be a top-level entry point on Android)
+@pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   showLocalNotification(message);
@@ -32,7 +36,7 @@ Future<void> main() async {
 
     // Retrieve saved JWT token
     final prefs = await SharedPreferences.getInstance();
-    String? jwt = prefs.getString("access_token");
+    final jwt = prefs.getString("access_token");
 
     if (jwt != null) {
       debugPrint("JWT Token found — initializing Firebase messaging");
@@ -66,6 +70,7 @@ Future<void> main() async {
     debugPrint("$st");
   }
 
+  // Optional: filter noisy blur warnings
   FlutterError.onError = (FlutterErrorDetails details) {
     if (details.exception.toString().contains('blur radius')) {
       debugPrint('⚠️ BlurRadius warning from: ${details.stack}');
@@ -82,9 +87,12 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    // Note: MaterialApp is *not* const; the home can be const since AssetImage is const.
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: SplashScreen(),
+      home: const SplashScreen(
+        //  background: AssetImage('assets/background.jpg'),
+      ),
     );
   }
 }

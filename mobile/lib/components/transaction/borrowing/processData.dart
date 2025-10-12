@@ -11,12 +11,14 @@ class ProcessTransaction extends StatefulWidget {
   final Map<String, String>? borrowerData;
   final List<Map<String, dynamic>> scannedItems;
   final VoidCallback onReset;
+  final Function(String)? onSuccess; // New callback for success
 
   const ProcessTransaction({
     Key? key,
     required this.borrowerData,
     required this.scannedItems,
     required this.onReset,
+    this.onSuccess,
   }) : super(key: key);
 
   @override
@@ -103,6 +105,10 @@ class _ProcessTransactionState extends State<ProcessTransaction> {
       final responseBody = await http.Response.fromStream(response);
 
       if (response.statusCode == 201) {
+        // Trigger success callback with borrower's name
+        if (widget.onSuccess != null) {
+          widget.onSuccess!(widget.borrowerData!['name']!);
+        }
         _showResultDialog(
           title: "✅ Success",
           message: "Transaction successfully saved to the backend!",

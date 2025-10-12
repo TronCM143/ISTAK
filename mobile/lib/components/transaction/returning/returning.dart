@@ -7,7 +7,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:mobile/components/local_database/localDatabaseMain.dart';
+import 'package:mobile/components/utils/localDatabaseMain.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:ui';
 

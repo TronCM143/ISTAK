@@ -220,10 +220,38 @@ class ItemListCreateAPIView(generics.ListCreateAPIView):
         )
 
     def perform_create(self, serializer):
+        image_file = self.request.FILES.get('image')
+        new_image = None
+        if image_file:
+            try:
+                input_img = Image.open(image_file).convert("RGBA")
+                output_img = remove(input_img)
+                temp_buffer = BytesIO()
+                output_img.save(temp_buffer, format="PNG")
+                temp_buffer.seek(0)
+                new_image = ContentFile(
+                    temp_buffer.read(),
+                    name=f"{image_file.name.rsplit('.', 1)[0]}.png"
+                )
+            except Exception as e:
+                logger.error(f"Error removing background for new item: {str(e)}")
+                print(f"❌ Error removing background for new item: {str(e)}")
+                raise
+
         if self.request.user.role == 'user_web':
-            serializer.save(manager=self.request.user)
+            manager = self.request.user
         else:
-            serializer.save(manager=self.request.user.manager)
+            manager = self.request.user.manager
+
+        kwargs = {'manager': manager}
+        if new_image:
+            kwargs['image'] = new_image
+
+        instance = serializer.save(**kwargs)
+
+        if new_image:
+            logger.info(f"Background removed for item {instance.id}")
+            print(f"✅ Background removed successfully for item {instance.id}")
 
 class ItemRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ItemSerializer
@@ -502,10 +530,10 @@ class UserAPIView(APIView):
             "username": request.user.username,
             "manager_id": manager_id,
         })
-
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.exceptions import PermissionDenied
 from istak_backend.models import Transaction
 from istak_backend.serializers import TransactionSerializer
 import logging
@@ -531,6 +559,25 @@ class TransactionListAPIView(generics.ListAPIView):
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
+
+class TransactionDeleteAPIView(generics.DestroyAPIView):
+    serializer_class = TransactionSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get_queryset(self):
+        user = self.request.user
+        logger.info(f"Attempting to delete transaction for user {user.username} with role {user.role}")
+        if user.role == 'user_web':
+            return Transaction.objects.filter(manager=user)
+        elif user.role == 'user_mobile':
+            return Transaction.objects.filter(mobile_user=user)
+        logger.warning(f"No transactions accessible for deletion by user {user.username} with role {user.role}")
+        return Transaction.objects.none()
+
+    def perform_destroy(self, instance):
+        logger.info(f"Deleting transaction {instance.id} by user {self.request.user.username}")
+        instance.delete()
 
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
@@ -1424,3 +1471,16 @@ class DamagedOverdueReportView(APIView):
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+            
+class CurrentUserView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        data = {
+            'username': user.username,
+            'name': user.username,  # Use username as name if no first_name/last_name
+            'email': user.email,
+            # 'avatar': '/avatars/shadcn.jpg'  # Default avatar, adjust as needed
+        }
+        return Response(data)

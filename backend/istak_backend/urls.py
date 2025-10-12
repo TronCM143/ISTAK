@@ -42,4 +42,6 @@ urlpatterns = [
      path('api/analytics/borrowed-stats/', views.borrowed_stats, name='total_borrow_ng_nakaraan'),
      path('api/transactions/<int:pk>/', views.TransactionRetrieveUpdateDestroyAPIView.as_view(), name='transaction-detail'),
     path('api/reports/damaged-lost-items/', views.DamagedOverdueReportView.as_view(), name='damaged-overdue-report'),
+    path('api/current-user/', views.CurrentUserView.as_view(), name='current-user'),
+    path('api/transactions/<str:pk>/', views.TransactionDeleteAPIView.as_view(), name='transaction-delete'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

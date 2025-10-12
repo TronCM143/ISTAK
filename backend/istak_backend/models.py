@@ -149,3 +149,18 @@ class RegistrationRequest(models.Model):
 
     def __str__(self):
         return f"Request for {self.username} to {self.requested_manager}"
+    
+
+
+class StudentOrgOfficer(CustomUser):
+    class Meta:
+        proxy = True
+        verbose_name = "Student Org Officer"
+        verbose_name_plural = "Student Org Officers"
+
+
+class StudentOrgModerator(CustomUser):
+    class Meta:
+        proxy = True
+        verbose_name = "Student Org Moderator"
+        verbose_name_plural = "Student Org Moderators"

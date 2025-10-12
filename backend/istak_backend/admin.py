@@ -1,7 +1,75 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from django.contrib.admin import SimpleListFilter
-from .models import CustomUser, Item, Borrower, Transaction, RegistrationRequest
+from django.contrib.auth.models import Group
+from .models import CustomUser, StudentOrgOfficer, StudentOrgModerator
+
+# --- SITE TITLES ---
+admin.site.site_header = "ISTAK Administration Panel"
+admin.site.site_title = "ISTAK Admin Portal"
+admin.site.index_title = "Welcome to ISTAK Management System"
+
+# --- REMOVE GROUPS TAB ---
+#admin.site.unregister(Group)
+
+
+# 🔹 Admin for Student Org Officers
+@admin.register(StudentOrgOfficer)
+class StudentOrgOfficerAdmin(UserAdmin):
+    list_display = ('username', 'email', 'role', 'manager')
+    fieldsets = (
+        (None, {'fields': ('username', 'email', 'password', 'role', 'manager')}),
+    )
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('username', 'email', 'password1', 'password2', 'role', 'manager')}
+        ),
+    )
+    search_fields = ('username', 'email')
+    ordering = ('username',)
+
+    def get_queryset(self, request):
+        """Show only Student Org Officers."""
+        qs = super().get_queryset(request)
+        return qs.filter(role='user_mobile')
+
+    def get_form(self, request, obj=None, **kwargs):
+        """Remove is_staff and is_active fields."""
+        form = super().get_form(request, obj, **kwargs)
+        for field in ['is_staff', 'is_active']:
+            form.base_fields.pop(field, None)
+        return form
+
+
+# 🔹 Admin for Student Org Moderators
+@admin.register(StudentOrgModerator)
+class StudentOrgModeratorAdmin(UserAdmin):
+    list_display = ('username', 'email', 'role')
+    fieldsets = (
+        (None, {'fields': ('username', 'email', 'password', 'role')}),
+    )
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('username', 'email', 'password1', 'password2', 'role')}
+        ),
+    )
+    search_fields = ('username', 'email')
+    ordering = ('username',)
+
+    def get_queryset(self, request):
+        """Show only Student Org Moderators."""
+        qs = super().get_queryset(request)
+        return qs.filter(role='user_web')
+
+    def get_form(self, request, obj=None, **kwargs):
+        """Remove is_staff and is_active fields."""
+        form = super().get_form(request, obj, **kwargs)
+        for field in ['is_staff', 'is_active']:
+            form.base_fields.pop(field, None)
+        return form
+
+
 
 # Custom filter for Borrower.status
 # class BorrowerStatusFilter(SimpleListFilter):
@@ -20,26 +88,7 @@ from .models import CustomUser, Item, Borrower, Transaction, RegistrationRequest
 #             return queryset.filter(status=value)
 #         return queryset
 
-@admin.register(CustomUser)
-class CustomUserAdmin(UserAdmin):
-    model = CustomUser
-    list_display = ('username', 'email', 'role', 'is_staff', 'is_active')
-    list_filter = ('role', 'is_staff', 'is_active')
-    fieldsets = (
-        (None, {'fields': ('username', 'email', 'password', 'role')}),
-        ('Manager Assignment', {'fields': ('manager',), 'classes': ('collapse',)}),
-        ('Permissions', {'fields': ('is_staff', 'is_active', 'groups', 'user_permissions')}),
-    )
-    add_fieldsets = (
-        (None, {
-            'classes': ('wide',),
-            'fields': ('username', 'email', 'password1', 'password2',
-                       'role', 'manager', 'is_staff', 'is_active')}
-        ),
-    )
-    search_fields = ('username', 'email')
-    ordering = ('username',)
-    autocomplete_fields = ['manager']
+
 
 # @admin.register(Item)
 # class ItemAdmin(admin.ModelAdmin):
@@ -118,3 +167,6 @@ class CustomUserAdmin(UserAdmin):
 #     search_fields = ['username', 'email']
 #     raw_id_fields = ['requested_manager']
 #     autocomplete_fields = ['requested_manager']
+
+from django.contrib.auth.models import Group
+admin.site.unregister(Group)

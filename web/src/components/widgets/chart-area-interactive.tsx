@@ -1,9 +1,9 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
-import { useRouter } from "next/navigation"
-import { useIsMobile } from "@/hooks/use-mobile"
+import * as React from "react";
+import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
+import { useRouter } from "next/navigation";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Card,
   CardAction,
@@ -11,32 +11,31 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from "@/components/ui/card";
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart"
+} from "@/components/ui/chart";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/components/ui/select";
 import {
   ToggleGroup,
   ToggleGroupItem,
-} from "@/components/ui/toggle-group"
+} from "@/components/ui/toggle-group";
 
-
-export const description = "An interactive area chart for total transactions"
+export const description = "An interactive area chart for total transactions";
 
 interface ChartDataPoint {
-  period: string // weekStart or month (e.g., "2025-09-15" or "2025-09")
-  count: number
-  topItems: { item: string; count: number }[]
+  period: string; // weekStart or month (e.g., "2025-09-15" or "2025-09")
+  count: number;
+  topItems: { item: string; count: number }[];
 }
 
 const chartConfig = {
@@ -44,35 +43,36 @@ const chartConfig = {
     label: "Total Transactions",
     color: "#22c55e",
   },
-} satisfies ChartConfig
+} satisfies ChartConfig;
 
 export function ChartAreaInteractive() {
-  const router = useRouter()
-  const isMobile = useIsMobile()
-  const [timeRange, setTimeRange] = React.useState<"7d" | "30d" | "90d">("90d")
-  const [chartData, setChartData] = React.useState<ChartDataPoint[]>([])
-  const [loading, setLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
+  const router = useRouter();
+  const isMobile = useIsMobile();
+  const [timeRange, setTimeRange] = React.useState<"7d" | "30d" | "90d">("90d");
+  const [chartData, setChartData] = React.useState<ChartDataPoint[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
-  // Handle Select onValueChange type mis match
+
+  // Handle Select onValueChange type mismatch
   const handleTimeRangeChange = (value: string) => {
     if (value === "7d" || value === "30d" || value === "90d") {
-      setTimeRange(value)
+      setTimeRange(value);
     }
-  }
+  };
 
   // Fetch analytics data
   React.useEffect(() => {
     const fetchAnalytics = async () => {
-      setLoading(true)
-      setError(null)
+      setLoading(true);
+      setError(null);
       try {
-        const token = localStorage.getItem("access_token") || localStorage.getItem("token")
+        const token = localStorage.getItem("access_token") || localStorage.getItem("token");
         if (!token) {
-          setError("Not authenticated. Please login.")
-          router.push("/login")
-          setLoading(false)
-          return
+          setError("Not authenticated. Please login.");
+          router.push("/login");
+          setLoading(false);
+          return;
         }
 
         const response = await fetch(`${API_BASE_URL}/api/analytics/transactions/`, {
@@ -80,73 +80,73 @@ export function ChartAreaInteractive() {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-        })
+        });
 
         if (!response.ok) {
           if (response.status === 401 || response.status === 403) {
-            localStorage.removeItem("access_token")
-            localStorage.removeItem("token")
-            router.push("/login")
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("token");
+            router.push("/login");
           } else {
-            setError(`Failed to fetch analytics: ${response.statusText}`)
+            setError(`Failed to fetch analytics: ${response.statusText}`);
           }
-          setLoading(false)
-          return
+          setLoading(false);
+          return;
         }
 
-        const data = await response.json()
-        console.log("Fetched analytics:", data)
+        const data = await response.json();
+        console.log("Fetched analytics:", data);
 
         // Select data based on timeRange
-        let selectedData: ChartDataPoint[] = []
+        let selectedData: ChartDataPoint[] = [];
         if (timeRange === "7d") {
           selectedData = data.weekly.map((item: any) => ({
             period: item.week_start,
             count: item.count,
             topItems: item.top_items,
-          }))
+          }));
         } else if (timeRange === "30d") {
           selectedData = data.monthly.map((item: any) => ({
             period: item.month,
             count: item.count,
             topItems: item.top_items,
-          }))
+          }));
         } else if (timeRange === "90d") {
           selectedData = data.three_months.map((item: any) => ({
             period: item.month,
             count: item.count,
             topItems: item.top_items,
-          }))
+          }));
         }
 
-        setChartData(selectedData)
-        setLoading(false)
+        setChartData(selectedData);
+        setLoading(false);
       } catch (err) {
-        console.error("Fetch error:", err)
-        setError(err instanceof Error ? err.message : "An error occurred")
-        setLoading(false)
+        console.error("Fetch error:", err);
+        setError(err instanceof Error ? err.message : "An error occurred");
+        setLoading(false);
       }
-    }
+    };
 
-    fetchAnalytics()
-  }, [router, timeRange])
+    fetchAnalytics();
+  }, [router, timeRange]);
 
   // Set default time range for mobile
   React.useEffect(() => {
     if (isMobile) {
-      setTimeRange("7d")
+      setTimeRange("7d");
     }
-  }, [isMobile])
+  }, [isMobile]);
 
   // Filter data by time range (for weekly data, ensure current week)
   const filteredData = chartData.filter((item) => {
-    const date = new Date(item.period)
-    const referenceDate = new Date("2025-09-22") // Current date
-    let daysToSubtract = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : 90
-    const startDate = new Date(referenceDate)
-    startDate.setDate(startDate.getDate() - daysToSubtract)
-    return date >= startDate
-  })
+    const date = new Date(item.period);
+    const referenceDate = new Date("2025-09-22"); // Current date
+    let daysToSubtract = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : 90;
+    const startDate = new Date(referenceDate);
+    startDate.setDate(startDate.getDate() - daysToSubtract);
+    return date >= startDate;
+  });
 
   return (
     <Card className="@container/card">
@@ -214,10 +214,10 @@ export function ChartAreaInteractive() {
                 tickMargin={8}
                 minTickGap={32}
                 tickFormatter={(value) => {
-                  const date = new Date(value)
+                  const date = new Date(value);
                   return timeRange === "7d"
                     ? date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-                    : date.toLocaleDateString("en-US", { month: "short", year: "numeric" })
+                    : date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
                 }}
               />
               <ChartTooltip
@@ -225,37 +225,44 @@ export function ChartAreaInteractive() {
                 content={
                   <ChartTooltipContent
                     labelFormatter={(value) => {
-                      const startDate = new Date(value)
+                      const startDate = new Date(value);
                       if (timeRange === "7d") {
-                        const endDate = new Date(startDate)
-                        endDate.setDate(startDate.getDate() + 6)
+                        const endDate = new Date(startDate);
+                        endDate.setDate(startDate.getDate() + 6);
                         return `${startDate.toLocaleDateString("en-US", {
                           month: "short",
                           day: "numeric",
                         })} - ${endDate.toLocaleDateString("en-US", {
                           month: "short",
                           day: "numeric",
-                        })}`
+                        })}`;
                       }
-                      return startDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+                      return startDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
                     }}
                     formatter={(value, name, props) => {
-                      const { payload } = props
-                      const topItems = payload.topItems || []
+                      const { payload } = props;
+                      const topItems = payload.topItems || [];
                       const itemsList = topItems.length > 0 ? (
-                        <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px' }}>
+                        <div
+                          key="top-items"
+                          style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "12px" }}
+                        >
                           <strong>Top 5 Items:</strong>
-                          <ul style={{ listStyleType: 'none', padding: 0, margin: '4px 0 0 0' }}>
+                          <ul style={{ listStyleType: "none", padding: 0, margin: "4px 0 0 0" }}>
                             {topItems.map((item: { item: string; count: number }, index: number) => (
-                              <li key={index}>{item.item}: {item.count}</li>
+                              <li key={`${item.item}-${index}`}>
+                                {item.item}: {item.count}
+                              </li>
                             ))}
                           </ul>
                         </div>
-                      ) : "No items transacted"
+                      ) : (
+                        <span key="no-items">No items transacted</span>
+                      );
                       return [
                         <span key="count">{value} transactions</span>,
                         itemsList,
-                      ]
+                      ];
                     }}
                     indicator="dot"
                   />
@@ -273,5 +280,5 @@ export function ChartAreaInteractive() {
         )}
       </CardContent>
     </Card>
-  )
+  );
 }

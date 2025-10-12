@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
 import 'package:http/http.dart' as http;
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
@@ -80,137 +81,176 @@ class ForecastWidget extends StatelessWidget {
             : 0;
 
         return _glassCard(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Left Side: Text Information
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Title
-                    Text(
-                      "Today Forecast",
-                      style: GoogleFonts.ibmPlexMono(
-                        color: Colors.white70,
-                        fontSize: 14,
-                        letterSpacing: 0.6,
-                        fontWeight: FontWeight.w600,
-                      ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const double kBarWidth = 28;
+              const double kBarHeight = 160;
+              const double kBarGap = 16;
+
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // LEFT CONTENT with padding to keep clear of the right bar and title
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      right: kBarWidth + kBarGap, // reserve space for bar
+                      top: 34, // leave room for the top-center title
                     ),
-                    const SizedBox(height: 8),
-                    // Borrowed Percentage
-                    Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            "$borrowedPercent%",
-                            style: GoogleFonts.ibmPlexMono(
-                              color: Colors.white,
-                              fontSize: 48,
-                              fontWeight: FontWeight.w700,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black.withOpacity(0.45),
-                                  blurRadius: max(
-                                    0.0,
-                                    8.0,
-                                  ), // ✅ guarantees non-negative
-                                  offset: const Offset(0, 2),
+                        // Big %
+                        SizedBox(
+                          height: 90,
+                          child: FittedBox(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              "$borrowedPercent%",
+                              style: GoogleFonts.ibmPlexMono(
+                                color: Colors.white,
+                                fontSize: 80,
+                                fontWeight: FontWeight.w700,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.black.withOpacity(0.45),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Returning row + Overdue layered (overdue on top)
+                        SizedBox(
+                          height: 56,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              // Returning row (shifted right by 5px, bigger)
+                              Positioned(
+                                top: -20,
+                                child: Align(
+                                  alignment: Alignment.bottomLeft,
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(
+                                      top: 10,
+                                      left: 5,
+                                      // bottom: ,
+                                    ), // +5px
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          "${data['returningToday']}",
+                                          style: GoogleFonts.ibmPlexMono(
+                                            color: Colors.white,
+                                            fontSize: 32, // bigger
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 2),
-                          child: Text(
-                            "Borrowed",
-                            style: GoogleFonts.ibmPlexMono(
-                              color: Colors.white70,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
+                              ),
+                              //    SizedBox(height: ,),
+                              Positioned(
+                                top: -5,
+                                right: 40,
+                                child: Text(
+                                  "items\nreturning",
+                                  style: GoogleFonts.ibmPlexMono(
+                                    color: Colors.white70,
+                                    height: 1.0,
+                                    fontSize: 16, // bigger
+                                  ),
+                                ),
+                              ),
+                              // Overdue badge (bigger + IN FRONT of returning row)
+                              Positioned(
+                                bottom: -5,
+                                left: 7,
+
+                                child: Container(
+                                  // padding: const EdgeInsets.symmetric(
+                                  //   horizontal: 12,
+                                  //   vertical: 6,
+                                  // ),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(10),
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        Colors.black.withOpacity(0.35),
+                                        Colors.black.withOpacity(0.25),
+                                      ],
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.35),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Text(
+                                    "${data['overdue']} overdue",
+                                    style: GoogleFonts.ibmPlexMono(
+                                      color: const Color(0xFFD33F49),
+                                      fontSize: 25, // bigger
+                                      fontWeight: FontWeight.w700,
+                                      wordSpacing: -2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    // Returning Items
-                    Row(
-                      children: [
-                        Text(
-                          "${data['returningToday']}",
-                          style: GoogleFonts.ibmPlexMono(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 2),
-                          child: Text(
-                            "items\nreturning",
-                            style: GoogleFonts.ibmPlexMono(
-                              color: Colors.white70,
-                              height: 1.0,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    // Overdue Items
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.black.withOpacity(0.35),
-                            Colors.black.withOpacity(0.25),
-                          ],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.35),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
+                  ),
+
+                  // TOP-CENTER TITLE
+                  Positioned(
+                    //     top: ,
+                    left: 0,
+                    right: 0,
+                    bottom: 180,
+                    child: Center(
                       child: Text(
-                        "${data['overdue']} overdue",
+                        "Today Forecast",
                         style: GoogleFonts.ibmPlexMono(
-                          color: const Color(0xFFD33F49),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
+                          color: const Color.fromARGB(179, 255, 255, 255),
+                          fontSize: 20,
+                          letterSpacing: 0.6,
+                          wordSpacing: .4,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              // Right Side: Forecast Bar
-              _ForecastBar(
-                total: total,
-                available: data['available']!,
-                borrowed: data['borrowed']!,
-                returning: data['returningToday']!,
-                overdue: data['overdue']!,
-                height: 160,
-                width: 28,
-              ),
-            ],
+                  ),
+
+                  // RIGHT FORECAST BAR – drawn LAST so it's IN FRONT of everything
+                  Positioned(
+                    right: 0,
+                    top: (constraints.maxHeight - kBarHeight) / 1,
+                    child: _ForecastBar(
+                      total: total,
+                      available: data['available']!,
+                      borrowed: data['borrowed']!,
+                      returning: data['returningToday']!,
+                      overdue: data['overdue']!,
+                      height: kBarHeight,
+                      width: kBarWidth,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         );
       },
@@ -218,26 +258,28 @@ class ForecastWidget extends StatelessWidget {
   }
 
   Widget _glassCard({required Widget child}) {
-    return Container(
-      width: 300, // Fixed width
-      height: 240, // Fixed height
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withOpacity(0.18), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.35),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(30),
+      child: LiquidGlass(
+        shape: LiquidRoundedSuperellipse(
+          borderRadius: const Radius.circular(30),
+        ),
+        settings: const LiquidGlassSettings(
+          thickness: 50, // controls optical depth (refraction)
+          glassColor: Color.fromARGB(26, 65, 65, 65), // dark translucent tint
+          lightIntensity: 1.25, // highlight brightness
+          ambientStrength: 0.5, // soft glow
+          saturation: 1.05,
+        ),
+        child: Container(
+          width: 300,
+          height: 240,
+          padding: const EdgeInsets.all(23),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: Padding(padding: const EdgeInsets.all(16), child: child),
+          child: child,
         ),
       ),
     );
