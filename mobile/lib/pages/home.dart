@@ -157,7 +157,7 @@ class _HomeContentState extends State<HomeContent>
                       },
                       child: LiquidGlass(
                         settings: const LiquidGlassSettings(
-                          thickness: 10, // High thickness for glass effect
+                          thickness: 50, // High thickness for glass effect
                         ),
                         shape: LiquidRoundedSuperellipse(
                           borderRadius: Radius.circular(23),

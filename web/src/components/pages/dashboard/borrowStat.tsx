@@ -2,37 +2,45 @@
 
 import { useState, useEffect } from "react";
 import { TrendingUp } from "lucide-react";
-import { RadialBarChart, RadialBar, PolarGrid, PolarRadiusAxis, Label } from "recharts";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  Label,
+  ResponsiveContainer,
+} from "recharts";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { ChartContainer } from "@/components/ui/chart";
-import { Button } from "@/components/ui/button";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
-type RangeOption = "yesterday" | "today" | "week" | "month";
-
 export function BorrowedStatsCard() {
-  const [count, setCount] = useState<number>(0);
+  const [borrowed, setBorrowed] = useState(0);
+  const [available, setAvailable] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedRange, setSelectedRange] = useState<RangeOption>("yesterday");
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchSnapshot = async () => {
       const token = localStorage.getItem("access_token");
       try {
         setLoading(true);
         setError(null);
 
-        const resp = await fetch(
-          `${API_BASE_URL}/api/analytics/borrowed-stats/?range=${selectedRange}`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+        const resp = await fetch(`${API_BASE_URL}/api/inventory/`, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
         if (!resp.ok) {
           setError(`Failed: ${resp.status}`);
@@ -41,84 +49,103 @@ export function BorrowedStatsCard() {
         }
 
         const data = await resp.json();
-        setCount(data.count ?? 0);
+        setBorrowed(Number(data.borrowed ?? 0));
+        setAvailable(Number(data.available ?? 0));
         setLoading(false);
-      } catch (err: any) {
-        setError(err.message || "Network error");
+      } catch (e: any) {
+        setError(e?.message || "Network error");
         setLoading(false);
       }
     };
-    fetchData();
-  }, [selectedRange]);
 
-  const chartData = [{ name: "Borrowed", value: count, fill: "var(--chart-1)" }];
+    fetchSnapshot();
+  }, []);
+
+  const total = borrowed + available;
+  const pct = total > 0 ? Math.round((borrowed / total) * 100) : 0;
+
+  const pieData = [
+    { name: "Borrowed", value: borrowed, fill: "var(--chart-1)" },
+    { name: "Available", value: available, fill: "var(--chart-2)" },
+  ];
 
   return (
-    <Card className="flex flex-col" data-slot="card">
+    <Card className="flex flex-col h-full" data-slot="card">
       <CardHeader className="items-center pb-0">
         <CardTitle>Borrowed Items</CardTitle>
-        <CardDescription>Snapshot ({selectedRange})</CardDescription>
-
-        <div className="flex flex-wrap justify-center gap-2 mt-3 w-full px-2">
-          {(["yesterday", "today", "week", "month"] as RangeOption[]).map((range) => (
-            <Button
-              key={range}
-              size="sm"
-              variant={selectedRange === range ? "default" : "outline"}
-              onClick={() => setSelectedRange(range)}
-              className="flex-1 min-w-[80px] max-w-[100px] text-xs"
-            >
-              {range.charAt(0).toUpperCase() + range.slice(1)}
-            </Button>
-          ))}
-        </div>
+        <CardDescription>Snapshot (Borrowed vs Available)</CardDescription>
       </CardHeader>
 
-      <CardContent className="flex-1 pb-0">
-        {loading ? (
-          <div className="h-[200px] flex items-center justify-center text-muted-foreground">Loading...</div>
-        ) : error ? (
-          <div className="h-[200px] flex items-center justify-center text-red-500">{error}</div>
-        ) : (
-          <ChartContainer
-            config={{ borrowed: { label: "Borrowed", color: "var(--chart-1)" } }}
-            className="mx-auto aspect-square max-h-[250px]"
+    <CardContent className="flex-1 p-0">
+  {loading ? (
+    <div className="h-[220px] flex items-center justify-center text-muted-foreground">
+      Loading...
+    </div>
+  ) : error ? (
+    <div className="h-[220px] flex items-center justify-center text-red-500">
+      {error}
+    </div>
+  ) : (
+    <ChartContainer
+      config={{
+        borrowed: { label: "Borrowed", color: "var(--chart-1)" },
+        available: { label: "Available", color: "var(--chart-2)" },
+      }}
+      className="w-full h-[320px] p-0" // <— fixed height, no padding
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+          <Pie
+            data={pieData}
+            dataKey="value"
+            nameKey="name"
+            innerRadius="58%"   // % keeps it inside the box
+            outerRadius="82%"
+            startAngle={90}
+            endAngle={-270}
+            stroke="none"
+            isAnimationActive
           >
-            <RadialBarChart data={chartData} endAngle={count > 0 ? 360 : 0} innerRadius={80} outerRadius={140}>
-              <PolarGrid gridType="circle" radialLines={false} stroke="none" className="first:fill-muted last:fill-background" polarRadius={[86, 74]} />
-              <RadialBar dataKey="value" background />
-              <PolarRadiusAxis tick={false} tickLine={false} axisLine={false}>
-                <Label
-                  content={({ viewBox }) => {
-                    if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                      return (
-                        <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
-                          <tspan x={viewBox.cx} y={viewBox.cy} className="fill-foreground text-4xl font-bold">
-                            {count}
-                          </tspan>
-                          <tspan x={viewBox.cx} y={(viewBox.cy || 0) + 24} className="fill-muted-foreground">
-                            Borrowed
-                          </tspan>
-                        </text>
-                      );
-                    }
-                  }}
-                />
-              </PolarRadiusAxis>
-              </RadialBarChart>
-            </ChartContainer>
-          )}
-        </CardContent>
+            {pieData.map((entry) => (
+              <Cell key={entry.name} fill={entry.fill} />
+            ))}
+            <Label
+              content={({ viewBox }) => {
+                if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+                  const cx = viewBox.cx as number;
+                  const cy = viewBox.cy as number;
+                  return (
+                    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle">
+                      <tspan x={cx} y={cy} className="fill-foreground text-4xl font-bold">
+                        {borrowed}
+                      </tspan>
+                      <tspan x={cx} y={cy + 22} className="fill-muted-foreground text-sm">
+                        of {total} ({pct}%)
+                      </tspan>
+                    </text>
+                  );
+                }
+                return null;
+              }}
+            />
+          </Pie>
+          <Tooltip formatter={(val, name) => [String(val), String(name)]} />
+        </PieChart>
+      </ResponsiveContainer>
+    </ChartContainer>
+  )}
+</CardContent>
 
-        <CardFooter className="flex-col gap-2 text-sm">
-          <div className="flex items-center gap-2 leading-none font-medium">
-            {count > 0 ? "Borrowing activity detected" : "No items borrowed in this period"}
-            <TrendingUp className="h-4 w-4" />
-          </div>
-          <div className="text-muted-foreground leading-none">
-            Showing borrowed items count for {selectedRange}
-          </div>
-        </CardFooter>
+
+      <CardFooter className="flex-col gap-2 text-sm">
+        <div className="flex items-center gap-2 leading-none font-medium">
+          {borrowed > 0 ? "Borrowing activity detected" : "No items borrowed"}
+          <TrendingUp className="h-4 w-4" />
+        </div>
+        <div className="text-muted-foreground leading-none">
+          {borrowed} borrowed • {available} available
+        </div>
+      </CardFooter>
     </Card>
   );
 }

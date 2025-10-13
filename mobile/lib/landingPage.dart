@@ -3,6 +3,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:mobile/components/utils/animatedBackground.dart';
+import 'package:mobile/components/utils/splashPlusLogin.dart';
+import 'package:mobile/navBar.dart';
 import 'package:mobile/pages/home.dart';
 import 'package:mobile/pages/borrowerList.dart';
 import 'package:mobile/pages/itemList.dart';
@@ -71,6 +73,38 @@ class _NavShellState extends State<NavShell> {
     super.dispose();
   }
 
+  bool _loggingOut = false;
+
+  Future<void> _logout() async {
+    if (_loggingOut) return;
+    setState(() => _loggingOut = true);
+    try {
+      // If an endDrawer is open, this will close it.
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('refresh_token');
+      await prefs.remove('access_token');
+
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const SplashScreen()),
+        (route) => false,
+      );
+    } catch (e, st) {
+      debugPrint('Logout failed: $e\n$st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to logout. Please try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loggingOut = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_accessToken == null) {
@@ -94,16 +128,21 @@ class _NavShellState extends State<NavShell> {
           //     positionY: 0.5, // Y position (center of screen)
           //   ),
           // ),
-
           // Positioned.fill(
           //   child: Image.asset(
-          //     'assets/forest.png',
+          //     'assets/bgbg.jpg',
           //     fit: BoxFit.cover, // makes it fill the screen
           //     alignment: Alignment.center, // centers the image
           //   ),
           // ),
+          // AbstractWavesBackground(
+          //   speed: 0.5, // Controls rotation speed
+          //   size: 1500, // Size of the tesseract
+          //   positionX: 1, // X position (center of screen)
+          //   positionY: 0.5, // Y position (center of screen)
+          // ),
           BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 1.0, sigmaY: 1),
+            filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10),
             child: Container(color: Colors.transparent),
           ),
           WillPopScope(
@@ -115,150 +154,53 @@ class _NavShellState extends State<NavShell> {
               children: _pages.map((page) => _KeepAlive(child: page)).toList(),
             ),
           ),
+
           Positioned(
-            left: 0,
-            right: 0,
             top: 0,
+            left: 16,
             child: SafeArea(
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                color: Colors.transparent,
-                child: Center(
-                  child: Hero(
-                    tag: "istakLogo",
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: Image(
-                        image: AssetImage("assets/fullLogo.png"),
-                        width: 150,
-                        height: 80,
-                        fit: BoxFit.contain,
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: Row(
+                  mainAxisSize:
+                      MainAxisSize.min, // only as wide as its children
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Hero(
+                      tag: "istakLogo",
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: const Image(
+                          image: AssetImage("assets/fullLogo.png"),
+                          width: 150,
+                          height: 80,
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 220),
+                    // Logout button to the right of the logo
+                    IconButton(
+                      tooltip: 'Logout',
+                      splashRadius: 40,
+                      onPressed: _logout, // implement below
+                      icon: const Icon(
+                        CupertinoIcons
+                            .square_arrow_right, // or Icons.logout_rounded
+                        color: Color.fromARGB(255, 187, 187, 187),
+                        size: 24,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
+
+          //   SizedBox(height: 200),
           GlassBottomBar(selectedIndex: _index, onItemTapped: _onNavItemTapped),
         ],
-      ),
-    );
-  }
-}
-
-class GlassBottomBar extends StatelessWidget {
-  final int selectedIndex;
-  final Function(int) onItemTapped;
-
-  const GlassBottomBar({
-    super.key,
-    required this.selectedIndex,
-    required this.onItemTapped,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      left: 16,
-      right: 16,
-      bottom: 16,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(30),
-        child: LiquidGlass(
-          shape: LiquidRoundedSuperellipse(
-            borderRadius: const Radius.circular(30),
-          ),
-          settings: LiquidGlassSettings(
-            thickness: 200,
-            glassColor: const Color.fromARGB(255, 54, 54, 54).withOpacity(0.3),
-          ),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.25),
-                width: 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.25),
-                  blurRadius: 15,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildIcon(CupertinoIcons.home, 0),
-                _buildIcon(CupertinoIcons.book, 1),
-                _buildIcon(CupertinoIcons.person, 2),
-                _buildIcon(CupertinoIcons.xmark_shield, 3),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildIcon(IconData icon, int index) {
-    bool isSelected = selectedIndex == index;
-
-    return GestureDetector(
-      onTap: () => onItemTapped(index),
-      child: AnimatedScale(
-        scale: isSelected ? 1.7 : 1.0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutBack,
-        child: LiquidGlass(
-          shape: LiquidRoundedSuperellipse(
-            borderRadius: const Radius.circular(40),
-          ),
-          settings: LiquidGlassSettings(thickness: 100),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutBack,
-            width: isSelected ? 80 : 70,
-            height: isSelected ? 45 : 40,
-            alignment: Alignment.center,
-            // decoration: BoxDecoration(
-            //   gradient: isSelected
-            //       ? LinearGradient(
-            //           colors: [
-            //             const Color.fromARGB(255, 62, 62, 62).withOpacity(0.5),
-            //             const Color.fromARGB(
-            //               255,
-            //               122,
-            //               122,
-            //               122,
-            //             ).withOpacity(0.5),
-            //           ],
-            //           begin: Alignment.topLeft,
-            //           end: Alignment.bottomRight,
-            //         )
-            //       : null,
-            //   boxShadow: [
-            //     BoxShadow(
-            //       color: isSelected
-            //           ? const Color.fromARGB(255, 49, 48, 48).withOpacity(0.0)
-            //           : Colors.black.withOpacity(0.1),
-            //       blurRadius: isSelected ? 20 : 2,
-            //       spreadRadius: isSelected ? 1 : 0,
-            //       offset: isSelected ? const Offset(0, 2) : const Offset(0, 1),
-            //     ),
-            //   ],
-            // ),
-            child: Icon(
-              icon,
-              color: const Color.fromARGB(255, 254, 254, 254),
-              size: isSelected ? 28 : 24,
-            ),
-          ),
-        ),
       ),
     );
   }

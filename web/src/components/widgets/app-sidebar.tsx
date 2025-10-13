@@ -1,19 +1,28 @@
-'use client';
+"use client";
 
-import Image from 'next/image';
-import Link from 'next/link';
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import Image from "next/image";
+import Link from "next/link";
+import * as React from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation"; // Import useRouter for redirection
 import {
-  IconDashboard,
-  IconListDetails,
-  IconHeartHandshake,
-  IconReport,
+  IconCamera,
   IconChartBar,
+  IconDashboard,
+  IconDatabase,
+  IconFileAi,
+  IconFileDescription,
+  IconReport,
+  IconHelp,
+  IconListDetails,
+  IconSearch,
+  IconSettings,
+  IconHeartHandshake,
+  IconQrcode,
   IconAlien,
-} from '@tabler/icons-react';
-import { NavMain } from '@/components/widgets/nav-main';
-import { NavUser } from '@/components/widgets/nav-user';
+} from "@tabler/icons-react";
+import { NavMain } from "@/components/widgets/nav-main";
+import { NavUser } from "@/components/widgets/nav-user";
 import {
   Sidebar,
   SidebarMenu,
@@ -22,73 +31,86 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
-} from '@/components/ui/sidebar';
+} from "@/components/ui/sidebar";
 
-const navData = {
+const data = {
   navMain: [
-    { title: 'Dashboard', url: '/dashboard', icon: IconDashboard },
-    { title: 'Item Management', url: '/inventory', icon: IconListDetails },
-    { title: 'Transactions', url: '/transaction', icon: IconHeartHandshake },
-    { title: 'Reports', url: '/reports', icon: IconReport },
-    { title: 'Requests', url: '/request', icon: IconChartBar },
-    { title: 'Borrower', url: '/borrower', icon: IconAlien },
+    {
+      title: "Dashboard",
+      url: "/dashboard",
+      icon: IconDashboard,
+    },
+    {
+      title: "Item Management",
+      url: "/inventory",
+      icon: IconListDetails,
+    },
+    {
+      title: "Transactions",
+      url: "/transaction",
+      icon: IconHeartHandshake,
+    },
+    {
+      title: "Reports",
+      url: "/reports",
+      icon: IconReport,
+    },
+    {
+      title: "Requests",
+      url: "/request",
+      icon: IconChartBar,
+    },
+    {
+      title: "Borrower",
+      url: "/borrower",
+      icon: IconAlien,
+    },
   ],
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [user, setUser] = useState({
-    name: 'Loading...',
-    email: 'Loading...',
-    avatar: '/avatars/shadcn.jpg',
+    name: "Loading...",
+    email: "Loading...",
+    avatar: "/avatars/shadcn.jpg",
   });
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const router = useRouter();
+  const router = useRouter(); // Initialize router for redirection
 
   useEffect(() => {
-    // Run only on client
-    if (typeof window === 'undefined') return;
-
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      router.replace('/login');
-      return;
-    }
-
     const fetchUser = async () => {
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL;
         const response = await fetch(`${apiUrl}/api/current-user/`, {
-          headers: { Authorization: `Bearer ${token}` },
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`, // Include token in Authorization header
+          },
         });
-
         if (response.ok) {
           const data = await response.json();
           setUser({
-            name: data.name ?? 'Unknown',
-            email: data.email ?? 'No email',
-            avatar: data.avatar ?? '/avatars/shadcn.jpg',
+            name: data.name,
+            email: data.email,
+            avatar: data.avatar,
           });
-        } else if (response.status === 401) {
-          // Token expired or invalid
-          // localStorage.removeItem('access_token');
-          // router.replace('/login');
         } else {
-          console.error('Failed to fetch user data:', response.statusText);
+          console.error("Failed to fetch user data:", response.statusText);
+          router.replace("/login"); // Redirect to login on failure (e.g., invalid token)
         }
       } catch (error) {
-        console.error('Error fetching user:', error);
-      } finally {
-        setCheckingAuth(false);
+        console.error("Error fetching user:", error);
+        router.replace("/login"); // Redirect to login on network or other errors
       }
     };
 
     fetchUser();
   }, [router]);
-
-  if (checkingAuth) {
-    // Prevent flashing login redirects or rendering while checking token
-    return null;
-  }
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -112,11 +134,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-
       <SidebarContent>
-        <NavMain items={navData.navMain} />
+        <NavMain items={data.navMain} />
       </SidebarContent>
-
       <SidebarFooter>
         <NavUser user={user} />
       </SidebarFooter>

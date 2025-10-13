@@ -58,7 +58,7 @@ dependencies:
   image_picker: ^1.2.0
   lottie: ^3.3.1
   flutter_svg: ^2.2.1
-  liquid_glass_renderer: ^0.1.1-dev.17
+  liquid_glass_renderer: ^0.1.1-dev.20
   vector_math: ^2.1.4
 
 dev_dependencies:

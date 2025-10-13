@@ -82,17 +82,17 @@ export function ChartAreaInteractive() {
           },
         });
 
-        // if (!response.ok) {
-        //   if (response.status === 401 || response.status === 403) {
-        //     localStorage.removeItem("access_token");
-        //     localStorage.removeItem("token");
-        //     router.push("/login");
-        //   } else {
-        //     setError(`Failed to fetch analytics: ${response.statusText}`);
-        //   }
-        //   setLoading(false);
-        //   return;
-        // }
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("token");
+            router.push("/login");
+          } else {
+            setError(`Failed to fetch analytics: ${response.statusText}`);
+          }
+          setLoading(false);
+          return;
+        }
 
         const data = await response.json();
         console.log("Fetched analytics:", data);

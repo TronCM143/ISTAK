@@ -92,57 +92,65 @@ export function SectionCards() {
 
     fetchData();
   }, []);
+return (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full px-0 items-stretch 
+    *:data-[slot=card]:from-primary/5 
+    *:data-[slot=card]:to-card 
+    dark:*:data-[slot=card]:bg-card 
+    *:data-[slot=card]:bg-gradient-to-t 
+    *:data-[slot=card]:shadow-xs">
 
-  return (
-    <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
-      {/* Borrowed items card */}
-        <BorrowedStatsCard />
-            
-      {/* Transactions chart card */}
-      <Card className="@container/card" data-slot="card">
-        <CardHeader>
-          <CardTitle>Transaction Trends</CardTitle>
-          <CardDescription>
-            {loading || error
-              ? "Last 6 months"
-              : `${chartData[0]?.month} - ${chartData[chartData.length - 1]?.month} 2025`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {error ? (
-            <div className="text-red-500 text-sm">Error: {error}</div>
-          ) : loading ? (
-            <div className="text-sm text-muted-foreground">Loading chart...</div>
-          ) : (
-            <ChartContainer config={chartConfig}>
-              <BarChart accessibilityLayer data={chartData}>
-                <CartesianGrid vertical={false} />
-                <XAxis
-                  dataKey="month"
-                  tickLine={false}
-                  tickMargin={10}
-                  axisLine={false}
-                  tickFormatter={(value) => value.slice(0, 3)}
-                />
-                <ChartTooltip
-                  cursor={false}
-                  content={<ChartTooltipContent indicator="dashed" />}
-                />
-                <Bar dataKey="borrowed" fill={chartConfig.borrowed.color} radius={4} />
-                <Bar dataKey="returned" fill={chartConfig.returned.color} radius={4} />
-              </BarChart>
-            </ChartContainer>
-          )}
-        </CardContent>
-        <CardFooter className="flex-col items-start gap-2 text-sm">
-          <div className="flex gap-2 leading-none font-medium">
-            Trending up by 10% this month <TrendingUp className="h-4 w-4" />
-          </div>
-          <div className="text-muted-foreground leading-none">
-            Showing borrowed and returned items for the last 6 months
-          </div>
-        </CardFooter>
-      </Card>
+    {/* Borrowed items card */}
+    <div className="w-full h-full">
+      <BorrowedStatsCard />
     </div>
-  );
+
+    {/* Transactions chart card */}
+    <Card className="w-full h-full @container/card" data-slot="card">
+      <CardHeader>
+        <CardTitle>Transaction Trends</CardTitle>
+        <CardDescription>
+          {loading || error
+            ? "Last 6 months"
+            : `${chartData[0]?.month} - ${chartData[chartData.length - 1]?.month} 2025`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {error ? (
+          <div className="text-red-500 text-sm">Error: {error}</div>
+        ) : loading ? (
+          <div className="text-sm text-muted-foreground">Loading chart...</div>
+        ) : (
+          <ChartContainer config={chartConfig}>
+            <BarChart accessibilityLayer data={chartData}>
+              <CartesianGrid vertical={false} />
+              <XAxis
+                dataKey="month"
+                tickLine={false}
+                tickMargin={10}
+                axisLine={false}
+                tickFormatter={(value) => value.slice(0, 3)}
+              />
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent indicator="dashed" />}
+              />
+              <Bar dataKey="borrowed" fill={chartConfig.borrowed.color} radius={4} />
+              <Bar dataKey="returned" fill={chartConfig.returned.color} radius={4} />
+            </BarChart>
+          </ChartContainer>
+        )}
+      </CardContent>
+      <CardFooter className="flex-col items-start gap-2 text-sm">
+        <div className="flex gap-2 leading-none font-medium">
+          Trending up by 10% this month <TrendingUp className="h-4 w-4" />
+        </div>
+        <div className="text-muted-foreground leading-none">
+          Showing borrowed and returned items for the last 6 months
+        </div>
+      </CardFooter>
+    </Card>
+  </div>
+);
+
 }

@@ -507,7 +507,7 @@ class _ItemlistState extends State<Itemlist> with TickerProviderStateMixin {
                               ),
                             )
                           : ListView.builder(
-                              padding: const EdgeInsets.all(8.0),
+                              padding: const EdgeInsets.all(1.0),
                               itemCount: filteredItems.length,
                               itemBuilder: (context, index) {
                                 final item = filteredItems[index];
@@ -567,11 +567,12 @@ class _ItemlistState extends State<Itemlist> with TickerProviderStateMixin {
                                     );
                                   },
                                   child: Container(
-                                    margin: const EdgeInsets.only(bottom: 12),
+                                    //  margin: const EdgeInsets.all(4),
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(10),
+
                                       border: Border.all(
-                                        color: Colors.white.withOpacity(0.2),
+                                        color: Colors.transparent,
                                         width: 1.5,
                                       ),
                                     ),
@@ -590,17 +591,23 @@ class _ItemlistState extends State<Itemlist> with TickerProviderStateMixin {
                                           child: Row(
                                             children: [
                                               Container(
+                                                // color: Colors.white.withOpacity(
+                                                //   0.08,
+                                                // ),
                                                 width: 10,
                                                 height: 10,
                                                 margin: const EdgeInsets.only(
                                                   right: 8,
                                                 ),
                                                 decoration: BoxDecoration(
-                                                  color: getStatusColor(status),
+                                                  //color: getStatusColor(status),
                                                   shape: BoxShape.circle,
                                                 ),
                                               ),
                                               Container(
+                                                color: Colors.white.withOpacity(
+                                                  0.08,
+                                                ),
                                                 width: 40,
                                                 height: 40,
                                                 margin: const EdgeInsets.only(

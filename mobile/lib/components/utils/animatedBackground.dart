@@ -461,7 +461,7 @@ class _FloatingShapes3DPainter extends CustomPainter {
             ..style = PaintingStyle.stroke
             ..strokeWidth =
                 size *
-                0.05 // Slightly thicker for visibility
+                0.03 // Slightly thicker for visibility
             ..color = edgeColor
             ..blendMode = blendMode;
 

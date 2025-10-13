@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -9,7 +10,6 @@ import 'package:mobile/components/transaction/borrowing/processData.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'dart:ui';
 import 'package:mobile/components/transaction/borrowing/scanQRs.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 
@@ -69,63 +69,51 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto>
         barrierDismissible: true,
         barrierColor: Colors.black.withOpacity(0.6),
         builder: (context) => Dialog(
-          backgroundColor: Colors.transparent,
-          child: LiquidGlass(
-            shape: LiquidRoundedSuperellipse(
-              borderRadius: const Radius.circular(16),
-            ),
-            settings: const LiquidGlassSettings(
-              thickness: 5,
-              glassColor: Color(0x33FF5555), // Red-tinted glass
-              lightIntensity: 1.2,
-              ambientStrength: 0.5,
-              saturation: 1.2,
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Error',
-                    style: GoogleFonts.ibmPlexMono(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
+          backgroundColor: Colors.black,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Error',
+                  style: GoogleFonts.ibmPlexMono(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Please enter name and school ID first',
-                    style: GoogleFonts.ibmPlexMono(
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Please enter name and school ID first',
+                  style: GoogleFonts.ibmPlexMono(
+                    color: Colors.white,
+                    fontSize: 14,
                   ),
-                  const SizedBox(height: 20),
-                  FakeGlass(
-                    shape: LiquidRoundedSuperellipse(
-                      borderRadius: const Radius.circular(10),
-                    ),
-                    settings: const LiquidGlassSettings(
-                      blur: 5,
-                      glassColor: Color(0xFF34C759),
-                    ),
-                    child: TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: Text(
-                        'OK',
-                        style: GoogleFonts.ibmPlexMono(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: Colors.white,
-                        ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Color(0xFF32D74B),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(
+                      'OK',
+                      style: GoogleFonts.ibmPlexMono(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: Colors.white,
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -161,63 +149,51 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto>
           barrierDismissible: true,
           barrierColor: Colors.black.withOpacity(0.6),
           builder: (context) => Dialog(
-            backgroundColor: Colors.transparent,
-            child: LiquidGlass(
-              shape: LiquidRoundedSuperellipse(
-                borderRadius: const Radius.circular(16),
-              ),
-              settings: const LiquidGlassSettings(
-                thickness: 5,
-                glassColor: Color(0x33FF5555),
-                lightIntensity: 1.2,
-                ambientStrength: 0.5,
-                saturation: 1.2,
-              ),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Error',
-                      style: GoogleFonts.ibmPlexMono(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
+            backgroundColor: Colors.black,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Error',
+                    style: GoogleFonts.ibmPlexMono(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Error capturing photo: $e',
-                      style: GoogleFonts.ibmPlexMono(
-                        color: Colors.white,
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Error capturing photo: $e',
+                    style: GoogleFonts.ibmPlexMono(
+                      color: Colors.white,
+                      fontSize: 14,
                     ),
-                    const SizedBox(height: 20),
-                    FakeGlass(
-                      shape: LiquidRoundedSuperellipse(
-                        borderRadius: const Radius.circular(10),
-                      ),
-                      settings: const LiquidGlassSettings(
-                        blur: 5,
-                        glassColor: Color(0xFF34C759),
-                      ),
-                      child: TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text(
-                          'OK',
-                          style: GoogleFonts.ibmPlexMono(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                            color: Colors.white,
-                          ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Color(0xFF32D74B),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(
+                        'OK',
+                        style: GoogleFonts.ibmPlexMono(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: Colors.white,
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -261,63 +237,51 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto>
           barrierDismissible: true,
           barrierColor: Colors.black.withOpacity(0.6),
           builder: (context) => Dialog(
-            backgroundColor: Colors.transparent,
-            child: LiquidGlass(
-              shape: LiquidRoundedSuperellipse(
-                borderRadius: const Radius.circular(16),
-              ),
-              settings: const LiquidGlassSettings(
-                thickness: 5,
-                glassColor: Color(0x33FF5555),
-                lightIntensity: 1.2,
-                ambientStrength: 0.5,
-                saturation: 1.2,
-              ),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Error',
-                      style: GoogleFonts.ibmPlexMono(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
+            backgroundColor: Colors.black,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Error',
+                    style: GoogleFonts.ibmPlexMono(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Error processing image: $e',
-                      style: GoogleFonts.ibmPlexMono(
-                        color: Colors.white,
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Error processing image: $e',
+                    style: GoogleFonts.ibmPlexMono(
+                      color: Colors.white,
+                      fontSize: 14,
                     ),
-                    const SizedBox(height: 20),
-                    FakeGlass(
-                      shape: LiquidRoundedSuperellipse(
-                        borderRadius: const Radius.circular(10),
-                      ),
-                      settings: const LiquidGlassSettings(
-                        blur: 5,
-                        glassColor: Color(0xFF34C759),
-                      ),
-                      child: TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text(
-                          'OK',
-                          style: GoogleFonts.ibmPlexMono(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                            color: Colors.white,
-                          ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Color(0xFF32D74B),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(
+                        'OK',
+                        style: GoogleFonts.ibmPlexMono(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: Colors.white,
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -340,63 +304,51 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto>
         barrierDismissible: true,
         barrierColor: Colors.black.withOpacity(0.6),
         builder: (context) => Dialog(
-          backgroundColor: Colors.transparent,
-          child: LiquidGlass(
-            shape: LiquidRoundedSuperellipse(
-              borderRadius: const Radius.circular(16),
-            ),
-            settings: const LiquidGlassSettings(
-              thickness: 5,
-              glassColor: Color(0x33FF5555),
-              lightIntensity: 1.2,
-              ambientStrength: 0.5,
-              saturation: 1.2,
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Error',
-                    style: GoogleFonts.ibmPlexMono(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
+          backgroundColor: Colors.black,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Error',
+                  style: GoogleFonts.ibmPlexMono(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Please fill all fields and capture a photo',
-                    style: GoogleFonts.ibmPlexMono(
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Please fill all fields and capture a photo',
+                  style: GoogleFonts.ibmPlexMono(
+                    color: Colors.white,
+                    fontSize: 14,
                   ),
-                  const SizedBox(height: 20),
-                  FakeGlass(
-                    shape: LiquidRoundedSuperellipse(
-                      borderRadius: const Radius.circular(10),
-                    ),
-                    settings: const LiquidGlassSettings(
-                      blur: 5,
-                      glassColor: Color(0xFF34C759),
-                    ),
-                    child: TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: Text(
-                        'OK',
-                        style: GoogleFonts.ibmPlexMono(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: Colors.white,
-                        ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Color(0xFF32D74B),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(
+                      'OK',
+                      style: GoogleFonts.ibmPlexMono(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: Colors.white,
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -445,123 +397,135 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto>
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Background content (optional, can be customized based on app's theme)
-        // Positioned.fill(
-        //   child: Container(
-        //     color: Colors.grey[900], // Dark background for contrast
-        //   ),
-        // ),
+        BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 13.0, sigmaY: 12),
+          child: Container(color: Colors.transparent),
+        ),
+        Positioned.fill(
+          child: Container(
+            color: Colors.transparent, // Solid black background
+          ),
+        ),
         FadeTransition(
           opacity: _fadeAnimation,
           child: Center(
-            child: LiquidGlassLayer(
-              settings: const LiquidGlassSettings(
-                thickness: 5,
-                glassColor: Color(0x1AFFFFFF),
-                lightIntensity: 1.2,
-                blend: 40,
-
-                saturation: 1.2,
-                blur: 5.0,
+            child: FakeGlass(
+              shape: LiquidRoundedSuperellipse(
+                borderRadius: const Radius.circular(30),
               ),
+              settings: const LiquidGlassSettings(
+                blur: 200,
+                thickness: 50, // controls optical depth (refraction)
+                glassColor: Color.fromARGB(
+                  26,
+                  87,
+                  87,
+                  87,
+                ), // dark translucent tint
+                lightIntensity: 1.25, // highlight brightness
+                ambientStrength: 0.5, // soft glow
+                saturation: 1.05,
+              ),
+
               child: Container(
                 width: MediaQuery.of(context).size.width * 0.9,
                 margin: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: LiquidGlass(
-                  shape: LiquidRoundedSuperellipse(
-                    borderRadius: const Radius.circular(20),
-                  ),
-                  settings: const LiquidGlassSettings(
-                    thickness: 5,
-                    glassColor: Color(0x1AFFFFFF),
-                    lightIntensity: 1.2,
-                    saturation: 1.2,
-                    blur: 5.0,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          height: 200,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.3),
-                              width: 1,
-                            ),
+                // decoration: BoxDecoration(
+                //   color: const Color.fromARGB(255, 19, 19, 19),
+                //   borderRadius: BorderRadius.circular(20),
+                //   border: Border.all(
+                //     color: Colors.white.withOpacity(0.3),
+                //     width: 0.3,
+                //   ),
+                // ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        height: 200,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.3),
+                            width: 1,
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: _photo != null
-                                ? Image.file(
-                                    _photo!,
-                                    height: 200,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                  )
-                                : Center(
-                                    child: Text(
-                                      'No Photo',
-                                      style: GoogleFonts.ibmPlexMono(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                      ),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: _photo != null
+                              ? Image.file(
+                                  _photo!,
+                                  height: 200,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                )
+                              : Center(
+                                  child: Text(
+                                    'No Photo',
+                                    style: GoogleFonts.ibmPlexMono(
+                                      color: Colors.white,
+                                      fontSize: 16,
                                     ),
                                   ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        FakeGlass(
-                          shape: LiquidRoundedSuperellipse(
-                            borderRadius: const Radius.circular(12),
-                          ),
-                          settings: const LiquidGlassSettings(
-                            blur: 5,
-                            glassColor: Color(0xFF34C759),
-                          ),
-                          child: GestureDetector(
-                            onTap: _capturePhoto,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 12,
-                              ),
-                              child: Text(
-                                _photo == null ? 'Take Photo' : 'Retake Photo',
-                                style: GoogleFonts.ibmPlexMono(
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.white,
-                                  fontSize: 14,
                                 ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Color.fromARGB(255, 20, 90, 31),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: GestureDetector(
+                          onTap: _capturePhoto,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            child: Text(
+                              _photo == null ? 'Take Photo' : 'Retake Photo',
+                              style: GoogleFonts.ibmPlexMono(
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white,
+                                fontSize: 14,
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        LiquidGlass(
-                          shape: LiquidRoundedSuperellipse(
-                            borderRadius: const Radius.circular(12),
-                          ),
-                          settings: const LiquidGlassSettings(
-                            thickness: 3,
-                            glassColor: Color(0x1AFFFFFF),
-                            blur: 5.0,
-                          ),
+                      ),
+                      const SizedBox(height: 16),
+                      FakeGlass(
+                        shape: LiquidRoundedSuperellipse(
+                          borderRadius: const Radius.circular(10),
+                        ),
+                        settings: const LiquidGlassSettings(
+                          thickness: 50, // controls optical depth (refraction)
+                          glassColor: Color.fromARGB(
+                            26,
+                            87,
+                            87,
+                            87,
+                          ), // dark translucent tint
+                          lightIntensity: 1.25, // highlight brightness
+                          ambientStrength: 0.5, // soft glow
+                          saturation: 1.05,
+                        ),
+                        child: Container(
+                          // decoration: BoxDecoration(
+                          //   color: Colors.grey[900],
+                          //   borderRadius: BorderRadius.circular(12),
+                          // ),
                           child: TextField(
                             controller: _nameController,
                             textAlignVertical: TextAlignVertical.center,
                             decoration: InputDecoration(
                               labelText: 'Name',
+                              floatingLabelBehavior:
+                                  FloatingLabelBehavior.never,
                               labelStyle: GoogleFonts.ibmPlexMono(
                                 color: Colors.grey[400],
                               ),
@@ -574,21 +538,37 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto>
                             style: GoogleFonts.ibmPlexMono(color: Colors.white),
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        LiquidGlass(
-                          shape: LiquidRoundedSuperellipse(
-                            borderRadius: const Radius.circular(12),
-                          ),
-                          settings: const LiquidGlassSettings(
-                            thickness: 3,
-                            glassColor: Color(0x1AFFFFFF),
-                            blur: 5.0,
-                          ),
+                      ),
+
+                      const SizedBox(height: 12),
+                      FakeGlass(
+                        shape: LiquidRoundedSuperellipse(
+                          borderRadius: const Radius.circular(10),
+                        ),
+                        settings: const LiquidGlassSettings(
+                          thickness: 50, // controls optical depth (refraction)
+                          glassColor: Color.fromARGB(
+                            26,
+                            87,
+                            87,
+                            87,
+                          ), // dark translucent tint
+                          lightIntensity: 1.25, // highlight brightness
+                          ambientStrength: 0.5, // soft glow
+                          saturation: 1.05,
+                        ),
+                        child: Container(
+                          // decoration: BoxDecoration(
+                          //   color: Colors.grey[900],
+                          //   borderRadius: BorderRadius.circular(12),
+                          // ),
                           child: TextField(
                             controller: _schoolIdController,
                             textAlignVertical: TextAlignVertical.center,
                             decoration: InputDecoration(
                               labelText: 'School ID',
+                              floatingLabelBehavior:
+                                  FloatingLabelBehavior.never,
                               labelStyle: GoogleFonts.ibmPlexMono(
                                 color: Colors.grey[400],
                               ),
@@ -601,15 +581,30 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto>
                             style: GoogleFonts.ibmPlexMono(color: Colors.white),
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        FakeGlass(
-                          shape: LiquidRoundedSuperellipse(
-                            borderRadius: const Radius.circular(12),
-                          ),
-                          settings: const LiquidGlassSettings(
-                            blur: 5,
-                            glassColor: Color(0x1AFFFFFF),
-                          ),
+                      ),
+
+                      const SizedBox(height: 12),
+                      FakeGlass(
+                        shape: LiquidRoundedSuperellipse(
+                          borderRadius: const Radius.circular(10),
+                        ),
+                        settings: const LiquidGlassSettings(
+                          thickness: 50, // controls optical depth (refraction)
+                          glassColor: Color.fromARGB(
+                            26,
+                            87,
+                            87,
+                            87,
+                          ), // dark translucent tint
+                          lightIntensity: 1.25, // highlight brightness
+                          ambientStrength: 0.5, // soft glow
+                          saturation: 1.05,
+                        ),
+                        child: Container(
+                          // decoration: BoxDecoration(
+                          //   color: Colors.grey[900],
+                          //   borderRadius: BorderRadius.circular(12),
+                          // ),
                           child: GestureDetector(
                             onTap: () => _selectDate(context),
                             child: Container(
@@ -641,67 +636,62 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto>
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            FakeGlass(
-                              shape: LiquidRoundedSuperellipse(
-                                borderRadius: const Radius.circular(12),
-                              ),
-                              settings: const LiquidGlassSettings(
-                                blur: 5,
-                                glassColor: Color(0x1AFFFFFF),
-                              ),
-                              child: GestureDetector(
-                                onTap: () => Navigator.pop(context),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  child: Text(
-                                    'Cancel',
-                                    style: GoogleFonts.ibmPlexMono(
-                                      fontWeight: FontWeight.w300,
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                    ),
+                      ),
+
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Color(0x4DFFFFFF),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: GestureDetector(
+                              onTap: () => Navigator.pop(context),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                child: Text(
+                                  'Cancel',
+                                  style: GoogleFonts.ibmPlexMono(
+                                    fontWeight: FontWeight.w300,
+                                    color: Colors.white,
+                                    fontSize: 14,
                                   ),
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            FakeGlass(
-                              shape: LiquidRoundedSuperellipse(
-                                borderRadius: const Radius.circular(12),
-                              ),
-                              settings: const LiquidGlassSettings(
-                                blur: 5,
-                                glassColor: Color(0xFF34C759),
-                              ),
-                              child: GestureDetector(
-                                onTap: _submitData,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  child: Text(
-                                    'Next',
-                                    style: GoogleFonts.ibmPlexMono(
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                    ),
+                          ),
+                          const SizedBox(width: 12),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Color.fromARGB(255, 22, 101, 34),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: GestureDetector(
+                              onTap: _submitData,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                child: Text(
+                                  'Next',
+                                  style: GoogleFonts.ibmPlexMono(
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.white,
+                                    fontSize: 14,
                                   ),
                                 ),
                               ),
                             ),
-                          ],
-                        ),
-                      ],
-                    ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),

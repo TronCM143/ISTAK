@@ -403,7 +403,7 @@ class _TransactionsState extends State<TransactionList>
                 ),
                 settings: const LiquidGlassSettings(
                   glassColor: Color.fromARGB(26, 22, 22, 22), // subtle tint
-                  thickness: 40,
+                  thickness: 100,
                   lightIntensity: 1.2,
                   ambientStrength: 0.5,
                 ),
@@ -611,28 +611,28 @@ class _TransactionsState extends State<TransactionList>
           ),
           settings: const LiquidGlassSettings(
             thickness: 50, // controls optical depth (refraction)
-            glassColor: Color.fromARGB(26, 65, 65, 65), // dark translucent tint
+            glassColor: Color.fromARGB(26, 87, 87, 87), // dark translucent tint
             lightIntensity: 1.25, // highlight brightness
             ambientStrength: 0.5, // soft glow
             saturation: 1.05,
           ),
           //   filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
           child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.18),
-                width: 1,
-              ),
-              // boxShadow: [
-              //   BoxShadow(
-              //     color: Colors.black.withOpacity(0.35),
-              //     blurRadius: 16,
-              //     offset: const Offset(0, 6),
-              //   ),
-              // ],
-            ),
+            // decoration: BoxDecoration(
+            //   color: Colors.white.withOpacity(0.05),
+            //   borderRadius: BorderRadius.circular(12),
+            //   border: Border.all(
+            //     color: Colors.white.withOpacity(0.18),
+            //     width: 1,
+            //   ),
+            //   // boxShadow: [
+            //   //   BoxShadow(
+            //   //     color: Colors.black.withOpacity(0.35),
+            //   //     blurRadius: 16,
+            //   //     offset: const Offset(0, 6),
+            //   //   ),
+            //   // ],
+            // ),
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               child: Padding(
@@ -697,7 +697,9 @@ class _TransactionsState extends State<TransactionList>
                         ),
                         child: TextField(
                           controller: _searchController,
-                          style: GoogleFonts.ibmPlexMono(color: Colors.white),
+                          style: GoogleFonts.ibmPlexMono(
+                            color: const Color.fromARGB(255, 255, 255, 255),
+                          ),
                           textAlignVertical: TextAlignVertical.center,
                           decoration: InputDecoration(
                             hintText: 'Search by name, school ID, or item',
@@ -884,7 +886,7 @@ class _TransactionsState extends State<TransactionList>
                                       borderRadius: Radius.circular(14),
                                     ),
                                     child: Container(
-                                      margin: const EdgeInsets.only(bottom: 40),
+                                      margin: const EdgeInsets.only(bottom: 10),
                                       padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
                                         color: const Color(0xFF2E2E2E)
