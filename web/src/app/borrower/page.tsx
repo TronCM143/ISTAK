@@ -86,42 +86,59 @@ export default function Page() {
   const [query, setQuery] = useState("");
   const router = useRouter();
 
+useEffect(() => {
+  // Only run client-side
+  if (typeof window === "undefined") return;
 
-  useEffect(() => {
-    const run = async () => {
-      try {
-        const token = localStorage.getItem("access_token");
-        if (!token) {
-          router.replace("/login");
-          return;
-        }
+  const run = async () => {
+    try {
+      const token = localStorage.getItem("access_token");
 
-        const res = await fetch(`${API_BASE_URL}/api/borrowers/`, {
-          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        });
-
-        if (res.status === 401) {
-          router.replace("/dashboard");
-          return;
-        }
-        if (!res.ok) throw new Error(`Failed to fetch borrowers: ${res.statusText}`);
-
-        const data = await res.json();
-        const normalized: Borrower[] = Array.isArray(data)
-          ? data.map(normalizeBorrower)
-          : (data.results ?? []).map(normalizeBorrower);
-
-        setBorrowers(normalized);
-        setFiltered(normalized);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "An error occurred");
-      } finally {
-        setLoading(false);
+      // No token → redirect to login
+      if (!token) {
+        router.replace("/login");
+        return;
       }
-    };
 
-    run();
-  }, [router]);
+      const res = await fetch(`${API_BASE_URL}/api/borrowers/`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, // consistent header
+        },
+        cache: "no-store",
+      });
+
+      // Handle token expired or invalid
+      // if (res.status === 401) {
+      //   localStorage.removeItem("access_token");
+      //   router.replace("/login");
+      //   return;
+      // }
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch borrowers: ${res.statusText}`);
+      }
+
+      const data = await res.json();
+
+      // Normalize depending on backend pagination
+      const normalized: Borrower[] = Array.isArray(data)
+        ? data.map(normalizeBorrower)
+        : (data.results ?? []).map(normalizeBorrower);
+
+      setBorrowers(normalized);
+      setFiltered(normalized);
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  run();
+}, [router]);
+
 
   useEffect(() => {
     const q = query.trim().toLowerCase();

@@ -117,7 +117,7 @@ export default function Page() {
       if (!resp.ok) {
         if (resp.status === 401 || resp.status === 403) {
           setError("Unauthorized. Please login again.");
-          localStorage.removeItem("access_token");
+         // localStorage.removeItem("access_token");
         } else {
           const txt = await resp.text();
           setError(`Failed to fetch items: ${resp.status} ${txt}`);
