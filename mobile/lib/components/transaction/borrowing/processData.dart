@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/components/transaction/borrowing/sync.dart';
 
 class ProcessTransaction extends StatefulWidget {
@@ -29,6 +30,7 @@ class _ProcessTransactionState extends State<ProcessTransaction> {
   bool _isLoading = false;
   bool _isOffline = false;
   String? _outputMessage;
+  String? _imageUrl;
 
   @override
   void initState() {
@@ -39,6 +41,102 @@ class _ProcessTransactionState extends State<ProcessTransaction> {
         await syncPendingRequests();
       }
     });
+  }
+
+  Future<void> _processImage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access_token');
+      if (token == null) {
+        throw Exception('No JWT token found. Please log in again.');
+      }
+
+      final url = Uri.parse("${dotenv.env['BASE_URL']}/api/process_image/");
+      final request = http.MultipartRequest('POST', url)
+        ..headers['Authorization'] = 'Bearer $token'
+        ..fields['name'] = widget.borrowerData!['name']!
+        ..fields['school_id'] = widget.borrowerData!['school_id']!
+        ..files.add(
+          await http.MultipartFile.fromPath(
+            'image',
+            widget.borrowerData!['photo_path']!,
+          ),
+        );
+
+      final response = await request.send();
+      final responseBody = await http.Response.fromStream(response);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(responseBody.body);
+        setState(() {
+          _imageUrl = data['image_url'];
+          print('✅ Image processed: $_imageUrl');
+        });
+      } else {
+        throw Exception('Image processing failed: ${responseBody.body}');
+      }
+    } catch (e) {
+      if (mounted) {
+        await showDialog(
+          context: context,
+          barrierDismissible: true,
+          barrierColor: Colors.black.withOpacity(0.6),
+          builder: (context) => Dialog(
+            backgroundColor: Colors.black,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Error',
+                    style: GoogleFonts.ibmPlexMono(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Error processing image: $e',
+                    style: GoogleFonts.ibmPlexMono(
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Color(0xFF32D74B),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(
+                        'OK',
+                        style: GoogleFonts.ibmPlexMono(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        print('❌ Image processing error: $e');
+      }
+      setState(() {
+        _imageUrl = null;
+      });
+    }
   }
 
   Future<void> _submitTransaction() async {
@@ -78,6 +176,12 @@ class _ProcessTransactionState extends State<ProcessTransaction> {
         throw Exception('No JWT token found. Please log in again.');
       }
 
+      // Process image if needed (only when online)
+      final photoPath = widget.borrowerData!['photo_path'];
+      if (photoPath != null && File(photoPath).existsSync()) {
+        await _processImage();
+      }
+
       final url = Uri.parse("${dotenv.env['BASE_URL']}/api/borrowing/create/");
       final request = http.MultipartRequest('POST', url)
         ..headers['Authorization'] = 'Bearer $token'
@@ -90,9 +194,8 @@ class _ProcessTransactionState extends State<ProcessTransaction> {
         request.fields['item_ids[]'] = item['item_id'];
       }
 
-      // Use image_url if available, otherwise fall back to photo_path
-      final imageUrl = widget.borrowerData!['image_url'];
-      final photoPath = widget.borrowerData!['photo_path'];
+      // Use processed image_url if available, otherwise fall back to photo_path
+      final imageUrl = widget.borrowerData!['image_url'] ?? _imageUrl;
       if (imageUrl != null) {
         request.fields['image_url'] = imageUrl;
       } else if (photoPath != null && File(photoPath).existsSync()) {
@@ -191,15 +294,15 @@ class _ProcessTransactionState extends State<ProcessTransaction> {
           title,
           style: TextStyle(color: color, fontWeight: FontWeight.bold),
         ),
-        content: SingleChildScrollView(
-          child: Text(message, style: const TextStyle(color: Colors.white70)),
-        ),
+
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              "OK",
-              style: TextStyle(color: Colors.lightBlueAccent),
+          Center(
+            child: TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                "OK",
+                style: TextStyle(color: Colors.lightBlueAccent),
+              ),
             ),
           ),
         ],

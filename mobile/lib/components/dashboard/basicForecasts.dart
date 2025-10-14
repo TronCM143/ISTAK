@@ -28,11 +28,15 @@ class ForecastWidget extends StatelessWidget {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
+      print('Raw API response: ${response.body}'); // Debug: Remove later
       return {
-        'available': data['available'] as int? ?? 0,
-        'borrowed': data['borrowed'] as int? ?? 0,
-        'returningToday': data['returningToday'] as int? ?? 0,
-        'overdue': data['overdue'] as int? ?? 0,
+        'available':
+            data['returnedTransactions'] as int? ?? 0, // Map to backend key
+        'borrowed':
+            data['borrowedTransactions'] as int? ??
+            0, // Active borrowed (total for %)
+        'returningToday': data['returningTodayTransactions'] as int? ?? 0,
+        'overdue': data['overdueTransactions'] as int? ?? 0,
       };
     } else {
       throw Exception("Failed to load forecast data: ${response.statusCode}");
@@ -43,6 +47,7 @@ class ForecastWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, int>>(
       future: fetchForecastData(),
+
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _glassCard(

@@ -29,6 +29,7 @@ interface Report {
   borrowerImage: string | null
   itemName: string
   issue: 'Damaged' | 'Overdue'
+  daysPastDue?: number  // REVISED: Added for overdue (days since return_date)
 }
 
 interface DateRange {
@@ -70,13 +71,14 @@ const exportToPDF = async (data: Report[], filters: {
   doc.text('Damaged and Overdue Items Report', 14, 15)
   autoTable(doc, {
     startY: 20,
-    head: [['Borrower Image', 'Borrower Name', 'School ID', 'Items', 'Issue']],
+    head: [['Borrower Image', 'Borrower Name', 'School ID', 'Items', 'Issue', 'Days Past Due (Overdue Only)']],
     body: data.map(item => [
       item.borrowerImage ? '[Image]' : 'N/A',
       item.borrowerName,
       item.school_id,
       item.itemName,
       item.issue,
+      item.daysPastDue ? `${item.daysPastDue} days` : 'N/A',  // REVISED: Include days past due
     ]),
     theme: 'striped',
     headStyles: { fillColor: [59, 130, 246] },
@@ -95,6 +97,7 @@ const exportToExcel = async (data: Report[], filters: {
     'School ID': item.school_id,
     'Items': item.itemName,
     'Issue': item.issue,
+    'Days Past Due': item.daysPastDue ? `${item.daysPastDue} days` : 'N/A',  // REVISED: Include days past due
   })))
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Reports')
@@ -134,6 +137,7 @@ const Reports = () => {
     school_id: true,
     itemName: true,
     issue: true,
+    daysPastDue: true,  // REVISED: Added column for days past due
   })
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
   const [exportFormat, setExportFormat] = useState('pdf')
@@ -167,6 +171,8 @@ const Reports = () => {
       data.sort((a, b) => a.itemName.localeCompare(b.itemName))
     } else if (sortBy === 'issue') {
       data.sort((a, b) => a.issue.localeCompare(b.issue))
+    } else if (sortBy === 'daysPastDue') {  // REVISED: Added sorting by days past due
+      data.sort((a, b) => (a.daysPastDue || 0) - (b.daysPastDue || 0))
     }
     return data
   }, [reportsData, sortBy])
@@ -201,12 +207,14 @@ const Reports = () => {
     setDateRange(selected || { from: undefined, to: undefined })
   }
 
+  // REVISED: Added daysPastDue column
   const columns = [
     { key: 'borrowerImage', label: 'Borrower Image', visible: selectedColumns.borrowerImage },
     { key: 'borrowerName', label: 'Borrower Name', visible: selectedColumns.borrowerName },
     { key: 'school_id', label: 'School ID', visible: selectedColumns.school_id },
     { key: 'itemName', label: 'Items', visible: selectedColumns.itemName },
     { key: 'issue', label: 'Issue', visible: selectedColumns.issue },
+    { key: 'daysPastDue', label: 'Days Past Due', visible: selectedColumns.daysPastDue },
   ]
 
   const visibleColumns = columns.filter(col => col.visible)
@@ -382,6 +390,7 @@ const Reports = () => {
                   <SelectItem value="school_id">School ID</SelectItem>
                   <SelectItem value="item">Items</SelectItem>
                   <SelectItem value="issue">Issue</SelectItem>
+                  <SelectItem value="daysPastDue">Days Past Due</SelectItem>  // REVISED: Added option
                 </SelectContent>
               </Select>
             </div>
@@ -462,6 +471,14 @@ const Reports = () => {
                             <Badge className={getIssueColor(report.issue)}>
                               {getIssueIcon(report.issue)} {report.issue}
                             </Badge>
+                          ) : col.key === 'daysPastDue' ? (  // REVISED: New column display
+                            report.daysPastDue ? (
+                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                                {report.daysPastDue} days overdue
+                              </Badge>
+                            ) : (
+                              'N/A'
+                            )
                           ) : (
                             report[col.key as keyof Report] || 'N/A'
                           )}

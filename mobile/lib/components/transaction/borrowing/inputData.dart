@@ -135,10 +135,10 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto>
           print('📸 Photo captured: ${pickedFile.path}');
         });
 
-        final connectivity = await Connectivity().checkConnectivity();
-        if (connectivity != ConnectivityResult.none) {
-          await _processImage();
-        }
+        // final connectivity = await Connectivity().checkConnectivity();
+        // if (connectivity != ConnectivityResult.none) {
+        //   await _processImage();
+        // }
       } else {
         print('❌ No photo selected');
       }
@@ -203,96 +203,96 @@ class _BorrowerInputAndPhotoState extends State<BorrowerInputAndPhoto>
     }
   }
 
-  Future<void> _processImage() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access_token');
-      if (token == null) {
-        throw Exception('No JWT token found. Please log in again.');
-      }
+  // Future<void> _processImage() async {
+  //   try {
+  //     final prefs = await SharedPreferences.getInstance();
+  //     final token = prefs.getString('access_token');
+  //     if (token == null) {
+  //       throw Exception('No JWT token found. Please log in again.');
+  //     }
 
-      final url = Uri.parse("${dotenv.env['BASE_URL']}/api/process_image/");
-      final request = http.MultipartRequest('POST', url)
-        ..headers['Authorization'] = 'Bearer $token'
-        ..fields['name'] = _nameController.text
-        ..fields['school_id'] = _schoolIdController.text
-        ..files.add(await http.MultipartFile.fromPath('image', _photo!.path));
+  //     final url = Uri.parse("${dotenv.env['BASE_URL']}/api/process_image/");
+  //     final request = http.MultipartRequest('POST', url)
+  //       ..headers['Authorization'] = 'Bearer $token'
+  //       ..fields['name'] = _nameController.text
+  //       ..fields['school_id'] = _schoolIdController.text
+  //       ..files.add(await http.MultipartFile.fromPath('image', _photo!.path));
 
-      final response = await request.send();
-      final responseBody = await http.Response.fromStream(response);
+  //     final response = await request.send();
+  //     final responseBody = await http.Response.fromStream(response);
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(responseBody.body);
-        setState(() {
-          _imageUrl = data['image_url'];
-          print('✅ Image processed: $_imageUrl');
-        });
-      } else {
-        throw Exception('Image processing failed: ${responseBody.body}');
-      }
-    } catch (e) {
-      if (mounted) {
-        await showDialog(
-          context: context,
-          barrierDismissible: true,
-          barrierColor: Colors.black.withOpacity(0.6),
-          builder: (context) => Dialog(
-            backgroundColor: Colors.black,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Error',
-                    style: GoogleFonts.ibmPlexMono(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Error processing image: $e',
-                    style: GoogleFonts.ibmPlexMono(
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Color(0xFF32D74B),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: Text(
-                        'OK',
-                        style: GoogleFonts.ibmPlexMono(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-        print('❌ Image processing error: $e');
-      }
-      setState(() {
-        _imageUrl = null;
-      });
-    }
-  }
+  //     if (response.statusCode == 200) {
+  //       final data = jsonDecode(responseBody.body);
+  //       setState(() {
+  //         _imageUrl = data['image_url'];
+  //         print('✅ Image processed: $_imageUrl');
+  //       });
+  //     } else {
+  //       throw Exception('Image processing failed: ${responseBody.body}');
+  //     }
+  //   } catch (e) {
+  //     if (mounted) {
+  //       await showDialog(
+  //         context: context,
+  //         barrierDismissible: true,
+  //         barrierColor: Colors.black.withOpacity(0.6),
+  //         builder: (context) => Dialog(
+  //           backgroundColor: Colors.black,
+  //           shape: RoundedRectangleBorder(
+  //             borderRadius: BorderRadius.circular(16),
+  //           ),
+  //           child: Container(
+  //             padding: const EdgeInsets.all(20),
+  //             child: Column(
+  //               mainAxisSize: MainAxisSize.min,
+  //               children: [
+  //                 Text(
+  //                   'Error',
+  //                   style: GoogleFonts.ibmPlexMono(
+  //                     color: Colors.white,
+  //                     fontSize: 18,
+  //                     fontWeight: FontWeight.w600,
+  //                   ),
+  //                 ),
+  //                 const SizedBox(height: 12),
+  //                 Text(
+  //                   'Error processing image: $e',
+  //                   style: GoogleFonts.ibmPlexMono(
+  //                     color: Colors.white,
+  //                     fontSize: 14,
+  //                   ),
+  //                   textAlign: TextAlign.center,
+  //                 ),
+  //                 const SizedBox(height: 20),
+  //                 Container(
+  //                   decoration: BoxDecoration(
+  //                     color: Color(0xFF32D74B),
+  //                     borderRadius: BorderRadius.circular(10),
+  //                   ),
+  //                   child: TextButton(
+  //                     onPressed: () => Navigator.of(context).pop(),
+  //                     child: Text(
+  //                       'OK',
+  //                       style: GoogleFonts.ibmPlexMono(
+  //                         fontWeight: FontWeight.w600,
+  //                         fontSize: 14,
+  //                         color: Colors.white,
+  //                       ),
+  //                     ),
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
+  //         ),
+  //       );
+  //       print('❌ Image processing error: $e');
+  //     }
+  //     setState(() {
+  //       _imageUrl = null;
+  //     });
+  //   }
+  // }
 
   void _submitData() {
     if (_nameController.text.isEmpty ||

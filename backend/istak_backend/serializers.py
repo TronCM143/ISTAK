@@ -127,26 +127,36 @@ class CreateBorrowingSerializer(serializers.Serializer):
             data['image'] = self.context['request'].FILES['image']
         return data
 
+from rest_framework import serializers
+from django.utils import timezone
+from .models import Transaction, Borrower, Item
+
 class DamagedOverdueReportSerializer(serializers.ModelSerializer):
     borrowerName = serializers.CharField(source='borrower.name')
     school_id = serializers.CharField(source='borrower.school_id')
     borrowerImage = serializers.ImageField(source='borrower.image', allow_null=True)
     itemName = serializers.SerializerMethodField()
     issue = serializers.SerializerMethodField()
+    daysPastDue = serializers.SerializerMethodField()
 
     class Meta:
         model = Transaction
-        fields = ['id', 'borrowerName', 'school_id', 'borrowerImage', 'itemName', 'issue']
+        fields = ['id', 'borrowerName', 'school_id', 'borrowerImage', 'itemName', 'issue', 'daysPastDue']
 
     def get_itemName(self, obj):
         return ", ".join(item.item_name for item in obj.items.all())
 
     def get_issue(self, obj):
-        if obj.status == 'returned' and any(item.condition.lower() == 'damaged' for item in obj.items.all()):
+        if obj.status == 'returned' and any(item.condition and item.condition.lower() in ['damaged', 'broken'] for item in obj.items.all()):
             return 'Damaged'
-        elif obj.status == 'borrowed' and (timezone.now().date() - obj.borrow_date).days > 7:
+        elif obj.status == 'borrowed' and obj.return_date and obj.return_date < timezone.now().date():
             return 'Overdue'
         return 'Unknown'
+
+    def get_daysPastDue(self, obj):
+        if obj.status == 'borrowed' and obj.return_date and obj.return_date < timezone.now().date():
+            return (timezone.now().date() - obj.return_date).days
+        return None
 
 class ItemSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
@@ -227,3 +237,11 @@ class CreateBorrowingSerializerWithURL(serializers.Serializer):
         )
         transaction.items.set(validated_data['item_ids'])
         return transaction
+    
+from rest_framework import serializers
+from .models import CustomUser
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'username', 'email', 'date_joined']

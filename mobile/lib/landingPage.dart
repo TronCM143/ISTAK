@@ -128,13 +128,13 @@ class _NavShellState extends State<NavShell> {
           //     positionY: 0.5, // Y position (center of screen)
           //   ),
           // ),
-          // Positioned.fill(
-          //   child: Image.asset(
-          //     'assets/bgbg.jpg',
-          //     fit: BoxFit.cover, // makes it fill the screen
-          //     alignment: Alignment.center, // centers the image
-          //   ),
-          // ),
+          Positioned.fill(
+            child: Image.asset(
+              'assets/bgbg.jpg',
+              fit: BoxFit.cover, // makes it fill the screen
+              alignment: Alignment.center, // centers the image
+            ),
+          ),
           // AbstractWavesBackground(
           //   speed: 0.5, // Controls rotation speed
           //   size: 1500, // Size of the tesseract

@@ -507,7 +507,7 @@ class _ItemlistState extends State<Itemlist> with TickerProviderStateMixin {
                               ),
                             )
                           : ListView.builder(
-                              padding: const EdgeInsets.all(1.0),
+                              //  padding: const EdgeInsets.all(10.0),
                               itemCount: filteredItems.length,
                               itemBuilder: (context, index) {
                                 final item = filteredItems[index];

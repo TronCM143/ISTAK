@@ -56,7 +56,7 @@ Future<void> syncPendingRequests() async {
           print(
             "❌ Image processing failed: ${processResponse.statusCode} → ${processResponseBody.body}",
           );
-          continue; // Skip transaction if image processing fails
+          // Proceed with fallback to sending the raw image file
         }
       }
 

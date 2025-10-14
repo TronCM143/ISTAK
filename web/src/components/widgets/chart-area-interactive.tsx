@@ -32,10 +32,15 @@ import {
 
 export const description = "An interactive area chart for total transactions";
 
-interface ChartDataPoint {
-  period: string; // weekStart or month (e.g., "2025-09-15" or "2025-09")
+interface ChartItemCount {
+  item: string;
   count: number;
-  topItems: { item: string; count: number }[];
+}
+
+interface ChartDataPoint {
+  period: string;            // date (YYYY-MM-DD), week_start (YYYY-MM-DD), or month (YYYY-MM)
+  count: number;
+  items: ChartItemCount[];   // top items for the period
 }
 
 const chartConfig = {
@@ -45,29 +50,37 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
+
+function getWeek(date: Date): number {
+  const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+  const pastDaysOfYear = (date.getTime() - firstDayOfYear.getTime()) / 86400000; // Convert to days
+  return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+}
+
+
 export function ChartAreaInteractive() {
   const router = useRouter();
   const isMobile = useIsMobile();
-  const [timeRange, setTimeRange] = React.useState<"7d" | "30d" | "90d">("90d");
+  const [timeRange, setTimeRange] = React.useState<"12m" | "8w" | "7d">("12m");  // REVISED: Updated options
   const [chartData, setChartData] = React.useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
-  // Handle Select onValueChange type mismatch
   const handleTimeRangeChange = (value: string) => {
-    if (value === "7d" || value === "30d" || value === "90d") {
+    if (value === "12m" || value === "8w" || value === "7d") {
       setTimeRange(value);
     }
   };
 
-  // Fetch analytics data
   React.useEffect(() => {
     const fetchAnalytics = async () => {
       setLoading(true);
       setError(null);
       try {
-        const token = localStorage.getItem("access_token") || localStorage.getItem("token");
+        const token =
+          localStorage.getItem("access_token") ||
+          localStorage.getItem("token");
         if (!token) {
           setError("Not authenticated. Please login.");
           router.push("/login");
@@ -75,12 +88,15 @@ export function ChartAreaInteractive() {
           return;
         }
 
-        const response = await fetch(`${API_BASE_URL}/api/analytics/transactions/`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
+        const response = await fetch(
+          `${API_BASE_URL}/api/analytics/transactions/`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
 
         if (!response.ok) {
           if (response.status === 401 || response.status === 403) {
@@ -97,27 +113,30 @@ export function ChartAreaInteractive() {
         const data = await response.json();
         console.log("Fetched analytics:", data);
 
-        // Select data based on timeRange
+        // REVISED: Map based on new ranges
         let selectedData: ChartDataPoint[] = [];
         if (timeRange === "7d") {
-          selectedData = data.weekly.map((item: any) => ({
-            period: item.week_start,
+          selectedData = (data.daily_7 || []).map((item: any) => ({
+            period: item.date,  // YYYY-MM-DD
             count: item.count,
-            topItems: item.top_items,
+            items: item.top_items || [],
           }));
-        } else if (timeRange === "30d") {
-          selectedData = data.monthly.map((item: any) => ({
-            period: item.month,
+        } else if (timeRange === "8w") {
+          selectedData = (data.weekly_8 || []).map((item: any) => ({
+            period: item.week_start,  // YYYY-MM-DD (week start)
             count: item.count,
-            topItems: item.top_items,
+            items: item.top_items || [],
           }));
-        } else if (timeRange === "90d") {
-          selectedData = data.three_months.map((item: any) => ({
-            period: item.month,
+        } else if (timeRange === "12m") {
+          selectedData = (data.monthly_12 || []).map((item: any) => ({
+            period: item.month,  // YYYY-MM
             count: item.count,
-            topItems: item.top_items,
+            items: item.top_items || [],
           }));
         }
+
+        // Sort ascending (past to present) for chart flow
+        selectedData.sort((a, b) => new Date(a.period).getTime() - new Date(b.period).getTime());
 
         setChartData(selectedData);
         setLoading(false);
@@ -129,22 +148,29 @@ export function ChartAreaInteractive() {
     };
 
     fetchAnalytics();
-  }, [router, timeRange]);
+  }, [router, timeRange, API_BASE_URL]);
 
-  // Set default time range for mobile
   React.useEffect(() => {
     if (isMobile) {
       setTimeRange("7d");
     }
   }, [isMobile]);
 
-  // Filter data by time range (for weekly data, ensure current week)
+  // REVISED: Filter window using range-specific logic
   const filteredData = chartData.filter((item) => {
     const date = new Date(item.period);
-    const referenceDate = new Date("2025-09-22"); // Current date
-    let daysToSubtract = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : 90;
-    const startDate = new Date(referenceDate);
-    startDate.setDate(startDate.getDate() - daysToSubtract);
+    const referenceDate = new Date(); // current time
+    let startDate: Date;
+    if (timeRange === "7d") {
+      startDate = new Date(referenceDate);
+      startDate.setDate(startDate.getDate() - 7);
+    } else if (timeRange === "8w") {
+      startDate = new Date(referenceDate);
+      startDate.setDate(startDate.getDate() - (8 * 7));  // 56 days
+    } else {  // 12m
+      startDate = new Date(referenceDate);
+      startDate.setMonth(startDate.getMonth() - 12);
+    }
     return date >= startDate;
   });
 
@@ -154,20 +180,28 @@ export function ChartAreaInteractive() {
         <CardTitle>Total Transactions</CardTitle>
         <CardDescription>
           <span className="hidden @[540px]/card:block">
-            Total transactions by {timeRange === "7d" ? "week" : "month"}
+            {timeRange === "7d" ? "Total transactions by day" : 
+             timeRange === "8w" ? "Total transactions by week" : 
+             "Total transactions by month"}
           </span>
-          <span className="@[540px]/card:hidden">Last 3 months</span>
+          <span className="@[540px]/card:hidden">
+            {timeRange === "7d" ? "Last 7 days" : 
+             timeRange === "8w" ? "Last 8 weeks" : 
+             "Last 12 months"}
+          </span>
         </CardDescription>
         <CardAction>
           <ToggleGroup
             type="single"
             value={timeRange}
-            onValueChange={(value) => value && setTimeRange(value as "7d" | "30d" | "90d")}
+            onValueChange={(value) =>
+              value && setTimeRange(value as "12m" | "8w" | "7d")
+            }
             variant="outline"
             className="hidden *:data-[slot=toggle-group-item]:!px-4 @[767px]/card:flex"
           >
-            <ToggleGroupItem value="90d">Last 3 months</ToggleGroupItem>
-            <ToggleGroupItem value="30d">Last 30 days</ToggleGroupItem>
+            <ToggleGroupItem value="12m">Last 12 months</ToggleGroupItem>
+            <ToggleGroupItem value="8w">Last 8 weeks</ToggleGroupItem>
             <ToggleGroupItem value="7d">Last 7 days</ToggleGroupItem>
           </ToggleGroup>
           <Select value={timeRange} onValueChange={handleTimeRangeChange}>
@@ -176,14 +210,14 @@ export function ChartAreaInteractive() {
               size="sm"
               aria-label="Select a time range"
             >
-              <SelectValue placeholder="Last 3 months" />
+              <SelectValue placeholder="Last 12 months" />
             </SelectTrigger>
             <SelectContent className="rounded-xl">
-              <SelectItem value="90d" className="rounded-lg">
-                Last 3 months
+              <SelectItem value="12m" className="rounded-lg">
+                Last 12 months
               </SelectItem>
-              <SelectItem value="30d" className="rounded-lg">
-                Last 30 days
+              <SelectItem value="8w" className="rounded-lg">
+                Last 8 weeks
               </SelectItem>
               <SelectItem value="7d" className="rounded-lg">
                 Last 7 days
@@ -192,13 +226,21 @@ export function ChartAreaInteractive() {
           </Select>
         </CardAction>
       </CardHeader>
+
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
         {loading ? (
           <div className="text-center">Loading...</div>
         ) : error ? (
           <div className="text-center text-red-600">{error}</div>
+        ) : filteredData.length === 0 ? (
+          <div className="text-center text-muted-foreground">
+            No data available for the selected range.
+          </div>
         ) : (
-          <ChartContainer config={chartConfig} className="aspect-auto h-[250px] w-full">
+          <ChartContainer
+            config={chartConfig}
+            className="aspect-auto h-[250px] w-full"
+          >
             <AreaChart data={filteredData}>
               <defs>
                 <linearGradient id="fillTransactions" x1="0" y1="0" x2="0" y2="1">
@@ -206,7 +248,9 @@ export function ChartAreaInteractive() {
                   <stop offset="95%" stopColor="#22c55e" stopOpacity={0.1} />
                 </linearGradient>
               </defs>
+
               <CartesianGrid vertical={false} />
+
               <XAxis
                 dataKey="period"
                 tickLine={false}
@@ -215,59 +259,73 @@ export function ChartAreaInteractive() {
                 minTickGap={32}
                 tickFormatter={(value) => {
                   const date = new Date(value);
-                  return timeRange === "7d"
-                    ? date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-                    : date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+                  if (isNaN(date.getTime())) return value;
+// Helper function: Calculates ISO week number (1-53) for a given date
+
+
+                  if (timeRange === "7d") {
+                    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                  } else if (timeRange === "8w") {
+                    // For weeks, show "Week of [month day]"
+                    return `Wk ${getWeek(date)} ${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+                  } else {  // 12m
+                    return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+                  }
                 }}
               />
+
               <ChartTooltip
                 cursor={false}
                 content={
                   <ChartTooltipContent
                     labelFormatter={(value) => {
-                      const startDate = new Date(value);
+                      const d = new Date(value);
                       if (timeRange === "7d") {
-                        const endDate = new Date(startDate);
-                        endDate.setDate(startDate.getDate() + 6);
-                        return `${startDate.toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        })} - ${endDate.toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        })}`;
+                        return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+                      } else if (timeRange === "8w") {
+                        return `Week of ${d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
+                      } else {  // 12m
+                        return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
                       }
-                      return startDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
                     }}
-                    formatter={(value, name, props) => {
-                      const { payload } = props;
-                      const topItems = payload.topItems || [];
-                      const itemsList = topItems.length > 0 ? (
-                        <div
-                          key="top-items"
-                          style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "12px" }}
-                        >
-                          <strong>Top 5 Items:</strong>
-                          <ul style={{ listStyleType: "none", padding: 0, margin: "4px 0 0 0" }}>
-                            {topItems.map((item: { item: string; count: number }, index: number) => (
-                              <li key={`${item.item}-${index}`}>
-                                {item.item}: {item.count}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : (
-                        <span key="no-items">No items transacted</span>
-                      );
-                      return [
-                        <span key="count">{value} transactions</span>,
-                        itemsList,
-                      ];
+                    formatter={(value, _name, props) => {
+                      const { payload } = props as any;
+                      const items: ChartItemCount[] = payload?.items || [];
+
+                      const itemsList =
+                        items.length > 0 ? (
+                          <div
+                            key="items"
+                            style={{
+                              fontFamily: "IBM Plex Mono, monospace",
+                              fontSize: "12px",
+                            }}
+                          >
+                            <ul
+                              style={{
+                                listStyleType: "none",
+                                padding: 0,
+                                margin: "4px 0 0 0",
+                              }}
+                            >
+                              {items.map((it, idx) => (
+                                <li key={`${it.item}-${idx}`}>
+                                  {it.item}: {it.count}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : (
+                          <span key="no-items">No items borrowed</span>
+                        );
+
+                      return [<span key="count">{value} transactions</span>, itemsList];
                     }}
                     indicator="dot"
                   />
                 }
               />
+
               <Area
                 dataKey="count"
                 type="natural"

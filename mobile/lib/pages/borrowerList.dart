@@ -206,31 +206,6 @@ class _BorrowerlistState extends State<Borrowerlist>
     }).toList();
   }
 
-  Widget _buildHeightAdjuster() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'Adjust Height: ${_scaffoldHeight.toStringAsFixed(0)}',
-            style: GoogleFonts.ibmPlexMono(color: Colors.white, fontSize: 14),
-          ),
-          Slider(
-            value: _scaffoldHeight,
-            min: 300.0,
-            max: MediaQuery.of(context).size.height,
-            divisions: 100,
-            label: _scaffoldHeight.toStringAsFixed(0),
-            activeColor: const Color(0xFF34C759),
-            inactiveColor: Colors.white.withOpacity(0.2),
-            onChanged: (value) => setState(() => _scaffoldHeight = value),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSearchBar() {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -374,8 +349,6 @@ class _BorrowerlistState extends State<Borrowerlist>
       );
     }
     return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
       itemCount: filteredBorrowers.length,
       itemBuilder: (context, index) =>
           _buildBorrowerItem(filteredBorrowers[index]),
@@ -653,27 +626,20 @@ class _BorrowerlistState extends State<Borrowerlist>
     final filteredBorrowers = getFilteredBorrowers();
     final screenWidth = MediaQuery.of(context).size.width;
     final containerWidth = screenWidth > 700 ? 700.0 : screenWidth * 1;
+    final availableHeight =
+        _scaffoldHeight - 200; // Approximate offset for header/search/filters
 
     return Column(
       children: [
         //  _buildHeightAdjuster(),
-        SizedBox(height: 100),
+        SizedBox(height: 110),
         SizedBox(
-          height: _scaffoldHeight,
+          height: 840,
           child: Scaffold(
             backgroundColor: Colors.transparent,
             body: Container(
               margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
               width: containerWidth,
-
-              // decoration: BoxDecoration(
-              //   color: Colors.white.withOpacity(0.05),
-              //   borderRadius: BorderRadius.circular(12),
-              //   border: Border.all(
-              //     color: Colors.white.withOpacity(0.18),
-              //     width: 1,
-              //   ),
-              // ),
               child: LiquidGlass(
                 shape: LiquidRoundedSuperellipse(
                   borderRadius: const Radius.circular(30),
@@ -692,12 +658,12 @@ class _BorrowerlistState extends State<Borrowerlist>
                 ),
                 child: FadeTransition(
                   opacity: _fadeAnimation,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(25),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+                  child: Column(
+                    children: [
+                      // Static header
+                      Padding(
+                        padding: const EdgeInsets.all(25),
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
@@ -732,13 +698,26 @@ class _BorrowerlistState extends State<Borrowerlist>
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        _buildSearchBar(),
-                        _buildFilterButtons(),
-                        const SizedBox(height: 16),
-                        _buildBorrowerList(filteredBorrowers),
-                      ],
-                    ),
+                      ),
+                      // Static search bar
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 25),
+                        child: _buildSearchBar(),
+                      ),
+                      // Static filter buttons
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 25),
+                        child: _buildFilterButtons(),
+                      ),
+                      const SizedBox(height: 16),
+                      // Scrollable list taking remaining space
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 25),
+                          child: _buildBorrowerList(filteredBorrowers),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
