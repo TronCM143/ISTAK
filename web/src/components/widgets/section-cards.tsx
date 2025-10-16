@@ -148,9 +148,9 @@ export function SectionCards() {
       </Card>
 
       {/* BOTTOM ROW (full-width damage prediction) */}
-      <div className="md:col-span-2 w-full">
+      {/* <div className="md:col-span-2 w-full">
         <DamagePredictionCard />
-      </div>
+      </div> */}
     </div>
   );
 }

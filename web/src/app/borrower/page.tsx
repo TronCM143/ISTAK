@@ -169,7 +169,7 @@ export default function Page() {
             
               <div className="p-4 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Borrowers</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Borrower List</h1>
         <div className="flex items-center gap-2">
           <Input
             value={query}

@@ -1,272 +1,664 @@
-'use client'
+"use client";
 
-import React, { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Download, FileText, FileSpreadsheet, Filter, Search, DownloadCloud, X } from 'lucide-react'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Checkbox } from '@/components/ui/checkbox'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Calendar } from '@/components/ui/calendar'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { format } from 'date-fns'
-import { CalendarIcon } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
+import React, { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { ReactNode } from "react";
+import { toast } from "sonner";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+import { cn } from "@/lib/utils";
 
-interface Report {
-  id: string
-  borrowerName: string
-  school_id: string
-  borrowerImage: string | null
-  itemName: string
-  issue: 'Damaged' | 'Overdue'
-  daysPastDue?: number  // REVISED: Added for overdue (days since return_date)
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Search,
+  DownloadCloud,
+  X,
+  Calendar as CalendarIcon,
+  Filter,
+} from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+
+type TxStatus = "borrowed" | "returned" | "overdue";
+
+
+async function fetchImageAsDataURL(url: string): Promise<{ dataUrl: string; type: "PNG" | "JPEG" } | null> {
+  try {
+    const res = await fetch(url, { mode: "cors" });
+    const blob = await res.blob();
+    const reader = new FileReader();
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    const type = dataUrl.startsWith("data:image/png") ? "PNG" : "JPEG";
+    return { dataUrl, type };
+  } catch {
+    return null;
+  }
+}
+
+
+
+interface TransactionReport {
+  id: string;
+  borrowerName: string;
+  schoolId: string;
+  borrowerImage: string | null;
+  borrowDate: string | null;
+  returnDate?: string | null;
+  items: Array<{
+    itemName: string;
+    condition: string;
+  }>;
+  status: TxStatus;
 }
 
 interface DateRange {
-  from: Date | undefined
-  to?: Date | undefined
+  from: Date | undefined;
+  to?: Date | undefined;
 }
 
-const fetchDamagedAndOverdueItems = async (filters: {
-  search?: string
-  status?: string
-  dateFrom?: string
-  dateTo?: string
+const getConditionColor = (condition: string) => {
+  switch (condition?.toLowerCase()) {
+    case "damaged":
+    case "broken":
+    case "lost":
+      return "bg-destructive text-destructive-foreground";
+    case "fair":
+      return "bg-yellow-500 text-yellow-foreground";
+    case "good":
+      return "bg-green-500 text-green-foreground";
+    case "overdue":
+      return "bg-orange-500 text-orange-foreground";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+};
+
+const getConditionIcon = (condition: string) => {
+  switch (condition?.toLowerCase()) {
+    case "damaged":
+    case "broken":
+      return "⚠️";
+    case "lost":
+      return "🚫";
+    case "fair":
+      return "⏳";
+    case "good":
+      return "✅";
+    case "overdue":
+      return "⏰";
+    default:
+      return "ℹ️";
+  }
+};
+
+// Safe date formatting
+const safeFormatDate = (dateStr: string | null | undefined): string => {
+  if (!dateStr) return "N/A";
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "Invalid Date";
+  return format(date, "MMM dd, yyyy");
+};
+
+// Safe getTime for sort
+const safeGetTime = (dateStr: string | null | undefined): number => {
+  if (!dateStr) return 0;
+  const date = new Date(dateStr);
+  return isNaN(date.getTime()) ? 0 : date.getTime();
+};
+
+// -------- FETCH (accept multiple filters) --------
+const fetchTransactionReports = async (filters: {
+  search?: string;
+  statuses?: string[];
+  conditions?: string[];
+  dateFrom?: string;
+  dateTo?: string;
 }) => {
-  const token = localStorage.getItem('access_token')
-  if (!API_BASE_URL) throw new Error('API_BASE_URL is not defined')
-  const response = await fetch(`${API_BASE_URL}/api/reports/damaged-lost-items/`, {
-    method: 'POST',
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+  if (!API_BASE_URL) throw new Error("API_BASE_URL is not defined");
+
+  const response = await fetch(`${API_BASE_URL}/api/reports/transactions/`, {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` }),
+      "Content-Type": "application/json",
+      ...(token && { Authorization: `Bearer ${token}` }),
     },
     body: JSON.stringify(filters),
-  })
+  });
   if (!response.ok) {
-    if (response.status === 401) throw new Error('Unauthorized: Please log in')
-    throw new Error('Failed to fetch reports')
+    if (response.status === 401) throw new Error("Unauthorized: Please log in");
+    throw new Error("Failed to fetch transaction reports");
   }
-  return response.json() as Promise<Report[]>
-}
+  return (await response.json()) as TransactionReport[];
+};
 
-const exportToPDF = async (data: Report[], filters: {
-  searchTerm: string
-  statusFilter: string
-  dateRange: DateRange
-}) => {
-  const { jsPDF } = await import('jspdf')
-  const autoTable = (await import('jspdf-autotable')).default
-  const doc = new jsPDF()
-  doc.text('Damaged and Overdue Items Report', 14, 15)
+// -------- EXPORTS --------
+const exportToPDF = async (
+  data: TransactionReport[],
+  _filters: { searchTerm: string; selectedFilters: string[]; dateRange: DateRange }
+) => {
+  const { jsPDF } = await import("jspdf");
+  const autoTable = (await import("jspdf-autotable")).default;
+
+  // Preload images -> base64 (aligned by row index)
+  const images = await Promise.all(
+    data.map(async (row) => {
+      if (!row.borrowerImage) return null;
+      return await fetchImageAsDataURL(row.borrowerImage);
+    })
+  );
+
+  const doc = new jsPDF();
+  const title = `Transactions Report`;
+  doc.text(title, 14, 15);
+
   autoTable(doc, {
     startY: 20,
-    head: [['Borrower Image', 'Borrower Name', 'School ID', 'Items', 'Issue', 'Days Past Due (Overdue Only)']],
-    body: data.map(item => [
-      item.borrowerImage ? '[Image]' : 'N/A',
+    head: [[
+      "Borrower Image",
+      "Borrower Name",
+      "School ID",
+      "Borrow Date",
+      "Return Date",
+      "Items",
+      "Condition",
+      "Days Past Due",
+    ]],
+    body: data.map((item) => [
+      item.borrowerImage ? "" : "N/A", // empty cell; we'll draw the image ourselves
       item.borrowerName,
-      item.school_id,
-      item.itemName,
-      item.issue,
-      item.daysPastDue ? `${item.daysPastDue} days` : 'N/A',  // REVISED: Include days past due
+      item.schoolId,
+      safeFormatDate(item.borrowDate),
+      safeFormatDate(item.returnDate),
+      item.items.map((i) => i.itemName).join(", "),
+      item.items.map((i) => `${i.condition}`).join(", ") || "N/A",
     ]),
-    theme: 'striped',
+    theme: "striped",
     headStyles: { fillColor: [59, 130, 246] },
-  })
-  doc.save('damaged-overdue-items-report.pdf')
-}
 
-const exportToExcel = async (data: Report[], filters: {
-  searchTerm: string
-  statusFilter: string
-  dateRange: DateRange
-}) => {
-  const XLSX = await import('xlsx')
-  const ws = XLSX.utils.json_to_sheet(data.map(item => ({
-    'Borrower Name': item.borrowerName,
-    'School ID': item.school_id,
-    'Items': item.itemName,
-    'Issue': item.issue,
-    'Days Past Due': item.daysPastDue ? `${item.daysPastDue} days` : 'N/A',  // REVISED: Include days past due
-  })))
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Reports')
-  XLSX.writeFile(wb, 'damaged-overdue-items-report.xlsx')
-}
+    // 👇 draw image into the first column of each body row
+    didDrawCell: (hookData: any) => {
+      const { section, row, column, cell } = hookData;
+      if (section === "body" && column.index === 0) {
+        const img = images[row.index];
+        if (img) {
+          // fit image inside the cell with small padding
+          const maxW = Math.min(14, cell.width - 4);
+          const maxH = Math.min(14, cell.height - 4);
+          doc.addImage(img.dataUrl, img.type, cell.x + 2, cell.y + 2, maxW, maxH);
+        }
+      }
+    },
+  });
 
-const getIssueColor = (issue: string) => {
-  switch (issue?.toLowerCase()) {
-    case 'damaged':
-      return 'bg-destructive text-destructive-foreground'
-    case 'overdue':
-      return 'bg-yellow-500 text-yellow-foreground'
-    default:
-      return 'bg-muted text-muted-foreground'
-  }
-}
+  doc.save(`transactions-report.pdf`);
+};
 
-const getIssueIcon = (issue: string) => {
-  switch (issue?.toLowerCase()) {
-    case 'damaged':
-      return '⚠️'
-    case 'overdue':
-      return '⏳'
-    default:
-      return 'ℹ️'
-  }
-}
 
+const exportToExcel = async (
+  data: TransactionReport[],
+  _filters: { searchTerm: string; selectedFilters: string[]; dateRange: DateRange }
+) => {
+  const XLSX = await import("xlsx");
+  const rows = data.map((item) => ({
+    "Borrower Name": item.borrowerName,
+    "School ID": item.schoolId,
+    "Borrow Date": safeFormatDate(item.borrowDate),
+    "Return Date": safeFormatDate(item.returnDate),
+    Items: item.items.map((i) => i.itemName).join(", "),
+    Conditions: item.items.map((i) => `${i.condition}`).join(", "),
+    Status: item.status,
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Transactions");
+  XLSX.writeFile(wb, `transactions-report.xlsx`);
+};
+
+
+// Status & condition option lists
+const STATUS_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "overdue", label: "Overdue" },
+  { value: "available", label: "Available" }, // UI = returned
+  { value: "borrowed", label: "Borrowed" },
+];
+
+const CONDITION_OPTIONS = [
+  { value: "damaged", label: "Damaged" },
+  { value: "fair", label: "Fair" },
+  { value: "broken", label: "Broken" },
+  { value: "lost", label: "Lost" },
+];
+
+// -------- Component --------
 const Reports = () => {
-  const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [sortBy, setSortBy] = useState('borrower')
-  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined })
-  const [selectedColumns, setSelectedColumns] = useState<Record<string, boolean>>({
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState<
+    "borrower" | "schoolId" | "borrowDate" | "condition"
+  >("borrower");
+
+  const [selectedStatus, setSelectedStatus] = useState<string[]>(["all"]);
+  const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
+
+  const [dateRange, setDateRange] = useState<DateRange>({
+    from: undefined,
+    to: undefined,
+  });
+
+  const [selectedColumns, setSelectedColumns] = useState<
+    Record<string, boolean>
+  >({
     borrowerImage: true,
     borrowerName: true,
-    school_id: true,
-    itemName: true,
-    issue: true,
-    daysPastDue: true,  // REVISED: Added column for days past due
-  })
-  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
-  const [exportFormat, setExportFormat] = useState('pdf')
+    schoolId: true,
+    borrowDate: true,
+    items: true,
+    condition: true,
+  });
 
-  const { data: reportsData, isLoading, error, refetch } = useQuery({
-    queryKey: ['reports', searchTerm, statusFilter, dateRange, sortBy],
-    queryFn: () => fetchDamagedAndOverdueItems({
-      search: searchTerm,
-      status: statusFilter !== 'all' ? statusFilter : undefined,
-      dateFrom: dateRange.from?.toISOString().split('T')[0],
-      dateTo: dateRange.to?.toISOString().split('T')[0],
-    }),
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"pdf" | "excel">("pdf");
+
+  // Map status for backend (available => returned)
+  const normalizedStatuses = useMemo(() => {
+    if (selectedStatus.includes("all")) return ["all"];
+    return selectedStatus.map((s) => (s === "available" ? "returned" : s));
+  }, [selectedStatus]);
+
+  const normalizedConditions = useMemo(() => {
+    return selectedConditions.length ? selectedConditions : [];
+  }, [selectedConditions]);
+
+  const {
+    data: reportsData,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: [
+      "transactionReports",
+      searchTerm,
+      `S:${normalizedStatuses.join(",")}`,
+      `C:${normalizedConditions.join(",")}`,
+      dateRange.from?.toISOString(),
+      dateRange.to?.toISOString(),
+    ],
+    queryFn: () =>
+      fetchTransactionReports({
+        search: searchTerm || undefined,
+        statuses: normalizedStatuses,
+        conditions: normalizedConditions,
+        dateFrom: dateRange.from?.toISOString().split("T")[0],
+        dateTo: dateRange.to?.toISOString().split("T")[0],
+      }),
     staleTime: 5 * 60 * 1000,
-    retry: (failureCount, error) => {
-      if (error instanceof Error && error.message.includes('Unauthorized')) {
-        return false
-      }
-      return failureCount < 3
+    retry: (failureCount, err) => {
+      if (err instanceof Error && err.message.includes("Unauthorized"))
+        return false;
+      return failureCount < 3;
     },
-  })
+  });
+
+  const selectedFiltersForExport = useMemo(() => {
+    const statuses = selectedStatus.includes("all")
+      ? ["all"]
+      : selectedStatus.map((s) => (s === "available" ? "returned" : s));
+    return [...statuses, ...selectedConditions];
+  }, [selectedStatus, selectedConditions]);
+
+  const toggleStatus = (val: string) => {
+    setSelectedStatus((prev) => {
+      if (val === "all") return ["all"];
+      const next = new Set(prev.filter((p) => p !== "all"));
+      if (next.has(val)) next.delete(val);
+      else next.add(val);
+      return next.size ? Array.from(next) : ["all"];
+    });
+  };
+
+  const toggleCondition = (val: string) => {
+    setSelectedConditions((prev) => {
+      const next = new Set(prev);
+      if (next.has(val)) next.delete(val);
+      else next.add(val);
+      return Array.from(next);
+    });
+  };
 
   const filteredData = useMemo(() => {
-    if (!reportsData) return []
-    let data = [...reportsData]
-    // Apply sorting
-    if (sortBy === 'borrower') {
-      data.sort((a, b) => a.borrowerName.localeCompare(b.borrowerName))
-    } else if (sortBy === 'school_id') {
-      data.sort((a, b) => a.school_id.localeCompare(b.school_id))
-    } else if (sortBy === 'item') {
-      data.sort((a, b) => a.itemName.localeCompare(b.itemName))
-    } else if (sortBy === 'issue') {
-      data.sort((a, b) => a.issue.localeCompare(b.issue))
-    } else if (sortBy === 'daysPastDue') {  // REVISED: Added sorting by days past due
-      data.sort((a, b) => (a.daysPastDue || 0) - (b.daysPastDue || 0))
+    if (!reportsData) return [];
+    let data = [...reportsData];
+
+    // STATUS filtering
+    if (!selectedStatus.includes("all")) {
+      const statusSet = new Set(
+        selectedStatus.map((s) => (s === "available" ? "returned" : s))
+      );
+
+      data = data.filter((tx) => {
+        const s = tx.status.toLowerCase();
+        const wantsOverdue = statusSet.has("overdue");
+
+        const statusMatchDirect = statusSet.has(s);
+        const statusMatchOverdue = wantsOverdue && (s === "overdue");
+
+        return statusMatchDirect || statusMatchOverdue;
+      });
     }
-    return data
-  }, [reportsData, sortBy])
+
+    // CONDITION filtering
+    if (selectedConditions.length) {
+      const condSet = new Set(selectedConditions.map((c) => c.toLowerCase()));
+      data = data.filter((tx) =>
+        tx.items.some((i) => condSet.has(i.condition.toLowerCase()))
+      );
+    }
+
+    // Sorting
+    if (sortBy === "borrower") {
+      data.sort((a, b) => a.borrowerName.localeCompare(b.borrowerName));
+    } else if (sortBy === "schoolId") {
+      data.sort((a, b) => a.schoolId.localeCompare(b.schoolId));
+    } else if (sortBy === "borrowDate") {
+      data.sort((a, b) => safeGetTime(a.borrowDate) - safeGetTime(b.borrowDate));
+    } else if (sortBy === "condition") {
+      data.sort((a, b) => {
+        const aCond = a.items[0]?.condition || "";
+        const bCond = b.items[0]?.condition || "";
+        return aCond.localeCompare(bCond);
+      });
+    } 
+
+    return data;
+  }, [reportsData, selectedStatus, selectedConditions, sortBy]);
 
   const handleExport = async () => {
     if (!filteredData.length) {
-      toast("No data available to export. Please adjust filters.")
-      return
+      toast("No data available to export. Please adjust filters.");
+      return;
     }
     try {
-      if (exportFormat === 'pdf') {
-        await exportToPDF(filteredData, { searchTerm, statusFilter, dateRange })
+      if (exportFormat === "pdf") {
+        await exportToPDF(filteredData, {
+          searchTerm,
+          selectedFilters: selectedFiltersForExport,
+          dateRange,
+        });
       } else {
-        await exportToExcel(filteredData, { searchTerm, statusFilter, dateRange })
+        await exportToExcel(filteredData, {
+          searchTerm,
+          selectedFilters: selectedFiltersForExport,
+          dateRange,
+        });
       }
-      setIsExportDialogOpen(false)
-      toast("Export Successful")
+      setIsExportDialogOpen(false);
+      toast("Export Successful");
     } catch (error) {
-      console.error('Export failed:', error)
-      toast("An error occurred while exporting the report.")
+      console.error("Export failed:", error);
+      toast("An error occurred while exporting the report.");
     }
-  }
+  };
 
   const clearFilters = () => {
-    setSearchTerm('')
-    setStatusFilter('all')
-    setDateRange({ from: undefined, to: undefined })
-    setSortBy('borrower')
-  }
+    setSearchTerm("");
+    setSelectedStatus(["all"]);
+    setSelectedConditions([]);
+    setDateRange({ from: undefined, to: undefined });
+    setSortBy("borrower");
+  };
 
-  const handleDateRangeSelect = (selected: DateRange | undefined) => {
-    setDateRange(selected || { from: undefined, to: undefined })
-  }
-
-  // REVISED: Added daysPastDue column
   const columns = [
-    { key: 'borrowerImage', label: 'Borrower Image', visible: selectedColumns.borrowerImage },
-    { key: 'borrowerName', label: 'Borrower Name', visible: selectedColumns.borrowerName },
-    { key: 'school_id', label: 'School ID', visible: selectedColumns.school_id },
-    { key: 'itemName', label: 'Items', visible: selectedColumns.itemName },
-    { key: 'issue', label: 'Issue', visible: selectedColumns.issue },
-    { key: 'daysPastDue', label: 'Days Past Due', visible: selectedColumns.daysPastDue },
-  ]
+    { key: "borrowerImage", label: "Borrower Image", visible: selectedColumns.borrowerImage },
+    { key: "borrowerName",  label: "Borrower Name",  visible: selectedColumns.borrowerName },
+    { key: "schoolId",      label: "School ID",      visible: selectedColumns.schoolId },
+    { key: "borrowDate",    label: "Borrow Date",    visible: selectedColumns.borrowDate },
+    { key: "returnDate",    label: "Return Date",    visible: true },
+    { key: "items",         label: "Items Borrowed", visible: selectedColumns.items },
+    { key: "condition",     label: "Condition",      visible: selectedColumns.condition },
+  ];
 
-  const visibleColumns = columns.filter(col => col.visible)
+  const visibleColumns = columns.filter((col) => col.visible);
+
+  const stats = useMemo(
+    () => ({
+      damaged:
+        reportsData?.filter((item) =>
+          item.items.some((i) => i.condition.toLowerCase() === "damaged")
+        ).length || 0,
+      fair:
+        reportsData?.filter((item) =>
+          item.items.some((i) => i.condition.toLowerCase() === "fair")
+        ).length || 0,
+      broken:
+        reportsData?.filter((item) =>
+          item.items.some((i) => i.condition.toLowerCase() === "broken")
+        ).length || 0,
+      lost:
+        reportsData?.filter((item) =>
+          item.items.some((i) => i.condition.toLowerCase() === "lost")
+        ).length || 0,
+      overdue:
+        reportsData?.filter((item) => item.status === "overdue").length || 0,
+    }),
+    [reportsData]
+  );
+
+  // Render cell helper
+  const renderCellContent = (
+    report: TransactionReport,
+    colKey: string
+  ): ReactNode => {
+    if (colKey === "borrowerImage") {
+      return report.borrowerImage ? (
+        <img
+          src={report.borrowerImage}
+          alt={report.borrowerName}
+          className="h-10 w-10 rounded object-cover"
+        />
+      ) : (
+        <div className="h-10 w-10 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground">
+          No Img
+        </div>
+      );
+    }
+    if (colKey === "items") {
+      return (
+        <div className="space-y-1">
+          {report.items.map((item, idx) => (
+            <div key={idx} className="text-sm">
+              {item.itemName}
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (colKey === "condition") {
+      return (
+        <div className="space-y-1">
+          {report.items.map((item, idx) => (
+            <Badge
+              key={idx}
+              className={`${getConditionColor(item.condition)} text-black`}
+            >
+              {getConditionIcon(item.condition)} {item.condition}
+            </Badge>
+          ))}
+        </div>
+      );
+    }
+   
+    if (colKey === "borrowDate") {
+      return safeFormatDate(report.borrowDate);
+    }
+    if (colKey === "returnDate") {
+      return safeFormatDate(report.returnDate);
+    }
+    // Primitive fields
+    const value =
+      report[
+        colKey as keyof Omit<
+          TransactionReport,
+          "items" | "borrowerImage" | "condition" | "borrowDate"
+        >
+      ];
+    return (value as ReactNode) || "N/A";
+  };
+
+  // Date pickers (compact)
+  const DatePickers = () => (
+    <div className="grid grid-cols-2 gap-2">
+      <div className="space-y-1">
+        <Label className="text-xs">Start</Label>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className={cn(
+                "h-9 w-full justify-start text-left font-normal",
+                !dateRange.from && "text-muted-foreground"
+              )}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {dateRange.from ? format(dateRange.from, "PPP") : "Pick start"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={dateRange.from}
+              onSelect={(d) =>
+                setDateRange((prev) => ({ ...prev, from: d ?? undefined }))
+              }
+              initialFocus
+              disabled={(date) =>
+                date < new Date("2020-01-01") || date > new Date()
+              }
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">End</Label>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className={cn(
+                "h-9 w-full justify-start text-left font-normal",
+                !dateRange.to && "text-muted-foreground"
+              )}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {dateRange.to ? format(dateRange.to, "PPP") : "Pick end"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={dateRange.to}
+              onSelect={(d) =>
+                setDateRange((prev) => ({ ...prev, to: d ?? undefined }))
+              }
+              initialFocus
+              disabled={(date) =>
+                date < new Date("2020-01-01") || date > new Date()
+              }
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">
-          Reports
+      {/* HEADER */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold text-foreground">
+          Transaction Reports
         </h1>
         <div className="flex gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => refetch()}
-            className="flex items-center gap-2"
+            className="h-9 gap-2"
           >
             <DownloadCloud className="h-4 w-4" />
             Refresh
           </Button>
           <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="flex items-center gap-2">
+              <Button size="sm" className="h-9 gap-2">
                 <Download className="h-4 w-4" />
-                Export
+                Export Selected
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>Export Report</DialogTitle>
                 <DialogDescription>
-                  Choose format for your report
+                  Choose format for your selected data
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="format">Format</Label>
-                  <Select value={exportFormat} onValueChange={setExportFormat}>
-                    <SelectTrigger id="format">
-                      <SelectValue placeholder="Select format" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pdf">
-                        <FileText className="mr-2 h-4 w-4" />
-                        PDF
-                      </SelectItem>
-                      <SelectItem value="excel">
-                        <FileSpreadsheet className="mr-2 h-4 w-4" />
-                        Excel
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={exportFormat === "pdf" ? "default" : "outline"}
+                      onClick={() => setExportFormat("pdf")}
+                      size="sm"
+                      className="h-9"
+                    >
+                      <FileText className="mr-2 h-4 w-4" />
+                      PDF
+                    </Button>
+                    <Button
+                      variant={exportFormat === "excel" ? "default" : "outline"}
+                      onClick={() => setExportFormat("excel")}
+                      size="sm"
+                      className="h-9"
+                    >
+                      <FileSpreadsheet className="mr-2 h-4 w-4" />
+                      Excel
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Columns to Include</Label>
@@ -276,12 +668,17 @@ const Reports = () => {
                         <Checkbox
                           id={col.key}
                           checked={selectedColumns[col.key]}
-                          onCheckedChange={(checked) => setSelectedColumns(prev => ({
-                            ...prev,
-                            [col.key]: checked as boolean
-                          }))}
+                          onCheckedChange={(checked) =>
+                            setSelectedColumns((prev) => ({
+                              ...prev,
+                              [col.key]: checked as boolean,
+                            }))
+                          }
                         />
-                        <Label htmlFor={col.key} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        <Label
+                          htmlFor={col.key}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
                           {col.label}
                         </Label>
                       </div>
@@ -294,10 +691,11 @@ const Reports = () => {
                   type="button"
                   variant="outline"
                   onClick={() => setIsExportDialogOpen(false)}
+                  className="h-9"
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleExport}>
+                <Button onClick={handleExport} className="h-9">
                   Export {exportFormat.toUpperCase()}
                 </Button>
               </DialogFooter>
@@ -306,101 +704,111 @@ const Reports = () => {
         </div>
       </div>
 
+      {/* FILTERS */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center justify-between text-base">
             Filters
             <Badge variant="outline" className="text-xs">
               {filteredData.length} results
             </Badge>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="search">Search</Label>
+        <CardContent className="pt-2 space-y-4">
+          {/* QUICK FILTERS — STATUS */}
+          <div>
+            <Label className="mb-2 block">Status</Label>
+            <div className="flex flex-wrap gap-2">
+              {STATUS_OPTIONS.map((opt) => {
+                const active = selectedStatus.includes(opt.value);
+                return (
+                  <Button
+                    key={opt.value}
+                    type="button"
+                    size="sm"
+                    variant={active ? "default" : "outline"}
+                    onClick={() => toggleStatus(opt.value)}
+                    aria-pressed={active}
+                    className="h-9 px-3 rounded-md"
+                  >
+                    {opt.label}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* QUICK FILTERS — CONDITION */}
+          <div>
+            <Label className="mb-2 block">Condition</Label>
+            <div className="flex flex-wrap gap-2">
+              {CONDITION_OPTIONS.map((opt) => {
+                const active = selectedConditions.includes(opt.value);
+                return (
+                  <Button
+                    key={opt.value}
+                    type="button"
+                    size="sm"
+                    variant={active ? "default" : "outline"}
+                    onClick={() => toggleCondition(opt.value)}
+                    aria-pressed={active}
+                    className="h-9 px-3 rounded-md"
+                  >
+                    {opt.label}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* SEARCH • DATE • SORT on 12-col grid to maximize space */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+            {/* SEARCH */}
+            <div className="md:col-span-4 space-y-1">
+              <Label htmlFor="search" className="text-xs">
+                Search
+              </Label>
               <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="search"
-                  placeholder="Search borrowers, school ID, or items..."
+                  placeholder="Borrower, school ID, or item..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 h-9"
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="status">Issue</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger id="status">
-                  <SelectValue placeholder="All issues" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="damaged">Damaged</SelectItem>
-                  <SelectItem value="overdue">Overdue</SelectItem>
-                </SelectContent>
-              </Select>
+
+            {/* DATE PICKERS */}
+            <div className="md:col-span-5 space-y-1">
+              <Label className="text-xs">Date Range</Label>
+              <DatePickers />
             </div>
-            <div className="space-y-2">
-              <Label>Date Range</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !dateRange.from && !dateRange.to && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateRange.from ? (
-                      dateRange.to ? (
-                        <>
-                          {format(dateRange.from, 'PPP')} - {format(dateRange.to, 'PPP')}
-                        </>
-                      ) : (
-                        format(dateRange.from, 'PPP')
-                      )
-                    ) : (
-                      <>Pick a date range</>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="range"
-                    selected={dateRange}
-                    onSelect={handleDateRangeSelect}
-                    initialFocus
-                    disabled={(date) => date < new Date('2020-01-01') || date > new Date()}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="space-y-2">
-              <Label>Sort By</Label>
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="borrower">Borrower Name</SelectItem>
-                  <SelectItem value="school_id">School ID</SelectItem>
-                  <SelectItem value="item">Items</SelectItem>
-                  <SelectItem value="issue">Issue</SelectItem>
-                  <SelectItem value="daysPastDue">Days Past Due</SelectItem>  // REVISED: Added option
-                </SelectContent>
-              </Select>
+
+            {/* SORT */}
+            <div className="md:col-span-3 space-y-1">
+              <Label className="text-xs">Sort By</Label>
+              <select
+                className="w-full rounded-md border bg-transparent px-3 py-2 text-sm h-9"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+              >
+                <option value="borrower">Borrower Name</option>
+                <option value="schoolId">School ID</option>
+                <option value="borrowDate">Borrow Date</option>
+                <option value="condition">Condition</option>
+              </select>
             </div>
           </div>
-          <div className="mt-4">
+
+          {/* ACTIONS */}
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="ghost"
               size="sm"
               onClick={clearFilters}
-              className="flex items-center gap-2 text-muted-foreground"
+              className="h-9 gap-2 text-muted-foreground"
             >
               <X className="h-4 w-4" />
               Clear Filters
@@ -409,10 +817,12 @@ const Reports = () => {
         </CardContent>
       </Card>
 
+      {/* TABLE */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="text-base font-semibold">
-            Damaged and Overdue Items ({filteredData.length})
+            Transactions{" "}
+            <span className="text-muted-foreground">({filteredData.length})</span>
           </CardTitle>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" className="h-8 gap-1">
@@ -428,91 +838,98 @@ const Reports = () => {
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-8 space-y-2">
-              <div className="text-destructive">{error.message}</div>
+              <div className="text-destructive">
+                {(error as Error).message}
+              </div>
               <Button variant="outline" onClick={() => refetch()}>
                 Retry
               </Button>
             </div>
           ) : filteredData.length === 0 ? (
             <div className="text-center py-8 space-y-2">
-              <div className="text-muted-foreground text-lg">No reports found</div>
-              <p className="text-sm text-muted-foreground">Try adjusting your filters or date range.</p>
+              <div className="text-muted-foreground text-lg">
+                No transactions found
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Try adjusting your filters or date range.
+              </p>
             </div>
           ) : (
-            <ScrollArea className="h-[60vh] rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {visibleColumns.map((col) => (
-                      <TableHead key={col.key} className="text-primary-foreground">
-                        {col.label}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredData.map((report: Report) => (
-                    <TableRow key={report.id}>
+            <ScrollArea className="max-h-[70vh] rounded-md border">
+              <div className="min-w-full">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background z-10">
+                    <TableRow>
                       {visibleColumns.map((col) => (
-                        <TableCell key={col.key} className="text-muted-foreground">
-                          {col.key === 'borrowerImage' ? (
-                            report.borrowerImage ? (
-                              <img
-                                src={report.borrowerImage}
-                                alt={report.borrowerName}
-                                className="h-10 w-10 rounded object-cover"
-                              />
-                            ) : (
-                              <div className="h-10 w-10 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground">
-                                No Img
-                              </div>
-                            )
-                          ) : col.key === 'issue' ? (
-                            <Badge className={getIssueColor(report.issue)}>
-                              {getIssueIcon(report.issue)} {report.issue}
-                            </Badge>
-                          ) : col.key === 'daysPastDue' ? (  // REVISED: New column display
-                            report.daysPastDue ? (
-                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                                {report.daysPastDue} days overdue
-                              </Badge>
-                            ) : (
-                              'N/A'
-                            )
-                          ) : (
-                            report[col.key as keyof Report] || 'N/A'
-                          )}
-                        </TableCell>
+                        <TableHead key={col.key} className="whitespace-nowrap">
+                          {col.label}
+                        </TableHead>
                       ))}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredData.map((report: TransactionReport) => (
+                      <TableRow key={report.id}>
+                        {visibleColumns.map((col) => (
+                          <TableCell key={col.key} className="align-top text-muted-foreground">
+                            {renderCellContent(report, col.key)}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* STATS CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-destructive">
-              {reportsData?.filter((item: Report) => item.issue === 'Damaged').length || 0}
+              {stats.damaged}
             </div>
-            <p className="text-sm text-muted-foreground">Damaged Items</p>
+            <p className="text-sm text-muted-foreground">Damaged</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-yellow-500">
-              {reportsData?.filter((item: Report) => item.issue === 'Overdue').length || 0}
+              {stats.fair}
             </div>
-            <p className="text-sm text-muted-foreground">Overdue Items</p>
+            <p className="text-sm text-muted-foreground">Fair</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-red-500">
+              {stats.broken}
+            </div>
+            <p className="text-sm text-muted-foreground">Broken</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-gray-500">
+              {stats.lost}
+            </div>
+            <p className="text-sm text-muted-foreground">Lost</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-orange-500">
+              {stats.overdue}
+            </div>
+            <p className="text-sm text-muted-foreground">Overdue</p>
           </CardContent>
         </Card>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default Reports
+export default Reports;

@@ -256,3 +256,50 @@ class PredictiveItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = PredictiveItemCondition
         fields = ['item_name', 'condition', 'predicted_risk', 'reason', 'last_checked']
+
+
+# serializers.py (Add this new serializer)
+# serializers.py (Fixed: CamelCase fields for dates; add imports)
+from rest_framework import serializers
+from django.utils import timezone  # FIXED: Import for date computations
+from .models import Transaction, Item, Borrower
+
+class TransactionReportSerializer(serializers.ModelSerializer):
+    borrowerName = serializers.CharField(source='borrower.name')
+    schoolId = serializers.CharField(source='borrower.school_id')
+    borrowerImage = serializers.SerializerMethodField()
+    borrowDate = serializers.DateField(source='borrow_date')  # FIXED: CamelCase mapping
+    returnDate = serializers.DateField(source='return_date', allow_null=True)  # FIXED: CamelCase, allow null
+    items = serializers.SerializerMethodField()
+    daysPastDue = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Transaction
+        fields = [
+            'id', 'borrowerName', 'schoolId', 'borrowerImage', 'borrowDate',
+            'returnDate', 'status', 'items', 'daysPastDue'
+        ]
+
+    def get_borrowerImage(self, obj):
+        request = self.context.get('request')
+        if obj.borrower and obj.borrower.image:  # FIXED: Check borrower exists
+            if request:
+                return request.build_absolute_uri(obj.borrower.image.url)
+            return obj.borrower.image.url  # Fallback to relative URL
+        return None
+
+    def get_items(self, obj):
+        return [
+            {
+                'itemName': item.item_name,
+                'condition': item.condition or 'Good'
+            }
+            for item in obj.items.all()
+        ]
+
+    def get_daysPastDue(self, obj):
+        if obj.status == 'borrowed' and obj.return_date:
+            today = timezone.now().date()
+            if obj.return_date < today:
+                return (today - obj.return_date).days
+        return None

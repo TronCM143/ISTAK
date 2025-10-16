@@ -36,7 +36,7 @@ import {
 const data = {
   navMain: [
     {
-      title: "Dashboard",
+      title: "Main Dashboard",
       url: "/dashboard",
       icon: IconDashboard,
     },
@@ -46,22 +46,22 @@ const data = {
       icon: IconListDetails,
     },
     {
-      title: "Transactions",
+      title: "Transactions History",
       url: "/transaction",
       icon: IconHeartHandshake,
     },
     {
-      title: "Reports",
+      title: "Generate Reports",
       url: "/reports",
       icon: IconReport,
     },
     {
-      title: "Requests",
+      title: "Mobile Requests",
       url: "/request",
       icon: IconChartBar,
     },
     {
-      title: "Borrower",
+      title: "Borrower List",
       url: "/borrower",
       icon: IconAlien,
     },

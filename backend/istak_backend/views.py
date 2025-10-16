@@ -1722,3 +1722,75 @@ class PredictiveDamageInsightView(APIView):
             import traceback
             traceback.print_exc()
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.utils import timezone
+from datetime import timedelta
+from django.db.models import Q, Prefetch
+from .models import Transaction, Item, Borrower
+from .serializers import TransactionReportSerializer  # NEW: Assume/create this serializer
+import logging
+
+logger = logging.getLogger(__name__)
+
+class TransactionReportView(APIView):
+    def post(self, request):
+        try:
+            # Get filters from request body
+            search = request.data.get('search', '')
+            condition_filter = request.data.get('condition', '').lower()
+            date_from = request.data.get('dateFrom')
+            date_to = request.data.get('dateTo')
+
+            today = timezone.now().date()
+
+            # Base queryset: All transactions (borrowed or returned)
+            queryset = Transaction.objects.select_related('borrower').prefetch_related(
+                Prefetch('items', queryset=Item.objects.only('item_name', 'condition')),
+            ).distinct()
+
+            # Apply condition filter
+            if condition_filter and condition_filter != 'all':
+                if condition_filter == 'overdue':
+                    # Special case: Overdue as borrowed past due
+                    queryset = queryset.filter(status='borrowed', return_date__lt=today)
+                else:
+                    # Condition-based: For returned items with specific condition
+                    queryset = queryset.filter(
+                        status='returned',
+                        items__condition__iexact=condition_filter
+                    )
+
+            # Apply search
+            if search:
+                queryset = queryset.filter(
+                    Q(borrower__name__icontains=search) |
+                    Q(borrower__school_id__icontains=search) |
+                    Q(items__item_name__icontains=search)
+                )
+
+            # Apply date range
+            if date_from:
+                queryset = queryset.filter(borrow_date__gte=date_from)
+            if date_to:
+                queryset = queryset.filter(borrow_date__lte=date_to)
+
+            # Post-process for daysPastDue (for overdue items)
+            processed_data = []
+            for tx in queryset:
+                serializer = TransactionReportSerializer(tx, context={'request': request})
+                data = serializer.data
+                if tx.status == 'borrowed' and tx.return_date and tx.return_date < today:
+                    data['daysPastDue'] = (today - tx.return_date).days
+                processed_data.append(data)
+                
+            logger.info(f"Queried {len(processed_data)} transactions")
+
+            return Response(processed_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error in TransactionReportView: {str(e)}")
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
