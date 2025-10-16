@@ -123,75 +123,70 @@ class _GlassBottomBarState extends State<GlassBottomBar>
               clipBehavior: Clip.none,
               children: [
                 // ==== Base bar (static glass, fixed layout) ====
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(30),
-                  child: LiquidStretch(
-                    stretch: 0.5,
-                    resistance: 0.08,
-                    interactionScale: 1.05,
-                    // shape: LiquidRoundedSuperellipse(
-                    //   borderRadius: const Radius.circular(30),
-                    // ),
-                    // settings: LiquidGlassSettings(
-                    //   // You can keep 200, but ~80–100 is much smoother
-                    //   thickness: 100,
-                    //   glassColor: const Color.fromARGB(
-                    //     255,
-                    //     54,
-                    //     54,
-                    //     54,
-                    //   ).withOpacity(0.3),
-                    // ),
-                    child: LiquidGlass(
-                      shape: LiquidRoundedSuperellipse(
-                        borderRadius: const Radius.circular(30),
+                // ClipRRect(
+                //   borderRadius: BorderRadius.circular(30),
+                //   child: LiquidStretch(
+                //     stretch: 0.5,
+                //     resistance: 0.08,
+                //     interactionScale: 1.05,
+                //     // shape: LiquidRoundedSuperellipse(
+                //     //   borderRadius: const Radius.circular(30),
+                //     // ),
+                //     // settings: LiquidGlassSettings(
+                //     //   // You can keep 200, but ~80–100 is much smoother
+                //     //   thickness: 100,
+                //     //   glassColor: const Color.fromARGB(
+                //     //     255,
+                //     //     54,
+                //     //     54,
+                //     //     54,
+                //     //   ).withOpacity(0.3),
+                //     // ),
+                //     child:
+                LiquidGlass(
+                  shape: LiquidRoundedSuperellipse(
+                    borderRadius: const Radius.circular(30),
+                  ),
+                  // keeps blur contained to the glass, not your children
+                  glassContainsChild: false,
+                  clipBehavior: Clip.hardEdge,
+                  restrictThickness: true,
+                  // tune thickness to taste; lower is cheaper (since you already have an outer glass)
+                  settings: const LiquidGlassSettings(
+                    blur: 20,
+                    thickness: 20,
+                    // optional tint baked into the glass itself; you can remove this if you prefer pure blur
+                    glassColor: Color.fromARGB(30, 23, 23, 23), // ~12% white
+                  ),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(30),
+                      color: Colors.white.withOpacity(
+                        0.00,
+                      ), // your original tint
+                      // border: Border.all(
+                      //   color: Colors.white.withOpacity(0.25),
+                      //   width: 1.2, // your original stroke
+                      // ),
+                      // boxShadow: [
+                      //   BoxShadow(
+                      //     color: Colors.black.withOpacity(0.25),
+                      //     blurRadius: 15,
+                      //     offset: const Offset(0, 6),
+                      //   ),
+                      // ],
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: _barHorzPad,
+                        vertical: 12,
                       ),
-                      // keeps blur contained to the glass, not your children
-                      glassContainsChild: false,
-                      clipBehavior: Clip.hardEdge,
-                      restrictThickness: true,
-                      // tune thickness to taste; lower is cheaper (since you already have an outer glass)
-                      settings: const LiquidGlassSettings(
-                        thickness: 70,
-                        // optional tint baked into the glass itself; you can remove this if you prefer pure blur
-                        glassColor: Color.fromARGB(
-                          30,
-                          170,
-                          170,
-                          170,
-                        ), // ~12% white
-                      ),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(30),
-                          color: Colors.white.withOpacity(
-                            0.00,
-                          ), // your original tint
-                          // border: Border.all(
-                          //   color: Colors.white.withOpacity(0.25),
-                          //   width: 1.2, // your original stroke
-                          // ),
-                          // boxShadow: [
-                          //   BoxShadow(
-                          //     color: Colors.black.withOpacity(0.25),
-                          //     blurRadius: 15,
-                          //     offset: const Offset(0, 6),
-                          //   ),
-                          // ],
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: _barHorzPad,
-                            vertical: 12,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [
-                              for (var i = 0; i < _itemCount; i++)
-                                _iconSlot(_iconFor(i), i),
-                            ],
-                          ),
-                        ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          for (var i = 0; i < _itemCount; i++)
+                            _iconSlot(_iconFor(i), i),
+                        ],
                       ),
                     ),
                   ),

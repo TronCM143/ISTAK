@@ -46,3 +46,14 @@ WHERE u.role = 'user_web'
 GROUP BY u.id, u.username, u.email
 ORDER BY u.username;
 
+#DELETE ALL IN TABLE
+BEGIN;
+
+TRUNCATE TABLE
+  istak_backend_transaction_items,  -- M2M join table
+  istak_backend_transaction,
+  istak_backend_item,
+  istak_backend_borrower
+RESTART IDENTITY CASCADE;
+
+COMMIT;

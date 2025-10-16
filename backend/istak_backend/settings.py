@@ -37,13 +37,14 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Application definition
 
 INSTALLED_APPS = [
+     'istak_backend',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'istak_backend',
+   
     'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt',  # Ensure this is added for JWT
@@ -200,3 +201,30 @@ CACHES = {
         "TIMEOUT": None,  # we set per-key TTLs in code
     }
 }
+
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# ✅ Static files (CSS, JS, Images)
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [BASE_DIR / "istak_backend" / "static"]
+
+
+STATIC_ROOT = BASE_DIR / "staticfiles"
+# ✅ Templates
+TEMPLATES = [   
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR / "templates"],  # <-- also properly closed
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]

@@ -110,7 +110,7 @@ class _QRScannerDialogState extends State<QRScannerDialog> {
                   ),
                   Expanded(
                     child: Text(
-                      widget.allowMultiple ? 'Scan Items' : 'Scan Item',
+                      widget.allowMultiple ? 'Scan QR' : 'Scan QRs',
                       style: theme.textTheme.titleMedium?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,

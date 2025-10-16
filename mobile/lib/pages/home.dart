@@ -157,7 +157,7 @@ class _HomeContentState extends State<HomeContent>
                       },
                       child: LiquidGlass(
                         settings: const LiquidGlassSettings(
-                          thickness: 50, // High thickness for glass effect
+                          thickness: 40, // High thickness for glass effect
                         ),
                         shape: LiquidRoundedSuperellipse(
                           borderRadius: Radius.circular(23),
@@ -178,8 +178,8 @@ class _HomeContentState extends State<HomeContent>
                                     'Return',
                                     style: DefaultTextStyle.of(context).style
                                         .copyWith(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 16,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 20,
                                           color: Colors.white,
                                           letterSpacing: 0.2,
                                           decoration: TextDecoration.none,
@@ -239,7 +239,10 @@ class _AppleGlassCard extends StatelessWidget {
           //   ),
           // ),
           LiquidGlass(
-            settings: LiquidGlassSettings(thickness: 50),
+            settings: LiquidGlassSettings(
+              thickness: 50,
+              glassColor: Color.fromARGB(31, 38, 38, 38),
+            ),
             shape: LiquidRoundedSuperellipse(
               borderRadius: const Radius.circular(24),
             ),

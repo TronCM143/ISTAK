@@ -6,7 +6,7 @@ from django.contrib.auth.hashers import make_password
 from django.shortcuts import render, redirect
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
-from jsonschema import ValidationError
+
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -253,6 +253,11 @@ class ItemListCreateAPIView(generics.ListCreateAPIView):
             logger.info(f"Background removed for item {instance.id}")
             print(f"✅ Background removed successfully for item {instance.id}")
 
+
+
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.exceptions import ValidationError
 class ItemRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ItemSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -291,7 +296,12 @@ class ItemRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_destroy(self, instance):
         if instance.transactions.exists():
-            raise ValidationError("Cannot delete an item that has associated transactions.")
+            # Better: Return Response directly (avoids exception handling altogether)
+            return Response(
+                {"detail": "Cannot delete an item that has associated transactions."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        # Or, if raising: raise ValidationError(...)  # Now with correct import
         instance.delete()
 
 @api_view(['POST'])
@@ -1623,3 +1633,92 @@ def change_mobile_password(request, user_id):
     
     except Exception as e:
         return Response({"error": str(e)}, status=500)
+    
+    
+
+
+# --- add/ensure imports ---
+from datetime import timedelta
+from django.utils import timezone
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.permissions import IsAuthenticated
+from .models import Item, Transaction
+
+# If you see this anywhere in views.py, fix it:
+# from sympy import Q   <-- WRONG
+# use:
+# from django.db.models import Q  # <-- RIGHT (only if you actually use Q)
+
+class PredictiveDamageInsightView(APIView):
+    """
+    Rule-based prediction: estimates which items are at risk of damage soon.
+    Computes per-item risk using recent borrows, overdue history, and current condition.
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            # Scope items by role
+            if getattr(request.user, "role", None) == "user_web":
+                items_qs = Item.objects.filter(manager=request.user)
+            elif getattr(request.user, "role", None) == "user_mobile" and request.user.manager:
+                items_qs = Item.objects.filter(manager=request.user.manager)
+            else:
+                return Response({"error": "Unauthorized role or missing manager."},
+                                status=status.HTTP_403_FORBIDDEN)
+
+            today = timezone.now().date()
+            ninety_days_ago = today - timedelta(days=90)
+            now_iso = timezone.now().isoformat()
+
+            results = []
+            for item in items_qs:
+                tx_qs = Transaction.objects.filter(items=item)
+
+                total_borrows = tx_qs.count()
+                recent_borrows = tx_qs.filter(borrow_date__gte=ninety_days_ago).count()
+                overdue_count  = tx_qs.filter(status="overdue").count()
+
+                # Use current item condition as a damage signal
+                cond_text = (item.condition or "").lower()
+                damage_flag = any(k in cond_text for k in ["damaged", "damage", "broken", "crack", "dent", "loose"])
+
+                # Heuristic scoring
+                risk = 0.0
+                if recent_borrows > 3:  # heavy recent usage
+                    risk += 0.30
+                if overdue_count > 1:   # mishandling risk
+                    risk += 0.20
+                if damage_flag:         # already showing issues
+                    risk += 0.40
+                if total_borrows > 10:  # wear/tear
+                    risk += 0.10
+                risk = min(1.0, risk)
+
+                reason = (
+                    f"Total borrows: {total_borrows}, "
+                    f"Recent(90d): {recent_borrows}, "
+                    f"Overdue: {overdue_count}, "
+                    f"Current condition: {item.condition or 'N/A'}"
+                )
+
+                results.append({
+                    "item_name": item.item_name,
+                    "condition": item.condition,
+                    "predicted_risk": risk,
+                    "reason": reason,
+                    "last_checked": now_iso,
+                })
+
+            results.sort(key=lambda x: x["predicted_risk"], reverse=True)
+            return Response(results, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            # Print full traceback to your Django console for quick diagnosis
+            import traceback
+            traceback.print_exc()
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

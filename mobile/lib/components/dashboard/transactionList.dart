@@ -385,37 +385,35 @@ class _TransactionsState extends State<TransactionList>
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.3), // blur overlay color
+      barrierColor: const Color.fromARGB(
+        255,
+        0,
+        0,
+        0,
+      ).withOpacity(.8), // blur overlay color
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.all(16),
+          backgroundColor: const Color.fromARGB(0, 234, 2, 2),
+          insetPadding: const EdgeInsets.all(120),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: BackdropFilter(
               filter: ImageFilter.blur(
-                sigmaX: 15,
-                sigmaY: 15,
+                sigmaX: 30,
+                sigmaY: 30,
               ), // 👈 background blur
               child: FakeGlass(
                 shape: LiquidRoundedSuperellipse(
                   borderRadius: Radius.circular(12),
                 ),
                 settings: const LiquidGlassSettings(
-                  glassColor: Color.fromARGB(26, 22, 22, 22), // subtle tint
-                  thickness: 100,
-                  lightIntensity: 1.2,
+                  glassColor: Color.fromARGB(26, 255, 255, 255), // subtle tint
+                  lightIntensity:
+                      0.0, // 👈 Set to 0 to remove white highlights/border
                   ambientStrength: 0.5,
                 ),
                 child: Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
-                      width: 1.2,
-                    ),
-                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -610,6 +608,7 @@ class _TransactionsState extends State<TransactionList>
             borderRadius: const Radius.circular(30),
           ),
           settings: const LiquidGlassSettings(
+            blur: 10,
             thickness: 50, // controls optical depth (refraction)
             glassColor: Color.fromARGB(26, 87, 87, 87), // dark translucent tint
             lightIntensity: 1.25, // highlight brightness
@@ -656,7 +655,12 @@ class _TransactionsState extends State<TransactionList>
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: GoogleFonts.ibmPlexMono(
-                                    color: Colors.white70,
+                                    color: const Color.fromARGB(
+                                      179,
+                                      255,
+                                      255,
+                                      255,
+                                    ),
                                     fontSize: 20,
                                     fontWeight: FontWeight.w900,
                                   ),

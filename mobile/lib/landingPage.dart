@@ -128,19 +128,19 @@ class _NavShellState extends State<NavShell> {
           //     positionY: 0.5, // Y position (center of screen)
           //   ),
           // ),
-          Positioned.fill(
-            child: Image.asset(
-              'assets/bgbg.jpg',
-              fit: BoxFit.cover, // makes it fill the screen
-              alignment: Alignment.center, // centers the image
-            ),
-          ),
-          // AbstractWavesBackground(
-          //   speed: 0.5, // Controls rotation speed
-          //   size: 1500, // Size of the tesseract
-          //   positionX: 1, // X position (center of screen)
-          //   positionY: 0.5, // Y position (center of screen)
+          // Positioned.fill(
+          //   child: Image.asset(
+          //     'assets/bgbg.jpg',
+          //     fit: BoxFit.cover, // makes it fill the screen
+          //     alignment: Alignment.center, // centers the image
+          //   ),
           // ),
+          AbstractWavesBackground(
+            speed: 0.5, // Controls rotation speed
+            size: 1500, // Size of the tesseract
+            positionX: 1, // X position (center of screen)
+            positionY: 0.5, // Y position (center of screen)
+          ),
           BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10),
             child: Container(color: Colors.transparent),

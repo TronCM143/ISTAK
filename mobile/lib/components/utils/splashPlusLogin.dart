@@ -5,6 +5,7 @@ import 'package:mobile/components/utils/animatedBackground.dart';
 import 'package:mobile/authentication/page.dart';
 import 'package:mobile/pages/home.dart';
 import 'package:mobile/landingPage.dart';
+import 'package:mobile/navBar.dart'; // Added import for NavShell
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -175,58 +176,6 @@ class _SplashScreenState extends State<SplashScreen>
                   : const SizedBox.shrink(),
             ),
           ),
-          // Commented-out logo (kept as-is)
-          // Positioned(
-          //   left: 0,
-          //   right: 0,
-          //   top: 120,
-          //   child: SafeArea(
-          //     child: Center(
-          //       child: Hero(
-          //         tag: "istakLogo",
-          //         flightShuttleBuilder: (
-          //           BuildContext flightContext,
-          //           Animation<double> animation,
-          //           HeroFlightDirection flightDirection,
-          //           BuildContext fromHeroContext,
-          //           BuildContext toHeroContext,
-          //         ) {
-          //           return AnimatedBuilder(
-          //             animation: animation,
-          //             builder: (context, child) {
-          //               final t = animation.value;
-          //               final width = 230 + (150 - 230) * t;
-          //               final height = 120 + (80 - 120) * t;
-          //               final topOffset = 120 * (1 - t);
-          //               print("Hero animation: $t");
-          //               return Transform.translate(
-          //                 offset: Offset(0, topOffset),
-          //                 child: Material(
-          //                   type: MaterialType.transparency,
-          //                   child: Image.asset(
-          //                     "assets/fullLogo.png",
-          //                     width: width,
-          //                     height: height,
-          //                     fit: BoxFit.contain,
-          //                   ),
-          //                 ),
-          //               );
-          //             },
-          //           );
-          //         },
-          //         child: Material(
-          //           type: MaterialType.transparency,
-          //           child: Image.asset(
-          //             "assets/fullLogo.png",
-          //             width: 230,
-          //             height: 120,
-          //             fit: BoxFit.contain,
-          //           ),
-          //         ),
-          //       ),
-          //     ),
-          //   ),
-          // ),
         ],
       ),
     );

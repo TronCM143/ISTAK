@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/components/transaction/borrowing/sync.dart';
+import 'package:lottie/lottie.dart';
 
 class ProcessTransaction extends StatefulWidget {
   final Map<String, String>? borrowerData;
@@ -35,12 +36,24 @@ class _ProcessTransactionState extends State<ProcessTransaction> {
   @override
   void initState() {
     super.initState();
+    _checkInitialConnectivity(); // <-- Add this line (runs async check on load)
+
     Connectivity().onConnectivityChanged.listen((result) async {
-      if (result != ConnectivityResult.none) {
+      if (result != ConnectivityResult.none && mounted) {
         print("📶 Internet reconnected — syncing pending requests...");
         await syncPendingRequests();
+        setState(
+          () => _isOffline = false,
+        ); // <-- Add this: Reset flag on reconnect
       }
     });
+  }
+
+  Future<void> _checkInitialConnectivity() async {
+    final connectivity = await Connectivity().checkConnectivity();
+    if (connectivity == ConnectivityResult.none && mounted) {
+      setState(() => _isOffline = true);
+    }
   }
 
   Future<void> _processImage() async {
@@ -92,26 +105,26 @@ class _ProcessTransactionState extends State<ProcessTransaction> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Error',
+                    'WARNING',
                     style: GoogleFonts.ibmPlexMono(
-                      color: Colors.white,
+                      color: const Color.fromARGB(255, 145, 0, 0),
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 5),
                   Text(
-                    'Error processing image: $e',
+                    'No internet connection',
                     style: GoogleFonts.ibmPlexMono(
                       color: Colors.white,
                       fontSize: 14,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 5),
                   Container(
                     decoration: BoxDecoration(
-                      color: Color(0xFF32D74B),
+                      color: Color.fromARGB(255, 97, 97, 97),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: TextButton(
@@ -139,6 +152,7 @@ class _ProcessTransactionState extends State<ProcessTransaction> {
     }
   }
 
+  // Replace the entire _submitTransaction() method:
   Future<void> _submitTransaction() async {
     if (widget.borrowerData == null || widget.scannedItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -163,6 +177,11 @@ class _ProcessTransactionState extends State<ProcessTransaction> {
     } else {
       await _storeLocally();
       setState(() => _isOffline = true);
+
+      // Auto-reset after 2s for offline
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) widget.onReset();
+      });
     }
 
     setState(() => _isLoading = false);
@@ -212,12 +231,9 @@ class _ProcessTransactionState extends State<ProcessTransaction> {
         if (widget.onSuccess != null) {
           widget.onSuccess!(widget.borrowerData!['name']!);
         }
-        _showResultDialog(
-          title: "✅ Success",
-          message: "Transaction successfully saved to the backend!",
-          color: Colors.green,
-        );
+
         setState(() {
+          _isOffline = false;
           _outputMessage = "✅ Backend Save Successful!";
         });
         Future.delayed(const Duration(seconds: 2), () {
@@ -233,87 +249,48 @@ class _ProcessTransactionState extends State<ProcessTransaction> {
       debugPrint("⚠️ Error sending to backend: $e");
       await _storeLocally();
       setState(() {
-        _isOffline = true;
-        _outputMessage = "⚠️ Backend failed, stored offline instead.";
+        _isOffline = true; // <-- Add this: Explicitly set offline on error
       });
     }
   }
 
   Future<void> _storeLocally() async {
-    final prefs = await SharedPreferences.getInstance();
-    final localData = {
-      "borrower": widget.borrowerData,
-      "items": widget.scannedItems,
-      "timestamp": DateTime.now().toIso8601String(),
-    };
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final localData = {
+        "borrower": widget.borrowerData,
+        "items": widget.scannedItems,
+        "timestamp": DateTime.now().toIso8601String(),
+      };
 
-    List<String> pending = prefs.getStringList("pending_transactions") ?? [];
-    pending.add(jsonEncode(localData));
-    await prefs.setStringList("pending_transactions", pending);
+      List<String> pending = prefs.getStringList("pending_transactions") ?? [];
+      pending.add(jsonEncode(localData));
+      await prefs.setStringList("pending_transactions", pending);
 
-    final List<String>? verifyList = prefs.getStringList(
-      "pending_transactions",
-    );
-    String parseMessage;
-    if (verifyList != null && verifyList.isNotEmpty) {
+      // Always set positive message for local save—no verification errors
+      setState(() {
+        _outputMessage = "💾 Transaction saved locally!";
+      });
+
+      // Safe sync: Try but don't block on errors (e.g., offline)
       try {
-        final decoded = jsonDecode(verifyList.last);
-        parseMessage =
-            "✔ Successfully parsed local data:\n${jsonEncode(decoded)}";
-      } catch (e) {
-        parseMessage = "❌ Error parsing stored local data: $e";
+        await syncPendingRequests();
+      } catch (syncError) {
+        debugPrint("⚠️ Sync skipped due to error: $syncError");
+        // Don't rethrow—let local save succeed
       }
-    } else {
-      parseMessage = "❌ No data found in local storage after saving!";
+    } catch (e) {
+      debugPrint("❌ Local save failed: $e");
+      setState(() {
+        _outputMessage = "⚠️ Local save failed—try again.";
+      });
     }
-
-    _showResultDialog(
-      title: "💾 Offline Mode",
-      message: "Transaction stored locally.\n\n$parseMessage",
-      color: Colors.orange,
-    );
-
-    setState(() {
-      _outputMessage = parseMessage;
-    });
-
-    await syncPendingRequests();
-  }
-
-  void _showResultDialog({
-    required String title,
-    required String message,
-    required Color color,
-  }) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: Colors.grey[900],
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: Text(
-          title,
-          style: TextStyle(color: color, fontWeight: FontWeight.bold),
-        ),
-
-        actions: [
-          Center(
-            child: TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                "OK",
-                style: TextStyle(color: Colors.lightBlueAccent),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[900],
+      backgroundColor: const Color.fromRGBO(33, 33, 33, 1),
       body: Center(
         child: _isLoading
             ? const CircularProgressIndicator(color: Colors.greenAccent)
@@ -322,49 +299,109 @@ class _ProcessTransactionState extends State<ProcessTransaction> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      _isOffline
-                          ? '📴 Offline Mode — Stored Locally'
-                          : '🌐 Ready to Process Transaction',
-                      style: const TextStyle(color: Colors.white, fontSize: 18),
+                    SizedBox(height: 200),
+                    Stack(
+                      children: [
+                        Row(
+                          children: [
+                            SizedBox(width: 25),
+                            SizedBox(
+                              height: 300,
+                              width: 400, // adjust based on your layout
+                              child: Lottie.asset(
+                                'assets/finalSave.json',
+                                repeat: true, // 🔁 keeps looping forever
+                                animate: true, // ✅ ensures it plays
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        Center(
+                          child: Column(
+                            children: [
+                              SizedBox(height: 300),
+                              Text(
+                                _isOffline
+                                    ? "No internet, Saved locally!"
+                                    : "Success Transaction",
+                                style: GoogleFonts.ibmPlexMono(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              ),
+                              SizedBox(height: 30),
+                              ElevatedButton.icon(
+                                onPressed: _submitTransaction,
+
+                                label: Text(
+                                  "SUBMIT",
+                                  style: GoogleFonts.ibmPlexMono(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.greenAccent[700],
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 40,
+                                    vertical: 10,
+                                  ),
+                                  elevation: 8, // ⬅️ Add some depth
+                                  shadowColor: Colors.black.withOpacity(
+                                    0.5,
+                                  ), // ⬅️ Customize shadow color
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      16,
+                                    ), // optional nice rounding
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 15),
+                              TextButton(
+                                onPressed: widget.onReset,
+                                child: Text(
+                                  'Cancel',
+                                  style: GoogleFonts.ibmPlexMono(
+                                    color: const Color.fromARGB(255, 138, 0, 0),
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 20),
                     if (_outputMessage != null)
                       Container(
                         padding: const EdgeInsets.all(10),
+                        margin: const EdgeInsets.symmetric(vertical: 10),
                         decoration: BoxDecoration(
-                          color: Colors.black26,
+                          color: Colors.green.withOpacity(
+                            0.2,
+                          ), // Success tint only
                           borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.greenAccent.withOpacity(0.5),
+                          ),
                         ),
                         child: Text(
                           _outputMessage!,
-                          style: const TextStyle(
-                            color: Colors.white70,
+                          style: GoogleFonts.ibmPlexMono(
+                            color: Colors.white,
                             fontSize: 14,
+                            fontWeight: FontWeight.w500,
                           ),
+                          textAlign: TextAlign.center,
                         ),
                       ),
                     const SizedBox(height: 30),
-                    ElevatedButton.icon(
-                      onPressed: _submitTransaction,
-                      icon: const Icon(Icons.save),
-                      label: const Text("Save Transaction"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.greenAccent[700],
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 30,
-                          vertical: 14,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    TextButton(
-                      onPressed: widget.onReset,
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(color: Colors.redAccent),
-                      ),
-                    ),
                   ],
                 ),
               ),

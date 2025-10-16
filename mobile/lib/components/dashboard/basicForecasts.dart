@@ -270,6 +270,7 @@ class ForecastWidget extends StatelessWidget {
           borderRadius: const Radius.circular(30),
         ),
         settings: const LiquidGlassSettings(
+          blur: 5,
           thickness: 50, // controls optical depth (refraction)
           glassColor: Color.fromARGB(26, 65, 65, 65), // dark translucent tint
           lightIntensity: 1.25, // highlight brightness

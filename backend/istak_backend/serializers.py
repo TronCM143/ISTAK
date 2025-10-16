@@ -129,7 +129,7 @@ class CreateBorrowingSerializer(serializers.Serializer):
 
 from rest_framework import serializers
 from django.utils import timezone
-from .models import Transaction, Borrower, Item
+from .models import PredictiveItemCondition, Transaction, Borrower, Item
 
 class DamagedOverdueReportSerializer(serializers.ModelSerializer):
     borrowerName = serializers.CharField(source='borrower.name')
@@ -245,3 +245,14 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ['id', 'username', 'email', 'date_joined']
+        
+
+
+
+class PredictiveItemSerializer(serializers.ModelSerializer):
+    item_name = serializers.CharField(source='item.item_name', read_only=True)
+    condition = serializers.CharField(source='item.condition', read_only=True)
+
+    class Meta:
+        model = PredictiveItemCondition
+        fields = ['item_name', 'condition', 'predicted_risk', 'reason', 'last_checked']

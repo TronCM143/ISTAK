@@ -1,26 +1,16 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { IconTrendingUp } from "@tabler/icons-react";
 import { TrendingUp } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
+import { 
+  Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle 
 } from "@/components/ui/card";
-import {
-  ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
+import { 
+  ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent 
 } from "@/components/ui/chart";
-import { BorrowedStatsCard} from "../pages/dashboard/borrowStat";
+import { BorrowedStatsCard } from "../pages/dashboard/borrowStat";
+import DamagePredictionCard from "../pages/dashboard/predicDamage";
 
 // Placeholder data (for fallback)
 const defaultChartData = [
@@ -34,18 +24,12 @@ const defaultChartData = [
 ];
 
 const chartConfig = {
-  borrowed: {
-    label: "Borrowed",
-    color: "#FFC107", // Yellow
-  },
-  returned: {
-    label: "Returned",
-    color: "#4CAF50", // Green
-  },
+  borrowed: { label: "Borrowed", color: "#FFC107" },
+  returned: { label: "Returned", color: "#4CAF50" },
 } satisfies ChartConfig;
 
 export function SectionCards() {
-  const [chartData, setChartData] = useState(defaultChartData); // FIXED: Uncommented and initialized state
+  const [chartData, setChartData] = useState(defaultChartData);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -53,20 +37,15 @@ export function SectionCards() {
   useEffect(() => {
     const fetchData = async () => {
       const token = localStorage.getItem("access_token");
-
       if (!token) {
         setError("No authentication token found.");
         setLoading(false);
         return;
       }
-
       try {
         const resp = await fetch(`${API_BASE_URL}/api/analytics/monthly-transactions/`, {
           method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         });
 
         if (!resp.ok) {
@@ -81,39 +60,22 @@ export function SectionCards() {
         }
 
         const data = await resp.json();
-        console.log("Fetched monthly data:", data); // FIXED: Added logging for debugging
-
-        // FIXED: Ensure data is sorted ascending (oldest to newest) for chart flow
-        // Backend already sorts, but re-sort here to guarantee
         const sortedData = data.sort((a: any, b: any) => {
-          const monthA = new Date(`${a.month} 1, 2025`).getTime(); // Assuming current year for sorting
+          const monthA = new Date(`${a.month} 1, 2025`).getTime();
           const monthB = new Date(`${b.month} 1, 2025`).getTime();
           return monthA - monthB;
         });
 
-        // FIXED: Ensure exactly 7 months (pad with zeros if backend returns fewer)
-        // Backend should return 7, but handle edge cases
-        const sevenMonthsData = sortedData.slice(-7); // Last 7 (ensures current + past 6)
-        if (sevenMonthsData.length < 7) {
-          console.warn("Less than 7 months returned; using fallback for missing.");
-          // Optionally pad with zeros, but for now, use what's available
-        }
-
-        // Adapt API response to chart format
+        const sevenMonthsData = sortedData.slice(-7);
         const formattedData = sevenMonthsData.map((item: any) => ({
-          month: item.month,       // e.g. "April" (full month name)
-          borrowed: item.borrowed || 0, // Ensure 0 for empty months
+          month: item.month,
+          borrowed: item.borrowed || 0,
           returned: item.returned || 0,
         }));
 
-        // FIXED: If no data, fallback to default (or empty array)
-        const finalData = formattedData.length > 0 ? formattedData : defaultChartData;
-
-        setChartData(finalData);
+        setChartData(formattedData.length > 0 ? formattedData : defaultChartData);
         setLoading(false);
-
       } catch (err: any) {
-        console.error("Fetch error:", err);
         setError(`Network error: ${err.message || err}`);
         setLoading(false);
       }
@@ -122,33 +84,30 @@ export function SectionCards() {
     fetchData();
   }, []);
 
-  // FIXED: Dynamic description - shows first (oldest) to last (current) month
-  const dynamicDescription = chartData.length > 0 
-    ? `${chartData[0].month} - ${chartData[chartData.length - 1].month}`
-    : "Last 7 months";
+  const dynamicDescription =
+    chartData.length > 0
+      ? `${chartData[0].month} - ${chartData[chartData.length - 1].month}`
+      : "Last 7 months";
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full px-0 items-stretch 
-      *:data-[slot=card]:from-primary/5 
-      *:data-[slot=card]:to-card 
-      dark:*:data-[slot=card]:bg-card 
-      *:data-[slot=card]:bg-gradient-to-t 
-      *:data-[slot=card]:shadow-xs">
-
-      {/* Borrowed items card */}
+    <div
+      className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full px-0 items-stretch
+      *:data-[slot=card]:from-primary/5
+      *:data-[slot=card]:to-card
+      dark:*:data-[slot=card]:bg-card
+      *:data-[slot=card]:bg-gradient-to-t
+      *:data-[slot=card]:shadow-xs"
+    >
+      {/* TOP ROW (two cards share width) */}
       <div className="w-full h-full">
         <BorrowedStatsCard />
       </div>
 
-      {/* Transactions chart card */}
       <Card className="w-full h-full @container/card" data-slot="card">
         <CardHeader>
           <CardTitle>Transaction Trends</CardTitle>
           <CardDescription>
-            {loading || error
-              ? "Last 7 months"
-              : dynamicDescription // FIXED: Dynamic range display
-            }
+            {loading || error ? "Last 7 months" : dynamicDescription}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -162,19 +121,16 @@ export function SectionCards() {
             </div>
           ) : (
             <ChartContainer config={chartConfig}>
-              <BarChart accessibilityLayer data={chartData} margin={{ left: 12, right: 12 }}> {/* FIXED: Added margin for better rendering */}
+              <BarChart accessibilityLayer data={chartData} margin={{ left: 12, right: 12 }}>
                 <CartesianGrid vertical={false} />
                 <XAxis
                   dataKey="month"
                   tickLine={false}
                   tickMargin={10}
                   axisLine={false}
-                  tickFormatter={(value) => value.slice(0, 3)} // Abbreviate months (e.g., "Oct")
+                  tickFormatter={(value) => value.slice(0, 3)}
                 />
-                <ChartTooltip
-                  cursor={false}
-                  content={<ChartTooltipContent indicator="dashed" />}
-                />
+                <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dashed" />} />
                 <Bar dataKey="borrowed" fill={chartConfig.borrowed.color} radius={4} />
                 <Bar dataKey="returned" fill={chartConfig.returned.color} radius={4} />
               </BarChart>
@@ -190,6 +146,11 @@ export function SectionCards() {
           </div>
         </CardFooter>
       </Card>
+
+      {/* BOTTOM ROW (full-width damage prediction) */}
+      <div className="md:col-span-2 w-full">
+        <DamagePredictionCard />
+      </div>
     </div>
   );
 }

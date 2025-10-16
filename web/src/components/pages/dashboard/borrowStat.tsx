@@ -99,7 +99,7 @@ export function BorrowedStatsCard() {
   return (
     <Card className="flex flex-col h-full" data-slot="card">
       <CardHeader className="items-center pb-0">
-        <CardTitle>Transaction Status</CardTitle>
+        <CardTitle>Transactions for Today</CardTitle>
         <CardDescription>Snapshot (Available, Borrowed, Overdue)</CardDescription>
       </CardHeader>
 

@@ -25,13 +25,35 @@ import {
 } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { List, MoreHorizontal, Trash2 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { List, MoreHorizontal, Search, Trash2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@radix-ui/react-scroll-area";
+import { ToggleGroup, ToggleGroupItem } from "@radix-ui/react-toggle-group";
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Item {
   id: string | number;
@@ -45,16 +67,17 @@ interface Transaction {
   borrowerName: string;
   school_id: string;
   borrowerId?: number;
-  items: Item[];  // ✅ array not string
+  items: Item[]; // ✅ array not string
   return_date: string | null;
   borrow_date: string;
   status: "borrowed" | "returned" | "overdue";
 }
 
-
 export function Transactions() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
+  const [filteredTransactions, setFilteredTransactions] = useState<
+    Transaction[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sorting, setSorting] = useState<SortingState>([
@@ -64,12 +87,15 @@ export function Transactions() {
   const [pageIndex, setPageIndex] = useState(0);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<"all" | "borrowed" | "returned" | "overdue">("all");
+  const [filterStatus, setFilterStatus] = useState<
+    "all" | "borrowed" | "returned" | "overdue"
+  >("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [availableItems, setAvailableItems] = useState<Item[]>([]);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [selectedTransaction, setSelectedTransaction] =
+    useState<Transaction | null>(null);
   const pageSize = 10;
   const router = useRouter();
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -91,75 +117,78 @@ export function Transactions() {
   });
   const [editName, setEditName] = useState("");
   const [editImage, setEditImage] = useState<File | null>(null);
-  const [itemConditions, setItemConditions] = useState<{[key: string]: string}>({});
+  const [itemConditions, setItemConditions] = useState<{
+    [key: string]: string;
+  }>({});
 
-   const fetchTransactions = async () => {
-      try {
-        const token = localStorage.getItem("access_token");
-        if (!token) {
-          router.replace("/login");
-          return;
-        }
+  const fetchTransactions = async () => {
+    try {
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
 
-        // Update overdue transactions
-        await fetch(`${API_BASE_URL}/api/update_overdue_transactions/`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
+      // Update overdue transactions
+      await fetch(`${API_BASE_URL}/api/update_overdue_transactions/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
 
-        const response = await fetch(`${API_BASE_URL}/api/transactions/`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
+      const response = await fetch(`${API_BASE_URL}/api/transactions/`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
 
-        if (response.status === 401) {
-          router.replace("/dashboard");
-          return;
-        }
+      if (response.status === 401) {
+        router.replace("/dashboard");
+        return;
+      }
 
-        if (!response.ok) {
-          throw new Error(`Failed to fetch transactions: ${response.statusText}`);
-        }
+      if (!response.ok) {
+        throw new Error(`Failed to fetch transactions: ${response.statusText}`);
+      }
 
-        const data = await response.json();
-        console.log("Raw API response:", data);
+      const data = await response.json();
+      console.log("Raw API response:", data);
 
-        // Transform API response to match Transaction interface
-        const transformedTransactions = data.map((transaction: any) => {
-          const today = new Date();
-          const returnDate = transaction.return_date ? new Date(transaction.return_date) : null;
-          const status = transaction.status === "borrowed" && returnDate && returnDate < today
+      // Transform API response to match Transaction interface
+      const transformedTransactions = data.map((transaction: any) => {
+        const today = new Date();
+        const returnDate = transaction.return_date
+          ? new Date(transaction.return_date)
+          : null;
+        const status =
+          transaction.status === "borrowed" && returnDate && returnDate < today
             ? "overdue"
             : transaction.status || "borrowed";
 
-          return {
-            id: transaction.id,
-            borrowerName: transaction.borrower_name || "N/A",
-            school_id: transaction.school_id || "N/A",
-            borrowerId: transaction.borrower?.id,
-            items: transaction.items || [],
-            return_date: transaction.return_date || null,
-            borrow_date: transaction.borrow_date || "N/A",
-            status,
-          };
-        });
+        return {
+          id: transaction.id,
+          borrowerName: transaction.borrower_name || "N/A",
+          school_id: transaction.school_id || "N/A",
+          borrowerId: transaction.borrower?.id,
+          items: transaction.items || [],
+          return_date: transaction.return_date || null,
+          borrow_date: transaction.borrow_date || "N/A",
+          status,
+        };
+      });
 
-        console.log("Transformed transactions:", transformedTransactions);
-        setTransactions(transformedTransactions);
-        setFilteredTransactions(transformedTransactions);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "An error occurred");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-
+      console.log("Transformed transactions:", transformedTransactions);
+      setTransactions(transformedTransactions);
+      setFilteredTransactions(transformedTransactions);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchUserRole = async () => {
@@ -190,7 +219,6 @@ export function Transactions() {
       }
     };
 
- 
     fetchUserRole();
     fetchTransactions();
   }, [router]);
@@ -217,14 +245,19 @@ export function Transactions() {
   useEffect(() => {
     let filtered = transactions;
     if (filterStatus !== "all") {
-      filtered = filtered.filter((t) => t.status.toLowerCase() === filterStatus.toLowerCase());
+      filtered = filtered.filter(
+        (t) => t.status.toLowerCase() === filterStatus.toLowerCase()
+      );
     }
     if (searchTerm) {
       const lowerSearch = searchTerm.toLowerCase();
-      filtered = filtered.filter((t) =>
-        t.borrowerName.toLowerCase().includes(lowerSearch) ||
-        t.school_id.toLowerCase().includes(lowerSearch) ||
-        t.items.some((item) => item.item_name.toLowerCase().includes(lowerSearch))
+      filtered = filtered.filter(
+        (t) =>
+          t.borrowerName.toLowerCase().includes(lowerSearch) ||
+          t.school_id.toLowerCase().includes(lowerSearch) ||
+          t.items.some((item) =>
+            item.item_name.toLowerCase().includes(lowerSearch)
+          )
       );
     }
     setFilteredTransactions(filtered);
@@ -258,7 +291,9 @@ export function Transactions() {
 
       if (response.ok) {
         setTransactions(transactions.filter((t) => t.id !== id));
-        setFilteredTransactions(filteredTransactions.filter((t) => t.id !== id));
+        setFilteredTransactions(
+          filteredTransactions.filter((t) => t.id !== id)
+        );
         toast.success("Transaction deleted successfully");
       } else {
         const errorData = await response.json();
@@ -273,7 +308,12 @@ export function Transactions() {
     const selectedRows = table.getSelectedRowModel().rows;
     if (selectedRows.length === 0) return;
 
-    if (!confirm(`Are you sure you want to delete ${selectedRows.length} transaction(s)?`)) return;
+    if (
+      !confirm(
+        `Are you sure you want to delete ${selectedRows.length} transaction(s)?`
+      )
+    )
+      return;
 
     try {
       const token = localStorage.getItem("access_token");
@@ -289,17 +329,24 @@ export function Transactions() {
           return;
         }
 
-        const response = await fetch(`${API_BASE_URL}/api/transactions/${transaction.id}/`, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
+        const response = await fetch(
+          `${API_BASE_URL}/api/transactions/${transaction.id}/`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
 
         if (!response.ok) {
           const errorData = await response.json();
-          toast.error(`Failed to delete transaction ${transaction.id}: ${errorData.error || "Error"}`);
+          toast.error(
+            `Failed to delete transaction ${transaction.id}: ${
+              errorData.error || "Error"
+            }`
+          );
         }
       });
 
@@ -333,8 +380,16 @@ export function Transactions() {
 
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addForm.name || !addForm.school_id || !addForm.borrow_date || !addForm.return_date || addForm.selectedItemIds.length === 0) {
-      toast.error("Please fill all required fields and select at least one item.");
+    if (
+      !addForm.name ||
+      !addForm.school_id ||
+      !addForm.borrow_date ||
+      !addForm.return_date ||
+      addForm.selectedItemIds.length === 0
+    ) {
+      toast.error(
+        "Please fill all required fields and select at least one item."
+      );
       return;
     }
 
@@ -381,229 +436,236 @@ export function Transactions() {
       status: transaction.status,
     });
     setItemConditions(
-      transaction.items.reduce((acc, item) => ({ ...acc, [item.id as string]: item.condition || "" }), {})
+      transaction.items.reduce(
+        (acc, item) => ({ ...acc, [item.id as string]: item.condition || "" }),
+        {}
+      )
     );
     setEditImage(null);
     setIsEditOpen(true);
   };
 
- const handleEditSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!selectedTransaction) return;
-  if (!editForm.borrow_date || !editForm.status) {
-    toast.error("Please fill required fields.");
-    return;
-  }
-
-  const token = localStorage.getItem("access_token");
-  try {
-    // Update borrower if name or image changed (FormData - PUT is fine)
-    const nameChanged = editName !== selectedTransaction.borrowerName;
-    const hasImage = !!editImage;
-    if (nameChanged || hasImage) {
-      const bFormData = new FormData();
-      if (nameChanged) bFormData.append("name", editName);
-      if (hasImage) bFormData.append("image", editImage);
-      const bRes = await fetch(`${API_BASE_URL}/api/borrowers/${selectedTransaction.borrowerId}/`, {
-        method: "PUT",  // Multipart OK with PUT
-        headers: { Authorization: `Bearer ${token}` },
-        body: bFormData,
-      });
-      if (!bRes.ok) throw new Error("Failed to update borrower");
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTransaction) return;
+    if (!editForm.status) {
+      toast.error("Please select transaction status.");
+      return;
     }
 
-    // FIXED: Transaction update - use PATCH for partial
-    const tRes = await fetch(`${API_BASE_URL}/api/transactions/${selectedTransaction.id}/`, {
-      method: "PATCH",  // Changed from "PUT"
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(editForm),
-    });
-    if (!tRes.ok) throw new Error("Failed to update transaction");
-
-    // FIXED: Item conditions update - use PATCH for partial
-    const itemPromises = selectedTransaction.items.map(async (item) => {
-      const newCondition = itemConditions[item.id as string] || item.condition;
-      if (newCondition && newCondition !== item.condition) {
-        const iRes = await fetch(`${API_BASE_URL}/api/items/${item.id}/`, {
-          method: "PATCH",  // Changed from "PUT"
+    const token = localStorage.getItem("access_token");
+    try {
+      // FIXED: Transaction update - use PATCH for partial
+      const tRes = await fetch(
+        `${API_BASE_URL}/api/transactions/${selectedTransaction.id}/`,
+        {
+          method: "PATCH", // Changed from "PUT"
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ condition: newCondition }),
-        });
-        if (!iRes.ok) console.error(`Failed to update item ${item.id}`);  // Or throw if critical
-      }
-    });
-    await Promise.all(itemPromises);
-
-    toast.success("Transaction updated successfully");
-    setIsEditOpen(false);
-    setRowSelection({});
-    fetchTransactions(); // Refetch to update list
-  } catch (err) {
-    toast.error(err instanceof Error ? err.message : "An error occurred");
-  }
-};
-
-  const columns: ColumnDef<Transaction>[] = useMemo(() => [
-    ...(isEditMode
-      ? [
-          {
-            id: "select",
-            header: ({ table }: { table: Table<Transaction> }) => (
-              <Checkbox
-                checked={
-                  table.getIsAllPageRowsSelected() ||
-                  (table.getIsSomePageRowsSelected() && "indeterminate")
-                }
-                onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-                aria-label="Select all"
-              />
-            ),
-            cell: ({ row }: { row: Row<Transaction> }) => (
-              <Checkbox
-                checked={row.getIsSelected()}
-                onCheckedChange={(value) => row.toggleSelected(!!value)}
-                aria-label="Select row"
-              />
-            ),
-            enableSorting: false,
-            enableHiding: false,
-          },
-        ]
-      : []),
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }: { row: Row<Transaction> }) => <div className="capitalize">{row.getValue("status")}</div>,
-      sortingFn: "alphanumeric",
-    },
-    {
-      accessorKey: "return_date",
-      header: "Return Date",
-      cell: ({ row }: { row: Row<Transaction> }) => (
-        <div>
-          {row.getValue("return_date")
-            ? format(new Date(row.getValue("return_date")), "MMMM d, yyyy")
-            : "N/A"}
-        </div>
-      ),
-      sortingFn: "datetime",
-    },
-    {
-      accessorKey: "borrow_date",
-      header: "Borrow Date",
-      cell: ({ row }: { row: Row<Transaction> }) => (
-        <div>
-          {row.getValue("borrow_date")
-            ? format(new Date(row.getValue("borrow_date")), "MMMM d, yyyy")
-            : "N/A"}
-        </div>
-      ),
-      sortingFn: "datetime",
-    },
-    {
-      accessorKey: "items",
-      header: "Items",
-      cell: ({ row }: { row: Row<Transaction> }) => {
-        const items = row.original.items;
-        if (!items || items.length === 0) {
-          return <span className="text-muted-foreground">N/A</span>;
+          body: JSON.stringify(editForm),
         }
+      );
+      if (!tRes.ok) throw new Error("Failed to update transaction");
 
-        // if only 1 item → just show name
-        if (items.length === 1) {
-          return <span>{items[0].item_name}</span>;
+      // FIXED: Item conditions update - use PATCH for partial
+      const itemPromises = selectedTransaction.items.map(async (item) => {
+        const newCondition =
+          itemConditions[item.id as string] || item.condition;
+        if (newCondition && newCondition !== item.condition) {
+          const iRes = await fetch(`${API_BASE_URL}/api/items/${item.id}/`, {
+            method: "PATCH", // Changed from "PUT"
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ condition: newCondition }),
+          });
+          if (!iRes.ok) console.error(`Failed to update item ${item.id}`); // Or throw if critical
         }
+      });
+      await Promise.all(itemPromises);
 
-        // if multiple items → show button to open dialog
-        return (
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="flex items-center gap-1">
-                {items.length} items
+      toast.success("Transaction updated successfully");
+      setIsEditOpen(false);
+      setRowSelection({});
+      fetchTransactions(); // Refetch to update list
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "An error occurred");
+    }
+  };
+
+  const columns: ColumnDef<Transaction>[] = useMemo(
+    () => [
+      ...(isEditMode
+        ? [
+            {
+              id: "select",
+              header: ({ table }: { table: Table<Transaction> }) => (
+                <Checkbox
+                  checked={
+                    table.getIsAllPageRowsSelected() ||
+                    (table.getIsSomePageRowsSelected() && "indeterminate")
+                  }
+                  onCheckedChange={(value) =>
+                    table.toggleAllPageRowsSelected(!!value)
+                  }
+                  aria-label="Select all"
+                />
+              ),
+              cell: ({ row }: { row: Row<Transaction> }) => (
+                <Checkbox
+                  checked={row.getIsSelected()}
+                  onCheckedChange={(value) => row.toggleSelected(!!value)}
+                  aria-label="Select row"
+                />
+              ),
+              enableSorting: false,
+              enableHiding: false,
+            },
+          ]
+        : []),
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }: { row: Row<Transaction> }) => (
+          <div className="capitalize">{row.getValue("status")}</div>
+        ),
+        sortingFn: "alphanumeric",
+      },
+      {
+        accessorKey: "return_date",
+        header: "Return Date",
+        cell: ({ row }: { row: Row<Transaction> }) => (
+          <div>
+            {row.getValue("return_date")
+              ? format(new Date(row.getValue("return_date")), "MMMM d, yyyy")
+              : "N/A"}
+          </div>
+        ),
+        sortingFn: "datetime",
+      },
+      {
+        accessorKey: "borrow_date",
+        header: "Borrow Date",
+        cell: ({ row }: { row: Row<Transaction> }) => (
+          <div>
+            {row.getValue("borrow_date")
+              ? format(new Date(row.getValue("borrow_date")), "MMMM d, yyyy")
+              : "N/A"}
+          </div>
+        ),
+        sortingFn: "datetime",
+      },
+      {
+        accessorKey: "items",
+        header: "Items",
+        cell: ({ row }: { row: Row<Transaction> }) => {
+          const items = row.original.items;
+          if (!items || items.length === 0) {
+            return <span className="text-muted-foreground">N/A</span>;
+          }
+
+          // if only 1 item → just show name
+          if (items.length === 1) {
+            return <span>{items[0].item_name}</span>;
+          }
+
+          // if multiple items → show button to open dialog
+          return (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-1"
+                >
+                  {items.length} items
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Borrowed Items</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3">
+                  {items.map((it) => (
+                    <div
+                      key={it.id}
+                      className="flex items-center gap-3 border rounded p-2"
+                    >
+                      {it.image ? (
+                        <img
+                          src={it.image}
+                          alt={it.item_name}
+                          className="h-12 w-12 rounded object-cover"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground">
+                          No Img
+                        </div>
+                      )}
+                      <div className="flex flex-col">
+                        <span className="font-medium">{it.item_name}</span>
+                        {it.condition && (
+                          <span className="text-xs text-muted-foreground">
+                            Condition: {it.condition}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </DialogContent>
+            </Dialog>
+          );
+        },
+      },
+      {
+        accessorKey: "school_id",
+        header: "Borrower School ID",
+        cell: ({ row }: { row: Row<Transaction> }) => (
+          <div>{row.getValue("school_id")}</div>
+        ),
+        sortingFn: "alphanumeric",
+      },
+      {
+        accessorKey: "borrowerName",
+        header: "Borrower Name",
+        cell: ({ row }: { row: Row<Transaction> }) => (
+          <div>{row.getValue("borrowerName")}</div>
+        ),
+        sortingFn: "alphanumeric",
+      },
+      {
+        id: "actions",
+        cell: ({ row }: { row: Row<Transaction> }) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <span className="sr-only">Open menu</span>
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Borrowed Items</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-3">
-                {items.map((it) => (
-                  <div
-                    key={it.id}
-                    className="flex items-center gap-3 border rounded p-2"
-                  >
-                    {it.image ? (
-                      <img
-                        src={it.image}
-                        alt={it.item_name}
-                        className="h-12 w-12 rounded object-cover"
-                      />
-                    ) : (
-                      <div className="h-12 w-12 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground">
-                        No Img
-                      </div>
-                    )}
-                    <div className="flex flex-col">
-                      <span className="font-medium">{it.item_name}</span>
-                      {it.condition && (
-                        <span className="text-xs text-muted-foreground">
-                          Condition: {it.condition}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </DialogContent>
-          </Dialog>
-        );
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => deleteTransaction(row.original.id)}
+                className="text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ),
+        enableHiding: false,
       },
-    },
-    {
-      accessorKey: "school_id",
-      header: "Borrower School ID",
-      cell: ({ row }: { row: Row<Transaction> }) => <div>{row.getValue("school_id")}</div>,
-      sortingFn: "alphanumeric",
-    },
-    {
-      accessorKey: "borrowerName",
-      header: "Borrower Name",
-      cell: ({ row }: { row: Row<Transaction> }) => <div>{row.getValue("borrowerName")}</div>,
-      sortingFn: "alphanumeric",
-    },
-    {
-      id: "actions",
-      cell: ({ row }: { row: Row<Transaction> }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => deleteTransaction(row.original.id)}
-              className="text-destructive"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
-      enableHiding: false,
-    },
-  ], [isEditMode]);
+    ],
+    [isEditMode]
+  );
 
   const table = useReactTable({
     data: filteredTransactions,
@@ -615,9 +677,10 @@ export function Transactions() {
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     onPaginationChange: (updater) => {
-      const newPagination = typeof updater === "function"
-        ? updater({ pageIndex, pageSize })
-        : updater;
+      const newPagination =
+        typeof updater === "function"
+          ? updater({ pageIndex, pageSize })
+          : updater;
       setPageIndex(newPagination.pageIndex);
     },
     initialState: {
@@ -634,12 +697,22 @@ export function Transactions() {
   if (error) {
     return <div className="p-4 text-red-500">Error: {error}</div>;
   }
-
+    type Condition = "Good" | "Fair" | "Damaged" | "Broken" | "__keep__";
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto p-4 space-y-4">
       <Toaster />
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Transactions</h1>
+
+      {/* Page header */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
+            Transactions
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Monitor and manage borrow/return activity
+          </p>
+        </div>
+
         {userRole === "user_web" && (
           <div className="flex gap-2">
             <Button onClick={handleAddOpen}>Add Transaction</Button>
@@ -656,55 +729,67 @@ export function Transactions() {
         )}
       </div>
 
-      <Input
-        placeholder="Search by name, school ID, or item..."
-        className="max-w-md mb-4"
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-      />
+      {/* Toolbar: search + filters */}
+      <div className="w-full rounded-xl border bg-card p-3 sm:p-4">
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
+          {/* Search */}
+          <div className="relative w-full md:max-w-md">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name, school ID, or item…"
+              className="pl-8"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
 
-      <div className="flex gap-2 mb-4">
-        <Button
-          onClick={() => setFilterStatus("all")}
-          variant={filterStatus === "all" ? "default" : "outline"}
-        >
-          All
-        </Button>
-        <Button
-          onClick={() => setFilterStatus("borrowed")}
-          variant={filterStatus === "borrowed" ? "default" : "outline"}
-        >
-          Borrowed
-        </Button>
-        <Button
-          onClick={() => setFilterStatus("returned")}
-          variant={filterStatus === "returned" ? "default" : "outline"}
-        >
-          Returned
-        </Button>
-        <Button
-          onClick={() => setFilterStatus("overdue")}
-          variant={filterStatus === "overdue" ? "default" : "outline"}
-        >
-          Overdue
-        </Button>
+          {/* Filter pills (All / Borrowed / Returned / Overdue) */}
+          <div className="md:ml-auto">
+            <ToggleGroup
+              type="single"
+              value={filterStatus}
+              onValueChange={(v) =>
+                v &&
+                setFilterStatus(
+                  v as "all" | "borrowed" | "returned" | "overdue"
+                )
+              }
+              className="flex flex-wrap gap-2"
+            >
+              <ToggleGroupItem value="all" className="px-3">
+                All
+              </ToggleGroupItem>
+              <ToggleGroupItem value="borrowed" className="px-3">
+                Borrowed
+              </ToggleGroupItem>
+              <ToggleGroupItem value="returned" className="px-3">
+                Returned
+              </ToggleGroupItem>
+              <ToggleGroupItem value="overdue" className="px-3">
+                Overdue
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+        </div>
+
+        {/* Edit mode bulk actions */}
+        {userRole === "user_web" && isEditMode && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {selectedCount === 1 && (
+              <Button onClick={handleEditSelected}>Edit Selected</Button>
+            )}
+            {selectedCount > 0 && (
+              <Button variant="destructive" onClick={handleDeleteSelected}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Selected ({selectedCount})
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
-      {userRole === "user_web" && isEditMode && (
-        <div className="flex gap-2 mb-4">
-          {selectedCount === 1 && (
-            <Button onClick={handleEditSelected}>Edit Selected</Button>
-          )}
-          {selectedCount > 0 && (
-            <Button variant="destructive" onClick={handleDeleteSelected}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete Selected ({selectedCount})
-            </Button>
-          )}
-        </div>
-      )}
-
-      <div className="rounded-md border">
+      {/* Table card */}
+      <div className="rounded-xl border bg-card">
         <UITable>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -713,11 +798,14 @@ export function Transactions() {
                   <TableHead
                     key={header.id}
                     onClick={header.column.getToggleSortingHandler()}
-                    className="cursor-pointer"
+                    className="cursor-pointer select-none"
                   >
                     {header.isPlaceholder
                       ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
                     {{
                       asc: " 🔼",
                       desc: " 🔽",
@@ -727,23 +815,31 @@ export function Transactions() {
               </TableRow>
             ))}
           </TableHeader>
+
           <TableBody>
             {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  className="hover:bg-muted/40"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    <TableCell key={cell.id} className="py-3">
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-24 text-center text-muted-foreground"
+                >
                   No transactions found.
                 </TableCell>
               </TableRow>
@@ -751,86 +847,88 @@ export function Transactions() {
           </TableBody>
         </UITable>
       </div>
-      <div className="flex items-center justify-between mt-4">
-        <Button
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-        >
-          Previous
-        </Button>
-        <span>
-          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
-        </span>
-        <Button
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-        >
-          Next
-        </Button>
+
+      {/* Pagination */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+        <div className="text-sm text-muted-foreground">
+          Page {table.getState().pagination.pageIndex + 1} of{" "}
+          {table.getPageCount()}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            Previous
+          </Button>
+          <Button
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            Next
+          </Button>
+        </div>
       </div>
 
       {/* Add Transaction Dialog */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Add Transaction</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleAddSubmit} className="space-y-4">
-            <div>
+
+          <form
+            onSubmit={handleAddSubmit}
+            className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+          >
+            <div className="space-y-2">
               <Label htmlFor="name">Borrower Name</Label>
               <Input
                 id="name"
                 value={addForm.name}
-                onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                onChange={(e) =>
+                  setAddForm({ ...addForm, name: e.target.value })
+                }
                 placeholder="Enter borrower name"
                 required
               />
             </div>
-            <div>
+
+            <div className="space-y-2">
               <Label htmlFor="school_id">School ID</Label>
               <Input
                 id="school_id"
                 value={addForm.school_id}
-                onChange={(e) => setAddForm({ ...addForm, school_id: e.target.value })}
+                onChange={(e) =>
+                  setAddForm({ ...addForm, school_id: e.target.value })
+                }
                 placeholder="Enter school ID"
                 required
               />
             </div>
-            <div>
-              <Label htmlFor="borrower-status">Borrower Status</Label>
-              <select
-                id="borrower-status"
+
+            <div className="space-y-2">
+              <Label>Borrower Status</Label>
+              <Select
                 value={addForm.status}
-                onChange={(e) => setAddForm({ ...addForm, status: e.target.value as "active" | "inactive" })}
-                className="w-full p-2 border rounded"
-                required
+                onValueChange={(v) =>
+                  setAddForm({ ...addForm, status: v as "active" | "inactive" })
+                }
               >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div>
-              <Label htmlFor="borrow_date">Borrow Date</Label>
-              <Input
-                id="borrow_date"
-                type="date"
-                value={addForm.borrow_date}
-                onChange={(e) => setAddForm({ ...addForm, borrow_date: e.target.value })}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="return_date">Return Date</Label>
-              <Input
-                id="return_date"
-                type="date"
-                value={addForm.return_date}
-                onChange={(e) => setAddForm({ ...addForm, return_date: e.target.value })}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="image">Borrower Image (optional, N/A if blank)</Label>
+
+            <div className="space-y-2">
+              <Label htmlFor="image">Borrower Image (optional)</Label>
               <Input
                 id="image"
                 type="file"
@@ -838,119 +936,195 @@ export function Transactions() {
                 onChange={(e) => setAddImage(e.target.files?.[0] || null)}
               />
             </div>
-            <div>
-              <Label>Select Items to Borrow</Label>
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {availableItems.map((item) => (
-                  <div key={item.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`add-item-${item.id}`}
-                      checked={addForm.selectedItemIds.includes(item.id.toString())}
-                      onCheckedChange={(checked) => {
-                        const ids = checked
-                          ? [...addForm.selectedItemIds, item.id.toString()]
-                          : addForm.selectedItemIds.filter((id) => id !== item.id.toString());
-                        setAddForm({ ...addForm, selectedItemIds: ids });
-                      }}
-                    />
-                    <Label htmlFor={`add-item-${item.id}`}>{item.item_name}</Label>
-                  </div>
-                ))}
-              </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="borrow_date">Borrow Date</Label>
+              <Input
+                id="borrow_date"
+                type="date"
+                value={addForm.borrow_date}
+                onChange={(e) =>
+                  setAddForm({ ...addForm, borrow_date: e.target.value })
+                }
+                required
+              />
             </div>
-            <Button type="submit" className="w-full">
-              Add Transaction
-            </Button>
+
+            <div className="space-y-2">
+              <Label htmlFor="return_date">Return Date</Label>
+              <Input
+                id="return_date"
+                type="date"
+                value={addForm.return_date}
+                onChange={(e) =>
+                  setAddForm({ ...addForm, return_date: e.target.value })
+                }
+                required
+              />
+            </div>
+
+            <div className="sm:col-span-2 space-y-2">
+              <Label>Select Items to Borrow</Label>
+              <ScrollArea className="h-40 rounded-md border p-3">
+                <div className="space-y-2">
+                  {availableItems.map((item) => (
+                    <div key={item.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`add-item-${item.id}`}
+                        checked={addForm.selectedItemIds.includes(
+                          item.id.toString()
+                        )}
+                        onCheckedChange={(checked) => {
+                          const ids = checked
+                            ? [...addForm.selectedItemIds, item.id.toString()]
+                            : addForm.selectedItemIds.filter(
+                                (id) => id !== item.id.toString()
+                              );
+                          setAddForm({ ...addForm, selectedItemIds: ids });
+                        }}
+                      />
+                      <Label htmlFor={`add-item-${item.id}`}>
+                        {item.item_name}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+
+            <div className="sm:col-span-2">
+              <Button type="submit" className="w-full">
+                Add Transaction
+              </Button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>
 
       {/* Edit Transaction Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit Transaction</DialogTitle>
           </DialogHeader>
+
           {selectedTransaction && (
-            <form onSubmit={handleEditSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="edit-name">Borrower Name</Label>
-                <Input
-                  id="edit-name"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  placeholder="Enter borrower name"
-                />
+            <form
+              onSubmit={handleEditSubmit}
+              className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+            >
+              <div className="space-y-2">
+                <Label>Borrower Name</Label>
+                <div className="h-10 px-3 flex items-center rounded-md border bg-muted/40 text-sm">
+                  {editName}
+                </div>
               </div>
-              <div className="text-sm text-muted-foreground">
-                School ID: {selectedTransaction.school_id}
+
+              <div className="space-y-2">
+                <Label>School ID</Label>
+                <div className="h-10 px-3 flex items-center rounded-md border bg-muted/40 text-sm">
+                  {selectedTransaction.school_id}
+                </div>
               </div>
-              <div>
-                <Label htmlFor="edit-borrow_date">Borrow Date</Label>
-                <Input
-                  id="edit-borrow_date"
-                  type="date"
-                  value={editForm.borrow_date}
-                  onChange={(e) => setEditForm({ ...editForm, borrow_date: e.target.value })}
-                  required
-                />
+
+              <div className="space-y-2">
+                <Label>Borrow Date</Label>
+                <div className="h-10 px-3 flex items-center rounded-md border bg-muted/40 text-sm">
+                  {editForm.borrow_date ? format(new Date(editForm.borrow_date), "MMMM d, yyyy") : "N/A"}
+                </div>
               </div>
-              <div>
-                <Label htmlFor="edit-return_date">Return Date</Label>
-                <Input
-                  id="edit-return_date"
-                  type="date"
-                  value={editForm.return_date}
-                  onChange={(e) => setEditForm({ ...editForm, return_date: e.target.value })}
-                />
+
+              <div className="space-y-2">
+                <Label>Return Date</Label>
+                <div className="h-10 px-3 flex items-center rounded-md border bg-muted/40 text-sm">
+                  {editForm.return_date ? format(new Date(editForm.return_date), "MMMM d, yyyy") : "N/A"}
+                </div>
               </div>
-              <div>
-                <Label htmlFor="edit-status">Transaction Status</Label>
-                <select
-                  id="edit-status"
+
+              <div className="space-y-2">
+                <Label>Transaction Status</Label>
+                <Select
                   value={editForm.status}
-                  onChange={(e) => setEditForm({ ...editForm, status: e.target.value as "borrowed" | "returned" | "overdue" })}
-                  className="w-full p-2 border rounded"
-                  required
+                  onValueChange={(v) =>
+                    setEditForm({
+                      ...editForm,
+                      status: v as "borrowed" | "returned" | "overdue",
+                    })
+                  }
                 >
-                  <option value="borrowed">Borrowed</option>
-                  <option value="returned">Returned</option>
-                  <option value="overdue">Overdue</option>
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="borrowed">Borrowed</SelectItem>
+                    <SelectItem value="returned">Returned</SelectItem>
+                    <SelectItem value="overdue">Overdue</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div>
-                <Label htmlFor="edit-image">Update Borrower Image (optional)</Label>
+
+              <div className="space-y-2">
+                <Label>Update Borrower Image (optional)</Label>
                 <Input
                   id="edit-image"
                   type="file"
                   accept="image/*"
                   onChange={(e) => setEditImage(e.target.files?.[0] || null)}
+                  disabled
                 />
               </div>
-              <div>
+
+              <div className="sm:col-span-2 space-y-2">
                 <Label>Item Conditions</Label>
-                <div className="space-y-2 max-h-40 overflow-y-auto">
-                  {selectedTransaction.items.map((item) => (
-                    <div key={item.id} className="flex items-center space-x-2 border p-2 rounded">
-                      <span className="font-medium flex-1">{item.item_name}</span>
-                      <select
-                        value={itemConditions[item.id as string] || item.condition || ""}
-                        onChange={(e) => setItemConditions({ ...itemConditions, [item.id as string]: e.target.value })}
-                        className="p-1 border rounded"
+                <ScrollArea className="h-40 rounded-md border p-3">
+                  <div className="space-y-2">
+                    {selectedTransaction.items.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-2 border p-2 rounded-md"
                       >
-                        <option value="">Keep Current</option>
-                        <option value="Good">Good</option>
-                        <option value="Fair">Fair</option>
-                        <option value="Damaged">Damaged</option>
-                        <option value="Broken">Broken</option>
-                      </select>
-                    </div>
-                  ))}
-                </div>
+                        <span className="font-medium flex-1">
+                          {item.item_name}
+                        </span>
+
+              
+
+<Select
+  value={(itemConditions[item.id as string] as Condition | undefined) ?? "__keep__"}
+  onValueChange={(v: Condition) => {
+    const key = item.id as string;
+    if (v === "__keep__") {
+      // remove override so it truly “keeps current”
+      const { [key]: _omit, ...rest } = itemConditions;
+      setItemConditions(rest);
+    } else {
+      setItemConditions({ ...itemConditions, [key]: v });
+    }
+  }}
+>
+  <SelectTrigger className="w-[140px]">
+    <SelectValue placeholder="Condition" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="__keep__">Keep Current</SelectItem> {/* ✅ non-empty */}
+    <SelectItem value="Good">Good</SelectItem>
+    <SelectItem value="Fair">Fair</SelectItem>
+    <SelectItem value="Damaged">Damaged</SelectItem>
+    <SelectItem value="Broken">Broken</SelectItem>
+  </SelectContent>
+</Select>
+
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
               </div>
-              <Button type="submit" className="w-full">
-                Update Transaction
-              </Button>
+
+              <div className="sm:col-span-2">
+                <Button type="submit" className="w-full">
+                  Update Transaction
+                </Button>
+              </div>
             </form>
           )}
         </DialogContent>
