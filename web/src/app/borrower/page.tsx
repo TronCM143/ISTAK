@@ -6,7 +6,6 @@ import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar"
-
 import React, { useEffect, useState } from "react";
 import {
   Card,
@@ -27,6 +26,7 @@ type Borrower = {
   name: string;
   school_id: string;
   image?: string | null;
+  return_image?: string | null;
   current_borrow_date: string | null;
 };
 
@@ -60,6 +60,12 @@ function normalizeBorrower(b: any): Borrower {
     b.photo_url ??
     null;
 
+  const returnImage =
+    b.return_image_url ??
+    b.return_image ??
+    b.return_photo ??
+    null;
+
   const rawBorrowDate =
     b.current_borrow_date ??
     b.last_borrowed_date ??
@@ -69,11 +75,14 @@ function normalizeBorrower(b: any): Borrower {
 
   const currentBorrowDate = rawBorrowDate ? String(rawBorrowDate) : null;
 
+  console.log("Normalized borrower:", { id: b.id, name, school_id: schoolId, image, return_image: returnImage });
+
   return {
     id: Number(b.id ?? b.pk ?? 0),
     name,
     school_id: String(schoolId),
     image,
+    return_image: returnImage,
     current_borrow_date: currentBorrowDate,
   };
 }
@@ -85,7 +94,6 @@ export default function Page() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const router = useRouter();
-
 
   useEffect(() => {
     const run = async () => {
@@ -161,96 +169,134 @@ export default function Page() {
     >
       <AppSidebar variant="inset" />
       <SidebarInset>
-         <SiteHeader title="Borrower List" />
+        <SiteHeader title="Borrower List" />
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-
-            
               <div className="p-4 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Borrower List</h1>
-        <div className="flex items-center gap-2">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search name or ID..."
-            className="w-[260px]"
-          />
-          <Button variant="outline" onClick={() => setQuery("")}>
-            Clear
-          </Button>
-        </div>
-      </div>
-
-      {filtered.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No borrowers found.</p>
-      ) : (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((b) => (
-            <Card
-              key={b.id}
-              className="border-border/60 bg-card hover:shadow-md transition"
-            >
-              <CardHeader className="flex flex-col items-center gap-3">
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Avatar className="h-24 w-24 cursor-pointer">
-                      {b.image ? (
-                        <AvatarImage src={b.image} alt={b.name} />
-                      ) : (
-                        <AvatarFallback>
-                          {b.name
-                            .split(" ")
-                            .map((p) => p[0]?.toUpperCase())
-                            .slice(0, 2)
-                            .join("") || "NA"}
-                        </AvatarFallback>
-                      )}
-                    </Avatar>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md">
-                    {b.image ? (
-                      <img
-                        src={b.image}
-                        alt={b.name}
-                        className="rounded-lg w-full h-auto object-contain"
-                      />
-                    ) : (
-                      <div className="p-8 text-center text-muted-foreground">
-                        No image available
-                      </div>
-                    )}
-                  </DialogContent>
-                </Dialog>
-
-                <CardTitle className="text-lg text-center">{b.name}</CardTitle>
-                <CardDescription className="text-sm text-muted-foreground">
-                  ID: {b.school_id}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-center">
-                <div className="text-sm text-muted-foreground">
-                  Current Borrow Date:
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <h1 className="text-2xl font-semibold tracking-tight">Borrower List</h1>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search name or ID..."
+                      className="w-[260px]"
+                    />
+                    <Button variant="outline" onClick={() => setQuery("")}>
+                      Clear
+                    </Button>
+                  </div>
                 </div>
-                <div className="text-base font-medium">
-                  {b.current_borrow_date && b.current_borrow_date !== "null"
-                    ? format(
-                        new Date(b.current_borrow_date as string),
-                        "MMMM d, yyyy"
-                      )
-                    : "—"}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
+
+                {filtered.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">No borrowers found.</p>
+                ) : (
+                  <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                    {filtered.map((b) => (
+                      <Card
+                        key={b.id}
+                        className="border-border/60 bg-card hover:shadow-md transition"
+                      >
+                        <CardHeader className="flex flex-col items-center gap-3">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Avatar className="h-24 w-24 cursor-pointer">
+                                {b.image ? (
+                                  <AvatarImage src={b.image} alt={b.name} />
+                                ) : (
+                                  <AvatarFallback>
+                                    {b.name
+                                      .split(" ")
+                                      .map((p) => p[0]?.toUpperCase())
+                                      .slice(0, 2)
+                                      .join("") || "NA"}
+                                  </AvatarFallback>
+                                )}
+                              </Avatar>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl">
+                              <div className="flex flex-col md:flex-row gap-6">
+                                <div className="flex-1">
+                                  <h3 className="text-lg font-semibold mb-2">Borrow Image</h3>
+                                  {b.image ? (
+                                    <img
+                                      src={b.image}
+                                      alt={`${b.name} borrow image`}
+                                      className="rounded-lg w-full h-auto object-contain max-h-[400px]"
+                                      onError={(e) => {
+                                        console.error(`Failed to load borrow image for ${b.name}: ${b.image}`);
+                                        e.currentTarget.style.display = 'none';
+                                       // e.currentTarget.nextElementSibling.style.display = 'block';
+                                      }}
+                                    />
+                                  ) : (
+                                    <div className="p-8 text-center text-muted-foreground bg-muted/20 rounded-lg">
+                                      No borrow image available
+                                    </div>
+                                  )}
+                                  <div className="p-8 text-center text-muted-foreground bg-muted/20 rounded-lg" style={{ display: 'none' }}>
+                                    Failed to load borrow image
+                                  </div>
+                                </div>
+                                <div className="flex-1">
+                                  <h3 className="text-lg font-semibold mb-2">Return Image</h3>
+                                  {b.return_image ? (
+                                    <img
+                                      src={b.return_image}
+                                      alt={`${b.name} return image`}
+                                      className="rounded-lg w-full h-auto object-contain max-h-[400px]"
+                                      onError={(e) => {
+                                        console.error(`Failed to load return image for ${b.name}: ${b.return_image}`);
+                                        e.currentTarget.style.display = 'none';
+                                   //     e.currentTarget.nextElementSibling.style.display = 'block';
+                                      }}
+                                    />
+                                  ) : (
+                                    <div className="p-8 text-center text-muted-foreground bg-muted/20 rounded-lg">
+                                      N/A (Not yet returned)
+                                    </div>
+                                  )}
+                                  <div className="p-8 text-center text-muted-foreground bg-muted/20 rounded-lg" style={{ display: 'none' }}>
+                                    Failed to load return image
+                                  </div>
+                                </div>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                          <CardTitle className="text-lg text-center">{b.name}</CardTitle>
+                          <CardDescription className="text-sm text-muted-foreground">
+                            ID: {b.school_id}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="text-center space-y-2">
+                          <div className="text-sm text-muted-foreground">
+                            Current Borrow Date:
+                          </div>
+                          <div className="text-base font-medium">
+                            {b.current_borrow_date && b.current_borrow_date !== "null"
+                              ? format(
+                                  new Date(b.current_borrow_date as string),
+                                  "MMMM d, yyyy"
+                                )
+                              : "—"}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Return Image:
+                          </div>
+                          <div className="text-base font-medium">
+                            {b.return_image ? "Available" : "N/A"}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </SidebarInset>
     </SidebarProvider>
-  )
+  );
 }

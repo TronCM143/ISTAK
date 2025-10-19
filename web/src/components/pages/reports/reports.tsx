@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -43,14 +42,19 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 type TxStatus = "borrowed" | "returned" | "overdue";
 
-
-async function fetchImageAsDataURL(url: string): Promise<{ dataUrl: string; type: "PNG" | "JPEG" } | null> {
+async function fetchImageAsDataURL(
+  url: string
+): Promise<{ dataUrl: string; type: "PNG" | "JPEG" } | null> {
   try {
     const res = await fetch(url, { mode: "cors" });
     const blob = await res.blob();
@@ -66,8 +70,6 @@ async function fetchImageAsDataURL(url: string): Promise<{ dataUrl: string; type
     return null;
   }
 }
-
-
 
 interface TransactionReport {
   id: string;
@@ -91,7 +93,6 @@ interface DateRange {
 const getConditionColor = (condition: string) => {
   switch (condition?.toLowerCase()) {
     case "damaged":
-    case "broken":
     case "lost":
       return "bg-destructive text-destructive-foreground";
     case "fair":
@@ -108,7 +109,6 @@ const getConditionColor = (condition: string) => {
 const getConditionIcon = (condition: string) => {
   switch (condition?.toLowerCase()) {
     case "damaged":
-    case "broken":
       return "⚠️";
     case "lost":
       return "🚫";
@@ -145,6 +145,7 @@ const fetchTransactionReports = async (filters: {
   conditions?: string[];
   dateFrom?: string;
   dateTo?: string;
+  dateType?: "borrow" | "return" | "both";
 }) => {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
@@ -168,7 +169,11 @@ const fetchTransactionReports = async (filters: {
 // -------- EXPORTS --------
 const exportToPDF = async (
   data: TransactionReport[],
-  _filters: { searchTerm: string; selectedFilters: string[]; dateRange: DateRange }
+  _filters: {
+    searchTerm: string;
+    selectedFilters: string[];
+    dateRange: DateRange;
+  }
 ) => {
   const { jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
@@ -187,16 +192,18 @@ const exportToPDF = async (
 
   autoTable(doc, {
     startY: 20,
-    head: [[
-      "Borrower Image",
-      "Borrower Name",
-      "School ID",
-      "Borrow Date",
-      "Return Date",
-      "Items",
-      "Condition",
-      "Days Past Due",
-    ]],
+    head: [
+      [
+        "Borrower Image",
+        "Borrower Name",
+        "School ID",
+        "Borrow Date",
+        "Return Date",
+        "Items",
+        "Condition",
+        "Days Past Due",
+      ],
+    ],
     body: data.map((item) => [
       item.borrowerImage ? "" : "N/A", // empty cell; we'll draw the image ourselves
       item.borrowerName,
@@ -218,7 +225,14 @@ const exportToPDF = async (
           // fit image inside the cell with small padding
           const maxW = Math.min(14, cell.width - 4);
           const maxH = Math.min(14, cell.height - 4);
-          doc.addImage(img.dataUrl, img.type, cell.x + 2, cell.y + 2, maxW, maxH);
+          doc.addImage(
+            img.dataUrl,
+            img.type,
+            cell.x + 2,
+            cell.y + 2,
+            maxW,
+            maxH
+          );
         }
       }
     },
@@ -227,10 +241,13 @@ const exportToPDF = async (
   doc.save(`transactions-report.pdf`);
 };
 
-
 const exportToExcel = async (
   data: TransactionReport[],
-  _filters: { searchTerm: string; selectedFilters: string[]; dateRange: DateRange }
+  _filters: {
+    searchTerm: string;
+    selectedFilters: string[];
+    dateRange: DateRange;
+  }
 ) => {
   const XLSX = await import("xlsx");
   const rows = data.map((item) => ({
@@ -249,19 +266,19 @@ const exportToExcel = async (
   XLSX.writeFile(wb, `transactions-report.xlsx`);
 };
 
-
 // Status & condition option lists
 const STATUS_OPTIONS = [
   { value: "all", label: "All" },
   { value: "overdue", label: "Overdue" },
-  { value: "available", label: "Available" }, // UI = returned
+  { value: "available", label: "Returned" }, // UI = returned
   { value: "borrowed", label: "Borrowed" },
 ];
 
 const CONDITION_OPTIONS = [
+
+   { value: "good", label: "Good" },
   { value: "damaged", label: "Damaged" },
   { value: "fair", label: "Fair" },
-  { value: "broken", label: "Broken" },
   { value: "lost", label: "Lost" },
 ];
 
@@ -274,6 +291,9 @@ const Reports = () => {
 
   const [selectedStatus, setSelectedStatus] = useState<string[]>(["all"]);
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
+  const [dateType, setDateType] = useState<"borrow" | "return" | "both">(
+    "borrow"
+  );
 
   const [dateRange, setDateRange] = useState<DateRange>({
     from: undefined,
@@ -315,16 +335,23 @@ const Reports = () => {
       searchTerm,
       `S:${normalizedStatuses.join(",")}`,
       `C:${normalizedConditions.join(",")}`,
-      dateRange.from?.toISOString(),
-      dateRange.to?.toISOString(),
+      dateRange.from?.toLocaleDateString(),
+      dateRange.to?.toLocaleDateString(),
+      dateType,
     ],
     queryFn: () =>
       fetchTransactionReports({
         search: searchTerm || undefined,
         statuses: normalizedStatuses,
         conditions: normalizedConditions,
-        dateFrom: dateRange.from?.toISOString().split("T")[0],
-        dateTo: dateRange.to?.toISOString().split("T")[0],
+        dateFrom: dateRange.from
+          ? dateRange.from.toLocaleDateString("en-CA") // → "YYYY-MM-DD" in local time
+          : undefined,
+
+        dateTo: dateRange.to
+          ? dateRange.to.toLocaleDateString("en-CA")
+          : undefined,
+        dateType,
       }),
     staleTime: 5 * 60 * 1000,
     retry: (failureCount, err) => {
@@ -375,7 +402,7 @@ const Reports = () => {
         const wantsOverdue = statusSet.has("overdue");
 
         const statusMatchDirect = statusSet.has(s);
-        const statusMatchOverdue = wantsOverdue && (s === "overdue");
+        const statusMatchOverdue = wantsOverdue && s === "overdue";
 
         return statusMatchDirect || statusMatchOverdue;
       });
@@ -395,14 +422,16 @@ const Reports = () => {
     } else if (sortBy === "schoolId") {
       data.sort((a, b) => a.schoolId.localeCompare(b.schoolId));
     } else if (sortBy === "borrowDate") {
-      data.sort((a, b) => safeGetTime(a.borrowDate) - safeGetTime(b.borrowDate));
+      data.sort(
+        (a, b) => safeGetTime(a.borrowDate) - safeGetTime(b.borrowDate)
+      );
     } else if (sortBy === "condition") {
       data.sort((a, b) => {
         const aCond = a.items[0]?.condition || "";
         const bCond = b.items[0]?.condition || "";
         return aCond.localeCompare(bCond);
       });
-    } 
+    }
 
     return data;
   }, [reportsData, selectedStatus, selectedConditions, sortBy]);
@@ -443,19 +472,39 @@ const Reports = () => {
   };
 
   const columns = [
-    { key: "borrowerImage", label: "Borrower Image", visible: selectedColumns.borrowerImage },
-    { key: "borrowerName",  label: "Borrower Name",  visible: selectedColumns.borrowerName },
-    { key: "schoolId",      label: "School ID",      visible: selectedColumns.schoolId },
-    { key: "borrowDate",    label: "Borrow Date",    visible: selectedColumns.borrowDate },
-    { key: "returnDate",    label: "Return Date",    visible: true },
-    { key: "items",         label: "Items Borrowed", visible: selectedColumns.items },
-    { key: "condition",     label: "Condition",      visible: selectedColumns.condition },
+    {
+      key: "borrowerImage",
+      label: "Borrower Image",
+      visible: selectedColumns.borrowerImage,
+    },
+    {
+      key: "borrowerName",
+      label: "Borrower Name",
+      visible: selectedColumns.borrowerName,
+    },
+    { key: "schoolId", label: "School ID", visible: selectedColumns.schoolId },
+    {
+      key: "borrowDate",
+      label: "Borrow Date",
+      visible: selectedColumns.borrowDate,
+    },
+    { key: "returnDate", label: "Return Date", visible: true },
+    { key: "items", label: "Items Borrowed", visible: selectedColumns.items },
+    {
+      key: "condition",
+      label: "Condition",
+      visible: selectedColumns.condition,
+    },
   ];
 
   const visibleColumns = columns.filter((col) => col.visible);
 
   const stats = useMemo(
     () => ({
+        good:
+        reportsData?.filter((item) =>
+          item.items.some((i) => i.condition.toLowerCase() === "good")
+        ).length || 0,
       damaged:
         reportsData?.filter((item) =>
           item.items.some((i) => i.condition.toLowerCase() === "damaged")
@@ -463,10 +512,6 @@ const Reports = () => {
       fair:
         reportsData?.filter((item) =>
           item.items.some((i) => i.condition.toLowerCase() === "fair")
-        ).length || 0,
-      broken:
-        reportsData?.filter((item) =>
-          item.items.some((i) => i.condition.toLowerCase() === "broken")
         ).length || 0,
       lost:
         reportsData?.filter((item) =>
@@ -521,7 +566,7 @@ const Reports = () => {
         </div>
       );
     }
-   
+
     if (colKey === "borrowDate") {
       return safeFormatDate(report.borrowDate);
     }
@@ -539,71 +584,87 @@ const Reports = () => {
     return (value as ReactNode) || "N/A";
   };
 
-  // Date pickers (compact)
-  const DatePickers = () => (
-    <div className="grid grid-cols-2 gap-2">
-      <div className="space-y-1">
-        <Label className="text-xs">Start</Label>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className={cn(
-                "h-9 w-full justify-start text-left font-normal",
-                !dateRange.from && "text-muted-foreground"
-              )}
-            >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {dateRange.from ? format(dateRange.from, "PPP") : "Pick start"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={dateRange.from}
-              onSelect={(d) =>
-                setDateRange((prev) => ({ ...prev, from: d ?? undefined }))
-              }
-              initialFocus
-              disabled={(date) =>
-                date < new Date("2020-01-01") || date > new Date()
-              }
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
-      <div className="space-y-1">
-        <Label className="text-xs">End</Label>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className={cn(
-                "h-9 w-full justify-start text-left font-normal",
-                !dateRange.to && "text-muted-foreground"
-              )}
-            >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {dateRange.to ? format(dateRange.to, "PPP") : "Pick end"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={dateRange.to}
-              onSelect={(d) =>
-                setDateRange((prev) => ({ ...prev, to: d ?? undefined }))
-              }
-              initialFocus
-              disabled={(date) =>
-                date < new Date("2020-01-01") || date > new Date()
-              }
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
+const minDate = new Date("2020-01-01");
+// Block future dates only when filtering by "borrow"; allow when "return" or "both"
+const isFutureDisabled = () => false;
+
+
+const DISPLAY_FMT = "MM/dd/yy"; // e.g., 01/03/25
+
+const DatePickers = () => (
+  <div className="grid grid-cols-2 gap-2">
+    {/* START */}
+    <div className="space-y-1">
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              "h-9 w-full justify-start text-left font-normal",
+              !dateRange.from && "text-muted-foreground"
+            )}
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            {dateRange.from ? format(dateRange.from, DISPLAY_FMT) : "Pick start"}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={dateRange.from}
+            onSelect={(d) =>
+              setDateRange((prev) => ({
+                from: d ?? undefined,
+                // if new start goes after current end, clear the end
+                to: prev.to && d && d > prev.to ? undefined : prev.to,
+              }))
+            }
+            initialFocus
+            disabled={(d) =>
+              d < minDate ||
+              isFutureDisabled() ||
+              (!!dateRange.to && d > dateRange.to) // prevent start > end
+            }
+          />
+        </PopoverContent>
+      </Popover>
     </div>
-  );
+
+    {/* END */}
+    <div className="space-y-1">
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              "h-9 w-full justify-start text-left font-normal",
+              !dateRange.to && "text-muted-foreground"
+            )}
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            {dateRange.to ? format(dateRange.to, DISPLAY_FMT) : "Pick end"}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={dateRange.to}
+            onSelect={(d) =>
+              setDateRange((prev) => ({ ...prev, to: d ?? undefined }))
+            }
+            initialFocus
+            disabled={(d) =>
+              d < minDate ||
+              isFutureDisabled() ||
+              (!!dateRange.from && d < dateRange.from) // prevent end < start
+            }
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
+  </div>
+);
+
 
   return (
     <div className="space-y-6 p-6">
@@ -622,7 +683,10 @@ const Reports = () => {
             <DownloadCloud className="h-4 w-4" />
             Refresh
           </Button>
-          <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+          <Dialog
+            open={isExportDialogOpen}
+            onOpenChange={setIsExportDialogOpen}
+          >
             <DialogTrigger asChild>
               <Button size="sm" className="h-9 gap-2">
                 <Download className="h-4 w-4" />
@@ -664,7 +728,10 @@ const Reports = () => {
                   <Label>Columns to Include</Label>
                   <div className="space-y-2">
                     {columns.map((col) => (
-                      <div key={col.key} className="flex items-center space-x-2">
+                      <div
+                        key={col.key}
+                        className="flex items-center space-x-2"
+                      >
                         <Checkbox
                           id={col.key}
                           checked={selectedColumns[col.key]}
@@ -714,107 +781,113 @@ const Reports = () => {
             </Badge>
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-2 space-y-4">
-          {/* QUICK FILTERS — STATUS */}
-          <div>
-            <Label className="mb-2 block">Status</Label>
-            <div className="flex flex-wrap gap-2">
-              {STATUS_OPTIONS.map((opt) => {
-                const active = selectedStatus.includes(opt.value);
-                return (
-                  <Button
-                    key={opt.value}
-                    type="button"
-                    size="sm"
-                    variant={active ? "default" : "outline"}
-                    onClick={() => toggleStatus(opt.value)}
-                    aria-pressed={active}
-                    className="h-9 px-3 rounded-md"
-                  >
-                    {opt.label}
-                  </Button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* QUICK FILTERS — CONDITION */}
-          <div>
-            <Label className="mb-2 block">Condition</Label>
-            <div className="flex flex-wrap gap-2">
-              {CONDITION_OPTIONS.map((opt) => {
-                const active = selectedConditions.includes(opt.value);
-                return (
-                  <Button
-                    key={opt.value}
-                    type="button"
-                    size="sm"
-                    variant={active ? "default" : "outline"}
-                    onClick={() => toggleCondition(opt.value)}
-                    aria-pressed={active}
-                    className="h-9 px-3 rounded-md"
-                  >
-                    {opt.label}
-                  </Button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* SEARCH • DATE • SORT on 12-col grid to maximize space */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-            {/* SEARCH */}
-            <div className="md:col-span-4 space-y-1">
-              <Label htmlFor="search" className="text-xs">
-                Search
-              </Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="search"
-                  placeholder="Borrower, school ID, or item..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 h-9"
-                />
-              </div>
-            </div>
-
-            {/* DATE PICKERS */}
-            <div className="md:col-span-5 space-y-1">
-              <Label className="text-xs">Date Range</Label>
-              <DatePickers />
-            </div>
-
-            {/* SORT */}
-            <div className="md:col-span-3 space-y-1">
-              <Label className="text-xs">Sort By</Label>
-              <select
-                className="w-full rounded-md border bg-transparent px-3 py-2 text-sm h-9"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-              >
-                <option value="borrower">Borrower Name</option>
-                <option value="schoolId">School ID</option>
-                <option value="borrowDate">Borrow Date</option>
-                <option value="condition">Condition</option>
-              </select>
-            </div>
-          </div>
-
-          {/* ACTIONS */}
-          <div className="flex flex-wrap items-center gap-2">
+     <CardContent className="pt-2">
+  {/* horizontal scroll when too narrow */}
+  <div className="w-full overflow-x-auto">
+    {/* keep everything on one line */}
+    <div className="flex flex-nowrap items-end gap-2 min-w-max">
+      {/* DATE TYPE */}
+      <div className="flex-none w-[220px]">
+        <Label className="text-xs block mb-1">Date Type</Label>
+        <div className="inline-flex gap-2">
+          {["borrow", "return", "both"].map((type) => (
             <Button
-              variant="ghost"
+              key={type}
+              variant={dateType === type ? "default" : "outline"}
               size="sm"
-              onClick={clearFilters}
-              className="h-9 gap-2 text-muted-foreground"
+              className="capitalize h-9"
+              onClick={() => setDateType(type as typeof dateType)}
             >
-              <X className="h-4 w-4" />
-              Clear Filters
+              {type}
             </Button>
-          </div>
-        </CardContent>
+          ))}
+        </div>
+      </div>
+
+      {/* STATUS (fixed width, no grow) */}
+      <div className="flex-none w-[360px]">
+        <Label className="text-xs block mb-1">Transaction Status</Label>
+        <div className="flex gap-2 overflow-x-auto whitespace-nowrap">
+          {STATUS_OPTIONS.map((opt) => {
+            const active = selectedStatus.includes(opt.value);
+            return (
+              <Button
+                key={opt.value}
+                type="button"
+                size="sm"
+                variant={active ? "default" : "outline"}
+                onClick={() => toggleStatus(opt.value)}
+                aria-pressed={active}
+                className="h-8 px-2 text-xs rounded-md"
+              >
+                {opt.label}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* CONDITION (trimmed space: fixed width, no grow) */}
+      <div className="flex-none w-[320px]">
+        <Label className="text-xs block mb-1">Condition</Label>
+        <div className="flex gap-2 overflow-x-auto whitespace-nowrap">
+          {CONDITION_OPTIONS.map((opt) => {
+            const active = selectedConditions.includes(opt.value);
+            return (
+              <Button
+                key={opt.value}
+                type="button"
+                size="sm"
+                variant={active ? "default" : "outline"}
+                onClick={() => toggleCondition(opt.value)}
+                aria-pressed={active}
+                className="h-8 px-2 text-xs rounded-md"
+              >
+                {opt.label}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* DATE RANGE (compact) */}
+     
+
+      {/* SEARCH (expands to use remaining space) */}
+      <div className="flex-1 min-w-[240px]">
+        <Label htmlFor="search" className="text-xs block mb-1">Search</Label>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            id="search"
+            placeholder="Borrower, school ID, or item..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 h-9"
+          />
+        </div>
+      </div>
+
+      {/* ACTIONS */}
+      <div className="flex-none">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={clearFilters}
+          className="h-9 gap-2 text-muted-foreground"
+        >
+          <X className="h-4 w-4" />
+          Clear Filters
+        </Button>
+      </div>
+    </div>
+     <div className="flex-none w-[260px]">
+        <Label className="text-xs block mb-1">Date Range</Label>
+        <DatePickers />
+      </div>
+  </div>
+</CardContent>
+
       </Card>
 
       {/* TABLE */}
@@ -822,14 +895,10 @@ const Reports = () => {
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="text-base font-semibold">
             Transactions{" "}
-            <span className="text-muted-foreground">({filteredData.length})</span>
+            <span className="text-muted-foreground">
+              ({filteredData.length})
+            </span>
           </CardTitle>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="h-8 gap-1">
-              <Filter className="h-3 w-3" />
-              Filter
-            </Button>
-          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {isLoading ? (
@@ -838,9 +907,7 @@ const Reports = () => {
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-8 space-y-2">
-              <div className="text-destructive">
-                {(error as Error).message}
-              </div>
+              <div className="text-destructive">{(error as Error).message}</div>
               <Button variant="outline" onClick={() => refetch()}>
                 Retry
               </Button>
@@ -871,7 +938,10 @@ const Reports = () => {
                     {filteredData.map((report: TransactionReport) => (
                       <TableRow key={report.id}>
                         {visibleColumns.map((col) => (
-                          <TableCell key={col.key} className="align-top text-muted-foreground">
+                          <TableCell
+                            key={col.key}
+                            className="align-top text-muted-foreground"
+                          >
                             {renderCellContent(report, col.key)}
                           </TableCell>
                         ))}
@@ -884,50 +954,6 @@ const Reports = () => {
           )}
         </CardContent>
       </Card>
-
-      {/* STATS CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-destructive">
-              {stats.damaged}
-            </div>
-            <p className="text-sm text-muted-foreground">Damaged</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-yellow-500">
-              {stats.fair}
-            </div>
-            <p className="text-sm text-muted-foreground">Fair</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-red-500">
-              {stats.broken}
-            </div>
-            <p className="text-sm text-muted-foreground">Broken</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-gray-500">
-              {stats.lost}
-            </div>
-            <p className="text-sm text-muted-foreground">Lost</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-orange-500">
-              {stats.overdue}
-            </div>
-            <p className="text-sm text-muted-foreground">Overdue</p>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 };

@@ -706,7 +706,7 @@ export default function Page() {
                           <span className="text-sm text-muted-foreground">
                             {Object.keys(rowSelection).length} selected
                           </span>
-                          <Button
+                          {/* <Button
                             variant="outline"
                             disabled={Object.keys(rowSelection).length !== 1}
                             onClick={() => {
@@ -720,7 +720,7 @@ export default function Page() {
                             }}
                           >
                             Generate QR Code
-                          </Button>
+                          </Button> */}
                           <Button
                             variant="outline"
                             disabled={Object.keys(rowSelection).length === 0}
@@ -1002,7 +1002,7 @@ export default function Page() {
                             table.getRowModel().rows.map((row) => (
                               <TableRow
                                 key={row.id}
-                                data-state={row.getIsSelected() && "selected"}
+                                data-state={row.getIsSelected() && "selectsded"}
                               >
                                 {row.getVisibleCells().map((cell) => (
                                   <TableCell key={cell.id}>
