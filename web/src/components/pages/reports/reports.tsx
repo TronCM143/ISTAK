@@ -284,6 +284,15 @@ const CONDITION_OPTIONS = [
 
 // -------- Component --------
 const Reports = () => {
+  const [preview, setPreview] = useState<{ open: boolean; src: string; alt: string }>({
+  open: false,
+  src: "",
+  alt: "",
+});
+const openPreview = (src: string, alt: string) => setPreview({ open: true, src, alt });
+
+
+
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<
     "borrower" | "schoolId" | "borrowDate" | "condition"
@@ -529,18 +538,26 @@ const Reports = () => {
     colKey: string
   ): ReactNode => {
     if (colKey === "borrowerImage") {
-      return report.borrowerImage ? (
-        <img
-          src={report.borrowerImage}
-          alt={report.borrowerName}
-          className="h-10 w-10 rounded object-cover"
-        />
-      ) : (
-        <div className="h-10 w-10 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground">
-          No Img
-        </div>
-      );
-    }
+  return report.borrowerImage ? (
+    <button
+      type="button"
+      onClick={() => openPreview(report.borrowerImage as string, report.borrowerName)}
+      className="group relative"
+      aria-label={`Preview image of ${report.borrowerName}`}
+    >
+      <img
+        src={report.borrowerImage}
+        alt={report.borrowerName}
+        className="h-10 w-10 rounded object-cover ring-1 ring-border group-hover:ring-primary transition"
+      />
+    </button>
+  ) : (
+    <div className="h-10 w-10 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground">
+      No Img
+    </div>
+  );
+}
+
     if (colKey === "items") {
       return (
         <div className="space-y-1">
@@ -962,6 +979,26 @@ const DatePickers = () => (
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={preview.open} onOpenChange={(o) => setPreview((p) => ({ ...p, open: o }))}>
+  <DialogContent className="max-w-3xl p-0 sm:p-0 bg-background/95">
+    <div className="relative">
+      {/* Large preview */}
+      <img
+        src={preview.src}
+        alt={preview.alt}
+        className="max-h-[80vh] w-full object-contain select-none"
+        draggable={false}
+      />
+
+      {/* Caption (optional) */}
+      <div className="absolute bottom-2 left-2 text-xs text-foreground/90 bg-background/70 px-2 py-1 rounded">
+        {preview.alt}
+      </div>
+    </div>
+  </DialogContent>
+</Dialog>
+
     </div>
   );
 };
