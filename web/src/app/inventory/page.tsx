@@ -1002,7 +1002,7 @@ export default function Page() {
                             table.getRowModel().rows.map((row) => (
                               <TableRow
                                 key={row.id}
-                                data-state={row.getIsSelected() && "selectsded"}
+                                data-state={row.getIsSelected() && "selected"}
                               >
                                 {row.getVisibleCells().map((cell) => (
                                   <TableCell key={cell.id}>

@@ -150,6 +150,8 @@ export default function PredictedTopItemsRow() {
     el.scrollBy({ left: delta, behavior: "smooth" });
   };
 
+  const itemWidth = 160; // Approximate width for scroll delta (w-40 in Tailwind = 10rem = 160px)
+
   return (
     <Card
       className="border-border/60 bg-gradient-to-b from-background/60 to-background flex flex-col"
@@ -186,106 +188,111 @@ export default function PredictedTopItemsRow() {
         </div>
       </CardHeader>
 
-    <CardContent className="pt-0 -mt-[5px]">
-  {/* (Optional) Controls — keep if you still want them, now tighter */}
-  <div className="flex items-center justify-end gap-1 mb-1">
-    <Button
-      size="icon"
-      variant="ghost"
-      className="h-8 w-8"
-      onClick={() => scrollBy(-240)}
-      aria-label="Scroll left"
-    >
-      <ChevronLeft className="h-4 w-4" />
-    </Button>
-    <Button
-      size="icon"
-      variant="ghost"
-      className="h-8 w-8"
-      onClick={() => scrollBy(240)}
-      aria-label="Scroll right"
-    >
-      <ChevronRight className="h-4 w-4" />
-    </Button>
-  </div>
-
-  {/* Loading skeleton — now grid of 5, no scroll */}
-  {isLoading && (
-    <div className="grid grid-cols-5 gap-3 sm:gap-4">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div
-          key={i}
-          className="w-full rounded-xl border border-border/60 bg-card/70 p-3"
-        >
-          <div className="relative overflow-hidden rounded-lg aspect-[3/2] bg-muted/40">
-            <div className="absolute inset-0 animate-pulse bg-muted/40" />
-          </div>
-          <div className="h-4 w-4/5 mt-3 rounded bg-muted/40 animate-pulse" />
+      <CardContent className="pt-0 -mt-[5px]">
+        {/* Controls */}
+        <div className="flex items-center justify-end gap-1 mb-1">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8"
+            onClick={() => scrollBy(-itemWidth - 12)} // Account for gap
+            aria-label="Scroll left"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8"
+            onClick={() => scrollBy(itemWidth + 12)} // Account for gap
+            aria-label="Scroll right"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
-      ))}
-    </div>
-  )}
 
-  {/* Error */}
-  {!isLoading && error && (
-    <div className="text-sm text-destructive">{error}</div>
-  )}
+        {/* Loading skeleton */}
+        {isLoading && (
+          <div
+            ref={scrollerRef}
+            className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 snap-x snap-mandatory"
+          >
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex-shrink-0 w-40 rounded-xl border border-border/60 bg-card/70 p-3"
+              >
+                <div className="relative overflow-hidden rounded-lg aspect-[3/2] bg-muted/40">
+                  <div className="absolute inset-0 animate-pulse bg-muted/40" />
+                </div>
+                <div className="h-4 w-4/5 mt-3 rounded bg-muted/40 animate-pulse" />
+              </div>
+            ))}
+          </div>
+        )}
 
-  {/* Empty */}
-  {!isLoading && !error && displayList.length === 0 && (
-    <div className="text-sm text-muted-foreground">
-      No forecast available.
-    </div>
-  )}
+        {/* Error */}
+        {!isLoading && error && (
+          <div className="text-sm text-destructive">{error}</div>
+        )}
 
-  {/* Items — grid of 5, auto-resizes to fit container */}
-  {!isLoading && !error && displayList.length > 0 && (
-    <div className="grid grid-cols-5 gap-3 sm:gap-4">
-      {displayList.map((it) => (
-        <div
-          key={it.rank}
-          className="group w-full rounded-xl border border-border/60 bg-card/70 p-3 hover:bg-card transition"
-        >
-          <div className="relative overflow-hidden rounded-lg aspect-[3/2]">
-            {/* Image or placeholder */}
-            {it.image ? (
-              <img
-                src={it.image}
-                alt={it.name}
-                className="h-full w-full object-cover rounded-lg transition-transform duration-300 group-hover:scale-[1.02]"
-                loading="lazy"
-              />
-            ) : (
-              <div className="h-full w-full rounded-lg bg-gradient-to-br from-primary/10 to-transparent grid place-items-center">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <ImageOff className="h-4 w-4" />
-                  No Image
+        {/* Empty */}
+        {!isLoading && !error && displayList.length === 0 && (
+          <div className="text-sm text-muted-foreground">
+            No forecast available.
+          </div>
+        )}
+
+        {/* Items */}
+        {!isLoading && !error && displayList.length > 0 && (
+          <div
+            ref={scrollerRef}
+            className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 snap-x snap-mandatory"
+          >
+            {displayList.map((it) => (
+              <div
+                key={it.rank}
+                className="group flex-shrink-0 w-40 rounded-xl border border-border/60 bg-card/70 p-3 hover:bg-card transition"
+              >
+                <div className="relative overflow-hidden rounded-lg aspect-[3/2]">
+                  {/* Image or placeholder */}
+                  {it.image ? (
+                    <img
+                      src={it.image}
+                      alt={it.name}
+                      className="h-full w-full object-cover rounded-lg transition-transform duration-300 group-hover:scale-[1.02]"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="h-full w-full rounded-lg bg-gradient-to-br from-primary/10 to-transparent grid place-items-center">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <ImageOff className="h-4 w-4" />
+                        No Image
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Rank badge */}
+                  <div className="absolute left-2 top-2">
+                    <Badge className={`border ${rankBadgeClasses(it.rank)} shadow-sm`}>
+                      #{it.rank}
+                    </Badge>
+                  </div>
+
+                  {/* Bottom overlay name */}
+                  <div className="absolute inset-x-0 bottom-0 p-2">
+                    <div className="rounded-lg bg-black/50 backdrop-blur-sm px-2 py-1">
+                      <div className="text-sm font-medium text-white truncate">
+                        {it.name || "N/A"}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            )}
-
-            {/* Rank badge */}
-            <div className="absolute left-2 top-2">
-              <Badge className={`border ${rankBadgeClasses(it.rank)} shadow-sm`}>
-                #{it.rank}
-              </Badge>
-            </div>
-
-            {/* Bottom overlay name */}
-            <div className="absolute inset-x-0 bottom-0 p-2">
-              <div className="rounded-lg bg-black/50 backdrop-blur-sm px-2 py-1">
-                <div className="text-sm font-medium text-white truncate">
-                  {it.name || "N/A"}
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
-        </div>
-      ))}
-    </div>
-  )}
-</CardContent>
-
+        )}
+      </CardContent>
     </Card>
   );
 }

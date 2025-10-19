@@ -486,7 +486,7 @@ const Reports = () => {
     {
       key: "borrowDate",
       label: "Borrow Date",
-      visible: selectedColumns.borrowDate,
+      visible: selectedColumns.borrowerDate,
     },
     { key: "returnDate", label: "Return Date", visible: true },
     { key: "items", label: "Items Borrowed", visible: selectedColumns.items },
@@ -592,7 +592,7 @@ const isFutureDisabled = () => false;
 const DISPLAY_FMT = "MM/dd/yy"; // e.g., 01/03/25
 
 const DatePickers = () => (
-  <div className="grid grid-cols-2 gap-2">
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
     {/* START */}
     <div className="space-y-1">
       <Popover>
@@ -667,18 +667,18 @@ const DatePickers = () => (
 
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-4 sm:p-6">
       {/* HEADER */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-foreground">
           Transaction Reports
         </h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full sm:w-auto">
           <Button
             variant="outline"
             size="sm"
             onClick={() => refetch()}
-            className="h-9 gap-2"
+            className="h-9 gap-2 flex-1 sm:flex-none"
           >
             <DownloadCloud className="h-4 w-4" />
             Refresh
@@ -688,7 +688,7 @@ const DatePickers = () => (
             onOpenChange={setIsExportDialogOpen}
           >
             <DialogTrigger asChild>
-              <Button size="sm" className="h-9 gap-2">
+              <Button size="sm" className="h-9 gap-2 flex-1 sm:flex-none">
                 <Download className="h-4 w-4" />
                 Export Selected
               </Button>
@@ -775,119 +775,120 @@ const DatePickers = () => (
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center justify-between text-base">
-            Filters
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              Filters
+            </div>
             <Badge variant="outline" className="text-xs">
               {filteredData.length} results
             </Badge>
           </CardTitle>
         </CardHeader>
-     <CardContent className="pt-2">
-  {/* horizontal scroll when too narrow */}
-  <div className="w-full overflow-x-auto">
-    {/* keep everything on one line */}
-    <div className="flex flex-nowrap items-end gap-2 min-w-max">
-      {/* DATE TYPE */}
-      <div className="flex-none w-[220px]">
-        <Label className="text-xs block mb-1">Date Type</Label>
-        <div className="inline-flex gap-2">
-          {["borrow", "return", "both"].map((type) => (
+        <CardContent className="pt-2 space-y-4">
+          {/* Search */}
+          <div className="space-y-1">
+            <Label htmlFor="search" className="text-sm">Search</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="search"
+                placeholder="Borrower, school ID, or item..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 h-9"
+              />
+            </div>
+          </div>
+
+          {/* Date Type & Range */}
+          <div className="space-y-2">
+            <Label className="text-sm">Date Filtering</Label>
+            <div className="flex flex-col sm:flex-row gap-4">
+              {/* Date Type */}
+              <div className="space-y-1 flex-1">
+                <Label className="text-xs block mb-1">Date Type</Label>
+                <div className="flex flex-wrap gap-1">
+                  {["borrow", "return", "both"].map((type) => (
+                    <Button
+                      key={type}
+                      variant={dateType === type ? "default" : "outline"}
+                      size="sm"
+                      className="capitalize h-8 px-3 text-xs flex-1 sm:flex-none"
+                      onClick={() => setDateType(type as typeof dateType)}
+                    >
+                      {type}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Date Range */}
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs block mb-1">Date Range</Label>
+                <DatePickers />
+              </div>
+            </div>
+          </div>
+
+          {/* Status */}
+          <div className="space-y-1">
+            <Label className="text-sm">Transaction Status</Label>
+            <div className="flex flex-wrap gap-1">
+              {STATUS_OPTIONS.map((opt) => {
+                const active = selectedStatus.includes(opt.value);
+                return (
+                  <Button
+                    key={opt.value}
+                    type="button"
+                    size="sm"
+                    variant={active ? "default" : "outline"}
+                    onClick={() => toggleStatus(opt.value)}
+                    aria-pressed={active}
+                    className="h-8 px-3 text-xs flex-1 sm:flex-none"
+                  >
+                    {opt.label}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Condition */}
+          <div className="space-y-1">
+            <Label className="text-sm">Item Condition</Label>
+            <div className="flex flex-wrap gap-1">
+              {CONDITION_OPTIONS.map((opt) => {
+                const active = selectedConditions.includes(opt.value);
+                return (
+                  <Button
+                    key={opt.value}
+                    type="button"
+                    size="sm"
+                    variant={active ? "default" : "outline"}
+                    onClick={() => toggleCondition(opt.value)}
+                    aria-pressed={active}
+                    className="h-8 px-3 text-xs flex-1 sm:flex-none"
+                  >
+                    {opt.label}
+                  </Button> 
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Clear Filters */}
+          <div className="pt-2">
             <Button
-              key={type}
-              variant={dateType === type ? "default" : "outline"}
+              variant="ghost"
               size="sm"
-              className="capitalize h-9"
-              onClick={() => setDateType(type as typeof dateType)}
+              onClick={clearFilters}
+              className="h-9 gap-2 text-muted-foreground w-full sm:w-auto"
             >
-              {type}
+              <X className="h-4 w-4" />
+              Clear All Filters
             </Button>
-          ))}
-        </div>
-      </div>
-
-      {/* STATUS (fixed width, no grow) */}
-      <div className="flex-none w-[360px]">
-        <Label className="text-xs block mb-1">Transaction Status</Label>
-        <div className="flex gap-2 overflow-x-auto whitespace-nowrap">
-          {STATUS_OPTIONS.map((opt) => {
-            const active = selectedStatus.includes(opt.value);
-            return (
-              <Button
-                key={opt.value}
-                type="button"
-                size="sm"
-                variant={active ? "default" : "outline"}
-                onClick={() => toggleStatus(opt.value)}
-                aria-pressed={active}
-                className="h-8 px-2 text-xs rounded-md"
-              >
-                {opt.label}
-              </Button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* CONDITION (trimmed space: fixed width, no grow) */}
-      <div className="flex-none w-[320px]">
-        <Label className="text-xs block mb-1">Condition</Label>
-        <div className="flex gap-2 overflow-x-auto whitespace-nowrap">
-          {CONDITION_OPTIONS.map((opt) => {
-            const active = selectedConditions.includes(opt.value);
-            return (
-              <Button
-                key={opt.value}
-                type="button"
-                size="sm"
-                variant={active ? "default" : "outline"}
-                onClick={() => toggleCondition(opt.value)}
-                aria-pressed={active}
-                className="h-8 px-2 text-xs rounded-md"
-              >
-                {opt.label}
-              </Button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* DATE RANGE (compact) */}
-     
-
-      {/* SEARCH (expands to use remaining space) */}
-      <div className="flex-1 min-w-[240px]">
-        <Label htmlFor="search" className="text-xs block mb-1">Search</Label>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            id="search"
-            placeholder="Borrower, school ID, or item..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 h-9"
-          />
-        </div>
-      </div>
-
-      {/* ACTIONS */}
-      <div className="flex-none">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={clearFilters}
-          className="h-9 gap-2 text-muted-foreground"
-        >
-          <X className="h-4 w-4" />
-          Clear Filters
-        </Button>
-      </div>
-    </div>
-     <div className="flex-none w-[260px]">
-        <Label className="text-xs block mb-1">Date Range</Label>
-        <DatePickers />
-      </div>
-  </div>
-</CardContent>
-
+          </div>
+        </CardContent>
       </Card>
 
       {/* TABLE */}
@@ -922,35 +923,37 @@ const DatePickers = () => (
               </p>
             </div>
           ) : (
-            <ScrollArea className="max-h-[70vh] rounded-md border">
-              <div className="min-w-full">
-                <Table>
-                  <TableHeader className="sticky top-0 bg-background z-10">
-                    <TableRow>
-                      {visibleColumns.map((col) => (
-                        <TableHead key={col.key} className="whitespace-nowrap">
-                          {col.label}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredData.map((report: TransactionReport) => (
-                      <TableRow key={report.id}>
+            <div className="overflow-x-auto">
+              <ScrollArea className="max-h-[70vh] rounded-md border w-full">
+                <div className="min-w-full">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background z-10">
+                      <TableRow>
                         {visibleColumns.map((col) => (
-                          <TableCell
-                            key={col.key}
-                            className="align-top text-muted-foreground"
-                          >
-                            {renderCellContent(report, col.key)}
-                          </TableCell>
+                          <TableHead key={col.key} className="whitespace-nowrap">
+                            {col.label}
+                          </TableHead>
                         ))}
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </ScrollArea>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredData.map((report: TransactionReport) => (
+                        <TableRow key={report.id}>
+                          {visibleColumns.map((col) => (
+                            <TableCell
+                              key={col.key}
+                              className="align-top text-muted-foreground"
+                            >
+                              {renderCellContent(report, col.key)}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </ScrollArea>
+            </div>
           )}
         </CardContent>
       </Card>
