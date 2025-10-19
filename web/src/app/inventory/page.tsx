@@ -49,7 +49,7 @@ import { Pencil, Trash2 } from "lucide-react";
 type Item = {
   id: number;
   item_name: string;
-  condition: "Excellent" | "Good" | "Fair" | "Damaged" | "Broken";
+  condition: "Good" | "Fair" | "Damaged";
   current_transaction: number | null;
   last_transaction_return_date?: string | null;
   image?: string | null;
@@ -82,7 +82,7 @@ export default function Page() {
   const [editItem, setEditItem] = React.useState<Item | null>(null);
   const [newItem, setNewItem] = React.useState<{
     item_name: string;
-    condition: "Excellent" | "Good" | "Fair" | "Damaged" | "Broken";
+    condition: | "Good" | "Fair" | "Damaged";
     _newFile: File | null;
   }>({
     item_name: "",
@@ -536,11 +536,9 @@ export default function Page() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">All</SelectItem>
-                <SelectItem value="Excellent">Excellent</SelectItem>
                 <SelectItem value="Good">Good</SelectItem>
                 <SelectItem value="Fair">Fair</SelectItem>
                 <SelectItem value="Damaged">Damaged</SelectItem>
-                <SelectItem value="Broken">Broken</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -792,13 +790,11 @@ export default function Page() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="Excellent">
-                                Excellent
-                              </SelectItem>
+                        
                               <SelectItem value="Good">Good</SelectItem>
                               <SelectItem value="Fair">Fair</SelectItem>
                               <SelectItem value="Damaged">Damaged</SelectItem>
-                              <SelectItem value="Broken">Broken</SelectItem>
+                         
                             </SelectContent>
                           </Select>
                         </div>
@@ -889,13 +885,10 @@ export default function Page() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="Excellent">
-                                Excellent
-                              </SelectItem>
+                          
                               <SelectItem value="Good">Good</SelectItem>
                               <SelectItem value="Fair">Fair</SelectItem>
                               <SelectItem value="Damaged">Damaged</SelectItem>
-                              <SelectItem value="Broken">Broken</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>

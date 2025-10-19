@@ -772,124 +772,129 @@ const DatePickers = () => (
       </div>
 
       {/* FILTERS */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center justify-between text-base">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              Filters
-            </div>
-            <Badge variant="outline" className="text-xs">
-              {filteredData.length} results
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-2 space-y-4">
-          {/* Search */}
-          <div className="space-y-1">
-            <Label htmlFor="search" className="text-sm">Search</Label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="search"
-                placeholder="Borrower, school ID, or item..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 h-9"
-              />
-            </div>
-          </div>
+  {/* FILTERS (Refined) */}
+<Card>
+  <CardHeader className="pb-2">
+    <div className="flex items-center justify-between gap-2">
+      <CardTitle className="flex items-center gap-2 text-base">
+        <Filter className="h-4 w-4" />
+        Filters
+      </CardTitle>
 
-          {/* Date Type & Range */}
-          <div className="space-y-2">
-            <Label className="text-sm">Date Filtering</Label>
-            <div className="flex flex-col sm:flex-row gap-4">
-              {/* Date Type */}
-              <div className="space-y-1 flex-1">
-                <Label className="text-xs block mb-1">Date Type</Label>
-                <div className="flex flex-wrap gap-1">
-                  {["borrow", "return", "both"].map((type) => (
-                    <Button
-                      key={type}
-                      variant={dateType === type ? "default" : "outline"}
-                      size="sm"
-                      className="capitalize h-8 px-3 text-xs flex-1 sm:flex-none"
-                      onClick={() => setDateType(type as typeof dateType)}
-                    >
-                      {type}
-                    </Button>
-                  ))}
-                </div>
-              </div>
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="text-xs">
+          {filteredData.length} results
+        </Badge>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={clearFilters}
+          className="h-8 text-muted-foreground"
+        >
+          <X className="h-4 w-4 mr-1" />
+          Reset
+        </Button>
+      </div>
+    </div>
+  </CardHeader>
 
-              {/* Date Range */}
-              <div className="flex-1 space-y-1">
-                <Label className="text-xs block mb-1">Date Range</Label>
-                <DatePickers />
-              </div>
-            </div>
-          </div>
+  <CardContent className="pt-2">
+    {/* Grid container: 1 col mobile, 2 cols ≥sm */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-          {/* Status */}
-          <div className="space-y-1">
-            <Label className="text-sm">Transaction Status</Label>
-            <div className="flex flex-wrap gap-1">
-              {STATUS_OPTIONS.map((opt) => {
-                const active = selectedStatus.includes(opt.value);
-                return (
-                  <Button
-                    key={opt.value}
-                    type="button"
-                    size="sm"
-                    variant={active ? "default" : "outline"}
-                    onClick={() => toggleStatus(opt.value)}
-                    aria-pressed={active}
-                    className="h-8 px-3 text-xs flex-1 sm:flex-none"
-                  >
-                    {opt.label}
-                  </Button>
-                );
-              })}
-            </div>
-          </div>
+      {/* Search — full width (span both cols on desktop for breathing room) */}
+      <div className="sm:col-span-2 space-y-1">
+        <Label htmlFor="search" className="text-sm">Search</Label>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            id="search"
+            placeholder="Borrower, school ID, or item..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 h-9"
+          />
+        </div>
+      </div>
 
-          {/* Condition */}
-          <div className="space-y-1">
-            <Label className="text-sm">Item Condition</Label>
-            <div className="flex flex-wrap gap-1">
-              {CONDITION_OPTIONS.map((opt) => {
-                const active = selectedConditions.includes(opt.value);
-                return (
-                  <Button
-                    key={opt.value}
-                    type="button"
-                    size="sm"
-                    variant={active ? "default" : "outline"}
-                    onClick={() => toggleCondition(opt.value)}
-                    aria-pressed={active}
-                    className="h-8 px-3 text-xs flex-1 sm:flex-none"
-                  >
-                    {opt.label}
-                  </Button> 
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Clear Filters */}
-          <div className="pt-2">
+      {/* Date Type */}
+      <div className="space-y-1">
+        <Label className="text-sm">Date Type</Label>
+        <div className="flex flex-wrap gap-2">
+          {(["borrow", "return", "both"] as const).map((type) => (
             <Button
-              variant="ghost"
+              key={type}
+              variant={dateType === type ? "default" : "outline"}
               size="sm"
-              onClick={clearFilters}
-              className="h-9 gap-2 text-muted-foreground w-full sm:w-auto"
+              className="h-8 px-3 capitalize"
+              onClick={() => setDateType(type)}
             >
-              <X className="h-4 w-4" />
-              Clear All Filters
+              {type}
             </Button>
-          </div>
-        </CardContent>
-      </Card>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Choose which dates the range should filter.
+        </p>
+      </div>
+
+      {/* Date Range */}
+      <div className="space-y-1">
+        <Label className="text-sm">Date Range</Label>
+        <div className="h-9 flex items-center">
+          <DatePickers />
+        </div>
+      </div>
+
+      {/* Status */}
+      <div className="space-y-1">
+        <Label className="text-sm">Transaction Status</Label>
+        <div className="flex flex-wrap gap-2">
+          {STATUS_OPTIONS.map((opt) => {
+            const active = selectedStatus.includes(opt.value);
+            return (
+              <Button
+                key={opt.value}
+                type="button"
+                size="sm"
+                variant={active ? "default" : "outline"}
+                onClick={() => toggleStatus(opt.value)}
+                aria-pressed={active}
+                className="h-8 px-3"
+              >
+                {opt.label}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Condition */}
+      <div className="space-y-1">
+        <Label className="text-sm">Item Condition</Label>
+        <div className="flex flex-wrap gap-2">
+          {CONDITION_OPTIONS.map((opt) => {
+            const active = selectedConditions.includes(opt.value);
+            return (
+              <Button
+                key={opt.value}
+                type="button"
+                size="sm"
+                variant={active ? "default" : "outline"}
+                onClick={() => toggleCondition(opt.value)}
+                aria-pressed={active}
+                className="h-8 px-3"
+              >
+                {opt.label}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
 
       {/* TABLE */}
       <Card>
