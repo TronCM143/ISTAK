@@ -47,14 +47,15 @@ import { Toaster } from "@/components/ui/sonner";
 import { Pencil, Trash2 } from "lucide-react";
 
 type Item = {
-  id: number;
+  id: string; // ← change this from number to string
   item_name: string;
   condition: "Good" | "Fair" | "Damaged" | "Lost";
-  current_transaction: number | null;
+  current_transaction: string | null;
   last_transaction_return_date?: string | null;
   image?: string | null;
   _newFile?: File | null;
 };
+
 
 import { AppSidebar } from "@/components/widgets/app-sidebar";
 import { SiteHeader } from "@/components/widgets/site-header";
@@ -62,9 +63,8 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
 export default function Page() {
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
-  const [selectedItems, setSelectedItems] = React.useState<Set<number>>(
-    new Set()
-  );
+ const [selectedItems, setSelectedItems] = React.useState<Set<string>>(new Set());
+
   const router = useRouter();
   const [data, setData] = React.useState<Item[]>([]);
   const [loading, setLoading] = React.useState<boolean>(true);
@@ -165,8 +165,11 @@ export default function Page() {
     const selectedRowIndices = Object.keys(newRowSelection)
       .filter((id) => newRowSelection[id])
       .map((id) => parseInt(id));
-    const selectedItemIds = selectedRowIndices.map((index) => data[index].id);
-    setSelectedItems(new Set(selectedItemIds));
+ const selectedItemIds = selectedRowIndices.map(
+  (index) => String(data[index].id)
+);
+setSelectedItems(new Set(selectedItemIds));
+
     console.log("Selected Items:", selectedItemIds); // Debug selection
   };
 
@@ -589,31 +592,37 @@ export default function Page() {
             <div>No Image</div>
           ),
       },
-      {
-        id: "qrCodeImage",
-        header: "QR Code",
-        cell: ({ row }) => {
-          const itemId = row.original.id;
-          return (
-            <div
-              className="cursor-pointer flex justify-center"
-             onClick={() => {
-  const item = data.find(i => i.id === itemId);
-  setPreviewItem(item || null);
-  setIsPreviewModalOpen(true);
-}}
-            >
-             <QRCodeCanvas
-  id={`qr-${itemId}`}
-  value={JSON.stringify({ id: itemId, name: row.original.item_name })}
-  size={60}
-  level="H"
-                className="max-w-[60px] max-h-[60px]"
-              />
-            </div>
-          );
-        },
-      },
+   {
+  id: "qrCodeImage",
+  header: "QR Code",
+  cell: ({ row }) => {
+    const item = row.original;
+    const itemId = String(item.id);
+
+    return (
+      <div
+        className="cursor-pointer flex justify-center"
+        onClick={() => {
+          const selectedItem = data.find((i) => String(i.id) === itemId);
+          setPreviewItem(selectedItem || null);
+          setIsPreviewModalOpen(true);
+        }}
+      >
+        <QRCodeCanvas
+          id={`qr-${itemId}`}
+          value={JSON.stringify({
+            id: String(item.id),
+            name: String(item.item_name || ""),
+          })}
+          size={60}
+          level="H"
+          className="max-w-[60px] max-h-[60px]"
+        />
+      </div>
+    );
+  },
+},
+
     ],
     []
   );
@@ -669,21 +678,22 @@ export default function Page() {
                         Add Item
                       </Button>
 
-                      {selectedItems.size === 1 && (
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            const itemId = Array.from(selectedItems)[0];
-                            const item = data.find((i) => i.id === itemId);
-                            if (item) {
-                              setEditItem({ ...item, _newFile: null });
-                              setIsEditModalOpen(true);
-                            }
-                          }}
-                        >
-                          <Pencil className="mr-2 h-4 w-4" /> Edit
-                        </Button>
-                      )}
+                   {selectedItems.size === 1 && (
+  <Button
+    variant="secondary"
+    onClick={() => {
+      const itemId = Array.from(selectedItems)[0]; // ✅ get selected ID
+      const item = data.find((i) => String(i.id) === String(itemId)); // ✅ find that item
+      if (item) {
+        setEditItem({ ...item, _newFile: null });
+        setIsEditModalOpen(true);
+      }
+    }}
+  >
+    <Pencil className="mr-2 h-4 w-4" /> Edit
+  </Button>
+)}
+
 
                       {selectedItems.size > 0 && (
                         <Button
@@ -937,7 +947,7 @@ export default function Page() {
                   </Dialog>
 
                   {/* QR Preview Modal */}
-                <Dialog
+            <Dialog
   open={isPreviewModalOpen}
   onOpenChange={(open) => {
     setIsPreviewModalOpen(open);
@@ -948,22 +958,28 @@ export default function Page() {
     <DialogHeader>
       <DialogTitle>QR Code Preview</DialogTitle>
     </DialogHeader>
-    <div className="flex justify-center py-4">
-     {previewItem ? (
-  <QRCodeCanvas
-    key={previewItem.id} // forces rerender on each new item
-    value={JSON.stringify({
-      id: String(previewItem.id),
-      name: String(previewItem.item_name || ""),
-    })}
-    size={200}
-    level="H"
-  />
-) : (
-  <div className="text-gray-500">No QR code available</div>
-)}
 
+    <div className="flex flex-col items-center justify-center py-4">
+      {previewItem ? (
+        <>
+          <QRCodeCanvas
+            key={previewItem.id}
+            value={JSON.stringify({
+              id: String(previewItem.id),
+              name: String(previewItem.item_name || ""),
+            })}
+            size={200}
+            level="H"
+          />
+          <p className="mt-3 text-lg font-semibold text-center">
+            {previewItem.item_name}
+          </p>
+        </>
+      ) : (
+        <div className="text-gray-500">No QR code available</div>
+      )}
     </div>
+
     <DialogFooter>
       <Button
         variant="outline"
@@ -977,6 +993,7 @@ export default function Page() {
     </DialogFooter>
   </DialogContent>
 </Dialog>
+
 
                   {loading ? (
                     <div className="rounded-md border p-8 text-center">
