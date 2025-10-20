@@ -23,7 +23,7 @@ import {
   RowSelectionState,
   Table,
 } from "@tanstack/react-table";
-import { format } from "date-fns";
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { useRouter } from "next/navigation";
 import {
   DropdownMenu,
@@ -54,6 +54,7 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 type Condition = "Good" | "Fair" | "Damaged" | "Lost" | "__keep__";
 
@@ -111,7 +112,8 @@ export function Transactions() {
     useState<Transaction | null>(null);
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
-  const [dateType, setDateType] = useState<"borrow" | "return">("borrow");
+  const [dateType, setDateType] = useState<"borrow" | "return" | "all">("borrow");
+  const [filterPreset, setFilterPreset] = useState<"today" | "week" | "month" | "">("");
   const pageSize = 10;
   const router = useRouter();
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -293,27 +295,24 @@ export function Transactions() {
     }
 
     if (dateFrom || dateTo) {
-      if (dateType === "return") {
-        filtered = filtered.filter((f) => f.returnDate);
-      }
-      if (dateFrom) {
-        const from = new Date(dateFrom);
-        filtered = filtered.filter((f) => {
-          const d = new Date(
-            dateType === "borrow" ? f.borrowDate : f.returnDate!
-          );
-          return d >= from;
-        });
-      }
-      if (dateTo) {
-        const to = new Date(dateTo);
-        filtered = filtered.filter((f) => {
-          const d = new Date(
-            dateType === "borrow" ? f.borrowDate : f.returnDate!
-          );
-          return d <= to;
-        });
-      }
+      const from = dateFrom ? new Date(dateFrom) : null;
+      const to = dateTo ? new Date(dateTo) : null;
+      filtered = filtered.filter((f) => {
+        const borrowD = new Date(f.borrowDate);
+        const returnD = f.returnDate ? new Date(f.returnDate) : null;
+        let inRange = false;
+        if (dateType === "borrow" || dateType === "all") {
+          if ((from ? borrowD >= from : true) && (to ? borrowD <= to : true)) {
+            inRange = true;
+          }
+        }
+        if ((dateType === "return" || dateType === "all") && returnD) {
+          if ((from ? returnD >= from : true) && (to ? returnD <= to : true)) {
+            inRange = true;
+          }
+        }
+        return inRange;
+      });
     }
 
     setFilteredData(filtered);
@@ -569,6 +568,24 @@ export function Transactions() {
     }
   };
 
+  const handlePresetChange = (preset: "today" | "week" | "month") => {
+    setFilterPreset(preset);
+    const today = new Date();
+    let from: Date, to: Date;
+    if (preset === "today") {
+      from = today;
+      to = today;
+    } else if (preset === "week") {
+      from = startOfWeek(today, { weekStartsOn: 1 });
+      to = endOfWeek(today, { weekStartsOn: 1 });
+    } else {
+      from = startOfMonth(today);
+      to = endOfMonth(today);
+    }
+    setDateFrom(format(from, "yyyy-MM-dd"));
+    setDateTo(format(to, "yyyy-MM-dd"));
+  };
+
   const columns: ColumnDef<FlattenedItem>[] = useMemo(
     () => [
       ...(isEditMode
@@ -600,10 +617,10 @@ export function Transactions() {
           ]
         : []),
       {
-        accessorKey: "transactionId",
-        header: "Transaction ID",
+        accessorKey: "itemId",
+        header: "Item ID",
         cell: ({ row }: { row: Row<FlattenedItem> }) => (
-          <div>{row.getValue("transactionId")}</div>
+          <div>{row.getValue("itemId")}</div>
         ),
       },
       {
@@ -614,23 +631,11 @@ export function Transactions() {
         ),
       },
       {
-        accessorKey: "itemId",
-        header: "Item ID",
+        accessorKey: "transactionId",
+        header: "Transaction ID",
         cell: ({ row }: { row: Row<FlattenedItem> }) => (
-          <div>{row.getValue("itemId")}</div>
+          <div>{row.getValue("transactionId")}</div>
         ),
-      },
-      {
-        accessorKey: "borrowDate",
-        header: "Borrow Date",
-        cell: ({ row }: { row: Row<FlattenedItem> }) => (
-          <div>
-            {row.getValue("borrowDate")
-              ? format(new Date(row.getValue("borrowDate")), "MMMM d, yyyy")
-              : "N/A"}
-          </div>
-        ),
-        sortingFn: "datetime",
       },
       {
         accessorKey: "returnDate",
@@ -645,17 +650,22 @@ export function Transactions() {
         sortingFn: "datetime",
       },
       {
-        accessorKey: "status",
-        header: "Status",
+        accessorKey: "borrowDate",
+        header: "Borrow Date",
         cell: ({ row }: { row: Row<FlattenedItem> }) => (
-          <div className="capitalize">{row.getValue("status")}</div>
+          <div>
+            {row.getValue("borrowDate")
+              ? format(new Date(row.getValue("borrowDate")), "MMMM d, yyyy")
+              : "N/A"}
+          </div>
         ),
+        sortingFn: "datetime",
       },
       {
-        accessorKey: "condition",
-        header: "Item Condition",
+        accessorKey: "borrowerName",
+        header: "Borrower Name",
         cell: ({ row }: { row: Row<FlattenedItem> }) => (
-          <div>{row.getValue("condition")}</div>
+          <div>{row.getValue("borrowerName")}</div>
         ),
       },
       {
@@ -663,13 +673,6 @@ export function Transactions() {
         header: "Borrower School ID",
         cell: ({ row }: { row: Row<FlattenedItem> }) => (
           <div>{row.getValue("schoolId")}</div>
-        ),
-      },
-      {
-        accessorKey: "borrowerName",
-        header: "Borrower Name",
-        cell: ({ row }: { row: Row<FlattenedItem> }) => (
-          <div>{row.getValue("borrowerName")}</div>
         ),
       },
       {
@@ -806,28 +809,43 @@ export function Transactions() {
 
               {/* Date filters */}
               <div className="flex items-center gap-2 md:ml-auto">
-             <Select
-  value={dateType}
-  onValueChange={(value: string) => setDateType(value as "borrow" | "return")}
->
-  <SelectTrigger className="w-32">
-    <SelectValue />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="borrow">Borrow Date</SelectItem>
-    <SelectItem value="return">Return Date</SelectItem>
-  </SelectContent>
-</Select>
+                <Select
+                  value={dateType}
+                  onValueChange={(value: string) => setDateType(value as "borrow" | "return" | "all")}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="borrow">Borrow Date</SelectItem>
+                    <SelectItem value="return">Return Date</SelectItem>
+                    <SelectItem value="all">All Dates</SelectItem>
+                  </SelectContent>
+                </Select>
+                <ToggleGroup type="single" value={filterPreset} onValueChange={(v: string) => {
+                  if (!v) return;
+                  handlePresetChange(v as "today" | "week" | "month");
+                }} className="flex">
+                  <ToggleGroupItem value="today" className="px-3 py-1.5">Today</ToggleGroupItem>
+                  <ToggleGroupItem value="week" className="px-3 py-1.5">This Week</ToggleGroupItem>
+                  <ToggleGroupItem value="month" className="px-3 py-1.5">This Month</ToggleGroupItem>
+                </ToggleGroup>
                 <Input
                   type="date"
                   value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
+                  onChange={(e) => {
+                    setDateFrom(e.target.value);
+                    setFilterPreset("");
+                  }}
                   className="w-36"
                 />
                 <Input
                   type="date"
                   value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
+                  onChange={(e) => {
+                    setDateTo(e.target.value);
+                    setFilterPreset("");
+                  }}
                   className="w-36"
                 />
               </div>
@@ -839,7 +857,7 @@ export function Transactions() {
                 {selectedCount > 0 && (
                   <Button onClick={handleReturnSelected}>Return Selected</Button>
                 )}
-                {selectedCount === 1 && (
+                {selectedCount > 0 && (
                   <Button onClick={handleEditSelected}>Edit Selected</Button>
                 )}
                 {selectedCount > 0 && (
@@ -955,28 +973,43 @@ export function Transactions() {
 
               {/* Date filters */}
               <div className="flex items-center gap-2 md:ml-auto">
-             <Select
-  value={dateType}
-  onValueChange={(value: string) => setDateType(value as "borrow" | "return")}
->
-  <SelectTrigger className="w-32">
-    <SelectValue />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="borrow">Borrow Date</SelectItem>
-    <SelectItem value="return">Return Date</SelectItem>
-  </SelectContent>
-</Select>
+                <Select
+                  value={dateType}
+                  onValueChange={(value: string) => setDateType(value as "borrow" | "return" | "all")}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="borrow">Borrow Date</SelectItem>
+                    <SelectItem value="return">Return Date</SelectItem>
+                    <SelectItem value="all">All Dates</SelectItem>
+                  </SelectContent>
+                </Select>
+                <ToggleGroup type="single" value={filterPreset} onValueChange={(v: string) => {
+                  if (!v) return;
+                  handlePresetChange(v as "today" | "week" | "month");
+                }} className="flex">
+                  <ToggleGroupItem value="today" className="px-3 py-1.5">Today</ToggleGroupItem>
+                  <ToggleGroupItem value="week" className="px-3 py-1.5">This Week</ToggleGroupItem>
+                  <ToggleGroupItem value="month" className="px-3 py-1.5">This Month</ToggleGroupItem>
+                </ToggleGroup>
                 <Input
                   type="date"
                   value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
+                  onChange={(e) => {
+                    setDateFrom(e.target.value);
+                    setFilterPreset("");
+                  }}
                   className="w-36"
                 />
                 <Input
                   type="date"
                   value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
+                  onChange={(e) => {
+                    setDateTo(e.target.value);
+                    setFilterPreset("");
+                  }}
                   className="w-36"
                 />
               </div>
