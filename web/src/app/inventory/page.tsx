@@ -49,7 +49,7 @@ import { Pencil, Trash2 } from "lucide-react";
 type Item = {
   id: number;
   item_name: string;
-  condition: "Good" | "Fair" | "Damaged";
+  condition: "Good" | "Fair" | "Damaged" | "Lost";
   current_transaction: number | null;
   last_transaction_return_date?: string | null;
   image?: string | null;
@@ -82,7 +82,7 @@ export default function Page() {
   const [editItem, setEditItem] = React.useState<Item | null>(null);
   const [newItem, setNewItem] = React.useState<{
     item_name: string;
-    condition: | "Good" | "Fair" | "Damaged";
+    condition: | "Good" | "Fair" | "Damaged" | "Lost";
     _newFile: File | null;
   }>({
     item_name: "",
@@ -539,6 +539,7 @@ export default function Page() {
                 <SelectItem value="Good">Good</SelectItem>
                 <SelectItem value="Fair">Fair</SelectItem>
                 <SelectItem value="Damaged">Damaged</SelectItem>
+                   <SelectItem value="Lost">Lost</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -600,11 +601,11 @@ export default function Page() {
                 setIsPreviewModalOpen(true);
               }}
             >
-              <QRCodeCanvas
-                id={`qr-${itemId}`}
-                value={String(itemId)}
-                size={60}
-                level="H"
+             <QRCodeCanvas
+  id={`qr-${itemId}`}
+  value={JSON.stringify({ id: itemId, name: row.original.item_name })}
+  size={60}
+  level="H"
                 className="max-w-[60px] max-h-[60px]"
               />
             </div>
@@ -794,7 +795,7 @@ export default function Page() {
                               <SelectItem value="Good">Good</SelectItem>
                               <SelectItem value="Fair">Fair</SelectItem>
                               <SelectItem value="Damaged">Damaged</SelectItem>
-                         
+                           <SelectItem value="Lost">Lost</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -889,6 +890,7 @@ export default function Page() {
                               <SelectItem value="Good">Good</SelectItem>
                               <SelectItem value="Fair">Fair</SelectItem>
                               <SelectItem value="Damaged">Damaged</SelectItem>
+                                   <SelectItem value="Lost">Lost</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>

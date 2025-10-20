@@ -45,8 +45,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@radix-ui/react-scroll-area";
-import { ToggleGroup, ToggleGroupItem } from "@radix-ui/react-toggle-group";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectTrigger,
@@ -54,6 +54,9 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+
+type Condition = "Good" | "Fair" | "Damaged" | "Lost" | "__keep__";
 
 interface Item {
   id: string | number;
@@ -74,6 +77,7 @@ interface Transaction {
 }
 
 export function Transactions() {
+  const [activeTab, setActiveTab] = useState<"transactions" | "returns">("transactions");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<
     Transaction[]
@@ -96,6 +100,7 @@ export function Transactions() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] =
     useState<Transaction | null>(null);
+  const [returnDateFilter, setReturnDateFilter] = useState<"today" | "week" | "month" | "all">("all");
   const pageSize = 10;
   const router = useRouter();
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -241,29 +246,121 @@ export function Transactions() {
     }
   };
 
-  // Filter transactions based on selected status and search
+  // Filter for Transactions tab
   useEffect(() => {
     let filtered = transactions;
-    if (filterStatus !== "all") {
-      filtered = filtered.filter(
-        (t) => t.status.toLowerCase() === filterStatus.toLowerCase()
-      );
-    }
-    if (searchTerm) {
-      const lowerSearch = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (t) =>
-          t.borrowerName.toLowerCase().includes(lowerSearch) ||
-          t.school_id.toLowerCase().includes(lowerSearch) ||
-          t.items.some((item) =>
-            item.item_name.toLowerCase().includes(lowerSearch)
-          )
-      );
+    if (activeTab === "transactions") {
+      if (filterStatus !== "all") {
+        filtered = filtered.filter(
+          (t) => t.status.toLowerCase() === filterStatus.toLowerCase()
+        );
+      }
+      if (searchTerm) {
+        const lowerSearch = searchTerm.toLowerCase();
+        filtered = filtered.filter(
+          (t) =>
+            t.borrowerName.toLowerCase().includes(lowerSearch) ||
+            t.school_id.toLowerCase().includes(lowerSearch) ||
+            t.items.some((item) =>
+              item.item_name.toLowerCase().includes(lowerSearch)
+            )
+        );
+      }
+    } else if (activeTab === "returns") {
+      // Filter borrowed/overdue for returns tab
+      filtered = filtered.filter(t => t.status === "borrowed" || t.status === "overdue");
+      // Date filter on borrow_date
+      const today = new Date();
+      const oneWeekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const oneMonthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const borrowDate = (t: Transaction) => new Date(t.borrow_date);
+      switch (returnDateFilter) {
+        case "today":
+          filtered = filtered.filter(t => borrowDate(t).toDateString() === today.toDateString());
+          break;
+        case "week":
+          filtered = filtered.filter(t => borrowDate(t) >= oneWeekAgo);
+          break;
+        case "month":
+          filtered = filtered.filter(t => borrowDate(t) >= oneMonthAgo);
+          break;
+        default:
+          break;
+      }
+      if (searchTerm) {
+        const lowerSearch = searchTerm.toLowerCase();
+        filtered = filtered.filter(
+          (t) =>
+            t.borrowerName.toLowerCase().includes(lowerSearch) ||
+            t.school_id.toLowerCase().includes(lowerSearch) ||
+            t.items.some((item) =>
+              item.item_name.toLowerCase().includes(lowerSearch)
+            )
+        );
+      }
     }
     setFilteredTransactions(filtered);
     setPageIndex(0); // Reset to first page when filter changes
     setRowSelection({});
-  }, [filterStatus, searchTerm, transactions]);
+  }, [filterStatus, searchTerm, transactions, activeTab, returnDateFilter]);
+
+  const handleReturnSelected = async () => {
+    const selectedRows = table.getSelectedRowModel().rows;
+    if (selectedRows.length === 0) return;
+
+    if (!confirm(`Return ${selectedRows.length} transaction(s)?`)) return;
+
+    try {
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      const today = format(new Date(), "yyyy-MM-dd");
+      const returnPromises = selectedRows.map(async (row) => {
+        const transaction = row.original;
+        if (transaction.status !== "borrowed" && transaction.status !== "overdue") {
+          toast.error(`Cannot return non-borrowed transaction ${transaction.id}`);
+          return;
+        }
+
+        // Update transaction status and return_date
+        const response = await fetch(
+          `${API_BASE_URL}/api/transactions/${transaction.id}/`,
+          {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ 
+              status: "returned", 
+              return_date: today 
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          toast.error(
+            `Failed to return transaction ${transaction.id}: ${
+              errorData.error || "Error"
+            }`
+          );
+        }
+      });
+
+      await Promise.all(returnPromises);
+
+      // Refresh
+      fetchTransactions();
+      setRowSelection({});
+      toast.success("Selected transactions returned");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "An error occurred");
+    }
+  };
 
   const deleteTransaction = async (id: number) => {
     const transaction = transactions.find((t) => t.id === id);
@@ -697,9 +794,9 @@ export function Transactions() {
   if (error) {
     return <div className="p-4 text-red-500">Error: {error}</div>;
   }
-    type Condition = "Good" | "Fair" | "Damaged" | "Broken" | "__keep__";
+
   return (
-    <div className="container mx-auto p-4 space-y-4">
+    <div className="container mx-auto p-4 space-y-6">
       <Toaster />
 
       {/* Page header */}
@@ -729,159 +826,278 @@ export function Transactions() {
         )}
       </div>
 
-      {/* Toolbar: search + filters */}
-      <div className="w-full rounded-xl border bg-card p-3 sm:p-4">
-        <div className="flex flex-col md:flex-row md:items-center gap-3">
-          {/* Search */}
-          <div className="relative w-full md:max-w-md">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by name, school ID, or item…"
-              className="pl-8"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "transactions" | "returns")}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="transactions">Transactions</TabsTrigger>
+          <TabsTrigger value="returns">Returns</TabsTrigger>
+        </TabsList>
 
-          {/* Filter pills (All / Borrowed / Returned / Overdue) */}
-          <div className="md:ml-auto">
-            <ToggleGroup
-              type="single"
-              value={filterStatus}
-              onValueChange={(v) =>
-                v &&
-                setFilterStatus(
-                  v as "all" | "borrowed" | "returned" | "overdue"
-                )
-              }
-              className="flex flex-wrap gap-2"
-            >
-              <ToggleGroupItem value="all" className="px-3">
-                All
-              </ToggleGroupItem>
-              <ToggleGroupItem value="borrowed" className="px-3">
-                Borrowed
-              </ToggleGroupItem>
-              <ToggleGroupItem value="returned" className="px-3">
-                Returned
-              </ToggleGroupItem>
-              <ToggleGroupItem value="overdue" className="px-3">
-                Overdue
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-        </div>
+        {/* Transactions Tab */}
+        <TabsContent value="transactions" className="space-y-4 mt-4">
+          {/* Toolbar: search + filters */}
+          <div className="w-full rounded-xl border bg-card p-3 sm:p-4">
+            <div className="flex flex-col md:flex-row md:items-center gap-3">
+              {/* Search */}
+              <div className="relative w-full md:max-w-md">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, school ID, or item…"
+                  className="pl-8"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
 
-        {/* Edit mode bulk actions */}
-        {userRole === "user_web" && isEditMode && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {selectedCount === 1 && (
-              <Button onClick={handleEditSelected}>Edit Selected</Button>
-            )}
-            {selectedCount > 0 && (
-              <Button variant="destructive" onClick={handleDeleteSelected}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete Selected ({selectedCount})
-              </Button>
+              {/* Filter segmented control - revised for better look */}
+              <div className="md:ml-auto">
+         <ToggleGroup type="single" value={returnDateFilter} onValueChange={(v: any) => setReturnDateFilter(v as any)} className="flex">
+<ToggleGroupItem value="all" className="px-3 py-1.5">All</ToggleGroupItem>
+<ToggleGroupItem value="today" className="px-3 py-1.5">Today</ToggleGroupItem>
+<ToggleGroupItem value="week" className="px-3 py-1.5">This Week</ToggleGroupItem>
+<ToggleGroupItem value="month" className="px-3 py-1.5">This Month</ToggleGroupItem>
+</ToggleGroup>
+              </div>
+            </div>
+
+            {/* Edit mode bulk actions */}
+            {userRole === "user_web" && isEditMode && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedCount === 1 && (
+                  <Button onClick={handleEditSelected}>Edit Selected</Button>
+                )}
+                {selectedCount > 0 && (
+                  <Button variant="destructive" onClick={handleDeleteSelected}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Selected ({selectedCount})
+                  </Button>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>
 
-      {/* Table card */}
-      <div className="rounded-xl border bg-card">
-        <UITable>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    onClick={header.column.getToggleSortingHandler()}
-                    className="cursor-pointer select-none"
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                    {{
-                      asc: " 🔼",
-                      desc: " 🔽",
-                    }[header.column.getIsSorted() as string] ?? null}
-                  </TableHead>
+          {/* Table card */}
+          <div className="rounded-xl border bg-card overflow-hidden">
+            <UITable>
+              <TableHeader>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead
+                        key={header.id}
+                        onClick={header.column.getToggleSortingHandler()}
+                        className="cursor-pointer select-none"
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                        {{
+                          asc: " 🔼",
+                          desc: " 🔽",
+                        }[header.column.getIsSorted() as string] ?? null}
+                      </TableHead>
+                    ))}
+                  </TableRow>
                 ))}
-              </TableRow>
-            ))}
-          </TableHeader>
+              </TableHeader>
 
-          <TableBody>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                  className="hover:bg-muted/40"
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-3">
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
+              <TableBody>
+                {table.getRowModel().rows.length ? (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && "selected"}
+                      className="hover:bg-muted/40"
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id} className="py-3">
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      className="h-24 text-center text-muted-foreground"
+                    >
+                      No transactions found.
                     </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center text-muted-foreground"
-                >
-                  No transactions found.
-                </TableCell>
-              </TableRow>
+                  </TableRow>
+                )}
+              </TableBody>
+            </UITable>
+          </div>
+
+          {/* Pagination */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+            <div className="text-sm text-muted-foreground">
+              Page {table.getState().pagination.pageIndex + 1} of{" "}
+              {table.getPageCount()}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+              >
+                Previous
+              </Button>
+              <Button
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* Returns Tab */}
+        <TabsContent value="returns" className="space-y-4 mt-4">
+          {/* Toolbar: search + date filters */}
+          <div className="w-full rounded-xl border bg-card p-3 sm:p-4">
+            <div className="flex flex-col md:flex-row md:items-center gap-3">
+              {/* Search */}
+              <div className="relative w-full md:max-w-md">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, school ID, or item…"
+                  className="pl-8"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+
+              {/* Date filter segmented control */}
+              <div className="md:ml-auto">
+             <ToggleGroup type="single" value={returnDateFilter} onValueChange={(v: any) => setReturnDateFilter(v as any)} className="flex">
+<ToggleGroupItem value="all" className="px-3 py-1.5">All</ToggleGroupItem>
+<ToggleGroupItem value="today" className="px-3 py-1.5">Today</ToggleGroupItem>
+<ToggleGroupItem value="week" className="px-3 py-1.5">This Week</ToggleGroupItem>
+<ToggleGroupItem value="month" className="px-3 py-1.5">This Month</ToggleGroupItem>
+</ToggleGroup>
+              </div>
+            </div>
+
+            {/* Returns bulk actions */}
+            {userRole === "user_web" && isEditMode && selectedCount > 0 && (
+              <div className="mt-3 flex gap-2">
+                <Button onClick={handleReturnSelected} variant="default">
+                  Return Selected ({selectedCount})
+                </Button>
+                <Button variant="destructive" onClick={handleDeleteSelected}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Selected
+                </Button>
+              </div>
             )}
-          </TableBody>
-        </UITable>
-      </div>
+          </div>
 
-      {/* Pagination */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-        <div className="text-sm text-muted-foreground">
-          Page {table.getState().pagination.pageIndex + 1} of{" "}
-          {table.getPageCount()}
-        </div>
+          {/* Same table for returns, filtered above */}
+          <div className="rounded-xl border bg-card overflow-hidden">
+            <UITable>
+              <TableHeader>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead
+                        key={header.id}
+                        onClick={header.column.getToggleSortingHandler()}
+                        className="cursor-pointer select-none"
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                        {{
+                          asc: " 🔼",
+                          desc: " 🔽",
+                        }[header.column.getIsSorted() as string] ?? null}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHeader>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Previous
-          </Button>
-          <Button
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Next
-          </Button>
-        </div>
-      </div>
+              <TableBody>
+                {table.getRowModel().rows.length ? (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && "selected"}
+                      className="hover:bg-muted/40"
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id} className="py-3">
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      className="h-24 text-center text-muted-foreground"
+                    >
+                      No items to return found.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </UITable>
+          </div>
+
+          {/* Pagination for returns */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+            <div className="text-sm text-muted-foreground">
+              Page {table.getState().pagination.pageIndex + 1} of{" "}
+              {table.getPageCount()}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+              >
+                Previous
+              </Button>
+              <Button
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Add Transaction Dialog */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Transaction</DialogTitle>
           </DialogHeader>
 
           <form
             onSubmit={handleAddSubmit}
-            className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+            className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4"
           >
             <div className="space-y-2">
               <Label htmlFor="name">Borrower Name</Label>
@@ -965,8 +1181,8 @@ export function Transactions() {
 
             <div className="sm:col-span-2 space-y-2">
               <Label>Select Items to Borrow</Label>
-              <ScrollArea className="h-40 rounded-md border p-3">
-                <div className="space-y-2">
+              <ScrollArea className="h-40 rounded-md border">
+                <div className="space-y-2 p-3">
                   {availableItems.map((item) => (
                     <div key={item.id} className="flex items-center space-x-2">
                       <Checkbox
@@ -1003,7 +1219,7 @@ export function Transactions() {
 
       {/* Edit Transaction Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Transaction</DialogTitle>
           </DialogHeader>
@@ -1011,7 +1227,7 @@ export function Transactions() {
           {selectedTransaction && (
             <form
               onSubmit={handleEditSubmit}
-              className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+              className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4"
             >
               <div className="space-y-2">
                 <Label>Borrower Name</Label>
@@ -1076,8 +1292,8 @@ export function Transactions() {
 
               <div className="sm:col-span-2 space-y-2">
                 <Label>Item Conditions</Label>
-                <ScrollArea className="h-40 rounded-md border p-3">
-                  <div className="space-y-2">
+                <ScrollArea className="h-40 rounded-md border">
+                  <div className="space-y-2 p-3">
                     {selectedTransaction.items.map((item) => (
                       <div
                         key={item.id}
@@ -1087,33 +1303,30 @@ export function Transactions() {
                           {item.item_name}
                         </span>
 
-              
-
-<Select
-  value={(itemConditions[item.id as string] as Condition | undefined) ?? "__keep__"}
-  onValueChange={(v: Condition) => {
-    const key = item.id as string;
-    if (v === "__keep__") {
-      // remove override so it truly “keeps current”
-      const { [key]: _omit, ...rest } = itemConditions;
-      setItemConditions(rest);
-    } else {
-      setItemConditions({ ...itemConditions, [key]: v });
-    }
-  }}
->
-  <SelectTrigger className="w-[140px]">
-    <SelectValue placeholder="Condition" />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="__keep__">Keep Current</SelectItem> {/* ✅ non-empty */}
-    <SelectItem value="Good">Good</SelectItem>
-    <SelectItem value="Fair">Fair</SelectItem>
-    <SelectItem value="Damaged">Damaged</SelectItem>
-    <SelectItem value="Broken">Broken</SelectItem>
-  </SelectContent>
-</Select>
-
+                        <Select
+                          value={(itemConditions[item.id as string] as Condition | undefined) ?? "__keep__"}
+                          onValueChange={(v: Condition) => {
+                            const key = item.id as string;
+                            if (v === "__keep__") {
+                              // remove override so it truly “keeps current”
+                              const { [key]: _omit, ...rest } = itemConditions;
+                              setItemConditions(rest);
+                            } else {
+                              setItemConditions({ ...itemConditions, [key]: v });
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-[140px]">
+                            <SelectValue placeholder="Condition" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__keep__">Keep Current</SelectItem> {/* ✅ non-empty */}
+                            <SelectItem value="Good">Good</SelectItem>
+                            <SelectItem value="Fair">Fair</SelectItem>
+                            <SelectItem value="Damaged">Damaged</SelectItem>
+                            <SelectItem value="Lost">Lost</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     ))}
                   </div>
