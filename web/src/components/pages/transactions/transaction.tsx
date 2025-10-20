@@ -33,7 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { List, MoreHorizontal, Search, Trash2 } from "lucide-react";
+import { MoreHorizontal, Search, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -54,7 +54,6 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 type Condition = "Good" | "Fair" | "Damaged" | "Lost" | "__keep__";
 
@@ -70,18 +69,28 @@ interface Transaction {
   borrowerName: string;
   school_id: string;
   borrowerId?: number;
-  items: Item[]; // ✅ array not string
+  items: Item[];
   return_date: string | null;
   borrow_date: string;
   status: "borrowed" | "returned" | "overdue";
 }
 
+interface FlattenedItem {
+  transactionId: number;
+  itemName: string;
+  itemId: string | number;
+  borrowDate: string;
+  returnDate: string | null;
+  status: "borrowed" | "returned" | "overdue";
+  condition: string;
+  borrowerName: string;
+  schoolId: string;
+}
+
 export function Transactions() {
   const [activeTab, setActiveTab] = useState<"transactions" | "returns">("transactions");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [filteredTransactions, setFilteredTransactions] = useState<
-    Transaction[]
-  >([]);
+  const [filteredData, setFilteredData] = useState<FlattenedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sorting, setSorting] = useState<SortingState>([
@@ -100,7 +109,9 @@ export function Transactions() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] =
     useState<Transaction | null>(null);
-  const [returnDateFilter, setReturnDateFilter] = useState<"today" | "week" | "month" | "all">("all");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const [dateType, setDateType] = useState<"borrow" | "return">("borrow");
   const pageSize = 10;
   const router = useRouter();
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -160,9 +171,6 @@ export function Transactions() {
       }
 
       const data = await response.json();
-      console.log("Raw API response:", data);
-
-      // Transform API response to match Transaction interface
       const transformedTransactions = data.map((transaction: any) => {
         const today = new Date();
         const returnDate = transaction.return_date
@@ -185,9 +193,7 @@ export function Transactions() {
         };
       });
 
-      console.log("Transformed transactions:", transformedTransactions);
       setTransactions(transformedTransactions);
-      setFilteredTransactions(transformedTransactions);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -246,69 +252,100 @@ export function Transactions() {
     }
   };
 
-  // Filter for Transactions tab
+  // Flattening and filtering
   useEffect(() => {
-    let filtered = transactions;
+    const flattened = transactions.flatMap((tx) =>
+      tx.items.map((item) => ({
+        transactionId: tx.id,
+        itemName: item.item_name,
+        itemId: item.id,
+        borrowDate: tx.borrow_date,
+        returnDate: tx.return_date,
+        status: tx.status,
+        condition: item.condition || "N/A",
+        borrowerName: tx.borrowerName,
+        schoolId: tx.school_id,
+      }))
+    );
+
+    let filtered = flattened;
+
     if (activeTab === "transactions") {
       if (filterStatus !== "all") {
         filtered = filtered.filter(
-          (t) => t.status.toLowerCase() === filterStatus.toLowerCase()
-        );
-      }
-      if (searchTerm) {
-        const lowerSearch = searchTerm.toLowerCase();
-        filtered = filtered.filter(
-          (t) =>
-            t.borrowerName.toLowerCase().includes(lowerSearch) ||
-            t.school_id.toLowerCase().includes(lowerSearch) ||
-            t.items.some((item) =>
-              item.item_name.toLowerCase().includes(lowerSearch)
-            )
+          (f) => f.status.toLowerCase() === filterStatus.toLowerCase()
         );
       }
     } else if (activeTab === "returns") {
-      // Filter borrowed/overdue for returns tab
-      filtered = filtered.filter(t => t.status === "borrowed" || t.status === "overdue");
-      // Date filter on borrow_date
-      const today = new Date();
-      const oneWeekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const oneMonthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-      const borrowDate = (t: Transaction) => new Date(t.borrow_date);
-      switch (returnDateFilter) {
-        case "today":
-          filtered = filtered.filter(t => borrowDate(t).toDateString() === today.toDateString());
-          break;
-        case "week":
-          filtered = filtered.filter(t => borrowDate(t) >= oneWeekAgo);
-          break;
-        case "month":
-          filtered = filtered.filter(t => borrowDate(t) >= oneMonthAgo);
-          break;
-        default:
-          break;
+      filtered = filtered.filter(
+        (f) => f.status === "borrowed" || f.status === "overdue"
+      );
+    }
+
+    if (searchTerm) {
+      const lowerSearch = searchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (f) =>
+          f.borrowerName.toLowerCase().includes(lowerSearch) ||
+          f.schoolId.toLowerCase().includes(lowerSearch) ||
+          f.itemName.toLowerCase().includes(lowerSearch)
+      );
+    }
+
+    if (dateFrom || dateTo) {
+      if (dateType === "return") {
+        filtered = filtered.filter((f) => f.returnDate);
       }
-      if (searchTerm) {
-        const lowerSearch = searchTerm.toLowerCase();
-        filtered = filtered.filter(
-          (t) =>
-            t.borrowerName.toLowerCase().includes(lowerSearch) ||
-            t.school_id.toLowerCase().includes(lowerSearch) ||
-            t.items.some((item) =>
-              item.item_name.toLowerCase().includes(lowerSearch)
-            )
-        );
+      if (dateFrom) {
+        const from = new Date(dateFrom);
+        filtered = filtered.filter((f) => {
+          const d = new Date(
+            dateType === "borrow" ? f.borrowDate : f.returnDate!
+          );
+          return d >= from;
+        });
+      }
+      if (dateTo) {
+        const to = new Date(dateTo);
+        filtered = filtered.filter((f) => {
+          const d = new Date(
+            dateType === "borrow" ? f.borrowDate : f.returnDate!
+          );
+          return d <= to;
+        });
       }
     }
-    setFilteredTransactions(filtered);
-    setPageIndex(0); // Reset to first page when filter changes
+
+    setFilteredData(filtered);
+    setPageIndex(0);
     setRowSelection({});
-  }, [filterStatus, searchTerm, transactions, activeTab, returnDateFilter]);
+  }, [
+    transactions,
+    activeTab,
+    filterStatus,
+    searchTerm,
+    dateFrom,
+    dateTo,
+    dateType,
+  ]);
+
+  const getUniqueTxIdsFromSelected = (selectedRows: Row<FlattenedItem>[]) => {
+    const txIds = new Set(selectedRows.map((row) => row.original.transactionId));
+    return Array.from(txIds);
+  };
 
   const handleReturnSelected = async () => {
     const selectedRows = table.getSelectedRowModel().rows;
     if (selectedRows.length === 0) return;
 
-    if (!confirm(`Return ${selectedRows.length} transaction(s)?`)) return;
+    const txIds = getUniqueTxIdsFromSelected(selectedRows);
+    if (txIds.length !== 1) {
+      toast.error("Select items from a single transaction to return.");
+      return;
+    }
+
+    const txId = txIds[0];
+    if (!confirm(`Return transaction ${txId}?`)) return;
 
     try {
       const token = localStorage.getItem("access_token");
@@ -318,52 +355,33 @@ export function Transactions() {
       }
 
       const today = format(new Date(), "yyyy-MM-dd");
-      const returnPromises = selectedRows.map(async (row) => {
-        const transaction = row.original;
-        if (transaction.status !== "borrowed" && transaction.status !== "overdue") {
-          toast.error(`Cannot return non-borrowed transaction ${transaction.id}`);
-          return;
+      const response = await fetch(
+        `${API_BASE_URL}/api/transactions/${txId}/`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ status: "returned", return_date: today }),
         }
+      );
 
-        // Update transaction status and return_date
-        const response = await fetch(
-          `${API_BASE_URL}/api/transactions/${transaction.id}/`,
-          {
-            method: "PATCH",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ 
-              status: "returned", 
-              return_date: today 
-            }),
-          }
-        );
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to return transaction");
+      }
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          toast.error(
-            `Failed to return transaction ${transaction.id}: ${
-              errorData.error || "Error"
-            }`
-          );
-        }
-      });
-
-      await Promise.all(returnPromises);
-
-      // Refresh
       fetchTransactions();
       setRowSelection({});
-      toast.success("Selected transactions returned");
+      toast.success("Transaction returned");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "An error occurred");
     }
   };
 
-  const deleteTransaction = async (id: number) => {
-    const transaction = transactions.find((t) => t.id === id);
+  const deleteTransaction = async (txId: number) => {
+    const transaction = transactions.find((t) => t.id === txId);
     if (transaction?.status === "returned") {
       toast.error("Cannot delete a returned transaction.");
       return;
@@ -378,7 +396,7 @@ export function Transactions() {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/transactions/${id}/`, {
+      const response = await fetch(`${API_BASE_URL}/api/transactions/${txId}/`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -387,10 +405,7 @@ export function Transactions() {
       });
 
       if (response.ok) {
-        setTransactions(transactions.filter((t) => t.id !== id));
-        setFilteredTransactions(
-          filteredTransactions.filter((t) => t.id !== id)
-        );
+        fetchTransactions();
         toast.success("Transaction deleted successfully");
       } else {
         const errorData = await response.json();
@@ -405,61 +420,14 @@ export function Transactions() {
     const selectedRows = table.getSelectedRowModel().rows;
     if (selectedRows.length === 0) return;
 
-    if (
-      !confirm(
-        `Are you sure you want to delete ${selectedRows.length} transaction(s)?`
-      )
-    )
+    const txIds = getUniqueTxIdsFromSelected(selectedRows);
+    if (txIds.length !== 1) {
+      toast.error("Select items from a single transaction to delete.");
       return;
-
-    try {
-      const token = localStorage.getItem("access_token");
-      if (!token) {
-        router.replace("/login");
-        return;
-      }
-
-      const deletePromises = selectedRows.map(async (row) => {
-        const transaction = row.original;
-        if (transaction.status === "returned") {
-          toast.error(`Cannot delete returned transaction ${transaction.id}`);
-          return;
-        }
-
-        const response = await fetch(
-          `${API_BASE_URL}/api/transactions/${transaction.id}/`,
-          {
-            method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          toast.error(
-            `Failed to delete transaction ${transaction.id}: ${
-              errorData.error || "Error"
-            }`
-          );
-        }
-      });
-
-      await Promise.all(deletePromises);
-
-      // Refresh transactions
-      const remainingTransactions = transactions.filter(
-        (t) => !selectedRows.some((row) => row.original.id === t.id)
-      );
-      setTransactions(remainingTransactions);
-      setFilteredTransactions(remainingTransactions);
-      setRowSelection({});
-      toast.success("Selected transactions deleted");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "An error occurred");
     }
+
+    const txId = txIds[0];
+    await deleteTransaction(txId);
   };
 
   const handleAddOpen = () => {
@@ -511,7 +479,7 @@ export function Transactions() {
       if (response.ok) {
         toast.success("Transaction added successfully");
         setIsAddOpen(false);
-        fetchTransactions(); // Refetch to update list
+        fetchTransactions();
       } else {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to add transaction");
@@ -523,8 +491,18 @@ export function Transactions() {
 
   const handleEditSelected = () => {
     const selectedRows = table.getSelectedRowModel().rows;
-    if (selectedRows.length !== 1) return;
-    const transaction = selectedRows[0].original;
+    if (selectedRows.length === 0) return;
+
+    const txIds = getUniqueTxIdsFromSelected(selectedRows);
+    if (txIds.length !== 1) {
+      toast.error("Select items from a single transaction to edit.");
+      return;
+    }
+
+    const txId = txIds[0];
+    const transaction = transactions.find((t) => t.id === txId);
+    if (!transaction) return;
+
     setSelectedTransaction(transaction);
     setEditName(transaction.borrowerName);
     setEditForm({
@@ -552,11 +530,10 @@ export function Transactions() {
 
     const token = localStorage.getItem("access_token");
     try {
-      // FIXED: Transaction update - use PATCH for partial
       const tRes = await fetch(
         `${API_BASE_URL}/api/transactions/${selectedTransaction.id}/`,
         {
-          method: "PATCH", // Changed from "PUT"
+          method: "PATCH",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
@@ -566,20 +543,19 @@ export function Transactions() {
       );
       if (!tRes.ok) throw new Error("Failed to update transaction");
 
-      // FIXED: Item conditions update - use PATCH for partial
       const itemPromises = selectedTransaction.items.map(async (item) => {
         const newCondition =
           itemConditions[item.id as string] || item.condition;
         if (newCondition && newCondition !== item.condition) {
           const iRes = await fetch(`${API_BASE_URL}/api/items/${item.id}/`, {
-            method: "PATCH", // Changed from "PUT"
+            method: "PATCH",
             headers: {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({ condition: newCondition }),
           });
-          if (!iRes.ok) console.error(`Failed to update item ${item.id}`); // Or throw if critical
+          if (!iRes.ok) console.error(`Failed to update item ${item.id}`);
         }
       });
       await Promise.all(itemPromises);
@@ -587,19 +563,19 @@ export function Transactions() {
       toast.success("Transaction updated successfully");
       setIsEditOpen(false);
       setRowSelection({});
-      fetchTransactions(); // Refetch to update list
+      fetchTransactions();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "An error occurred");
     }
   };
 
-  const columns: ColumnDef<Transaction>[] = useMemo(
+  const columns: ColumnDef<FlattenedItem>[] = useMemo(
     () => [
       ...(isEditMode
         ? [
             {
               id: "select",
-              header: ({ table }: { table: Table<Transaction> }) => (
+              header: ({ table }: { table: Table<FlattenedItem> }) => (
                 <Checkbox
                   checked={
                     table.getIsAllPageRowsSelected() ||
@@ -611,7 +587,7 @@ export function Transactions() {
                   aria-label="Select all"
                 />
               ),
-              cell: ({ row }: { row: Row<Transaction> }) => (
+              cell: ({ row }: { row: Row<FlattenedItem> }) => (
                 <Checkbox
                   checked={row.getIsSelected()}
                   onCheckedChange={(value) => row.toggleSelected(!!value)}
@@ -624,120 +600,81 @@ export function Transactions() {
           ]
         : []),
       {
+        accessorKey: "transactionId",
+        header: "Transaction ID",
+        cell: ({ row }: { row: Row<FlattenedItem> }) => (
+          <div>{row.getValue("transactionId")}</div>
+        ),
+      },
+      {
+        accessorKey: "itemName",
+        header: "Item Name",
+        cell: ({ row }: { row: Row<FlattenedItem> }) => (
+          <div>{row.getValue("itemName")}</div>
+        ),
+      },
+      {
+        accessorKey: "itemId",
+        header: "Item ID",
+        cell: ({ row }: { row: Row<FlattenedItem> }) => (
+          <div>{row.getValue("itemId")}</div>
+        ),
+      },
+      {
+        accessorKey: "borrowDate",
+        header: "Borrow Date",
+        cell: ({ row }: { row: Row<FlattenedItem> }) => (
+          <div>
+            {row.getValue("borrowDate")
+              ? format(new Date(row.getValue("borrowDate")), "MMMM d, yyyy")
+              : "N/A"}
+          </div>
+        ),
+        sortingFn: "datetime",
+      },
+      {
+        accessorKey: "returnDate",
+        header: "Return Date",
+        cell: ({ row }: { row: Row<FlattenedItem> }) => (
+          <div>
+            {row.getValue("returnDate")
+              ? format(new Date(row.getValue("returnDate")), "MMMM d, yyyy")
+              : "N/A"}
+          </div>
+        ),
+        sortingFn: "datetime",
+      },
+      {
         accessorKey: "status",
         header: "Status",
-        cell: ({ row }: { row: Row<Transaction> }) => (
+        cell: ({ row }: { row: Row<FlattenedItem> }) => (
           <div className="capitalize">{row.getValue("status")}</div>
         ),
-        sortingFn: "alphanumeric",
       },
       {
-        accessorKey: "return_date",
-        header: "Return Date",
-        cell: ({ row }: { row: Row<Transaction> }) => (
-          <div>
-            {row.getValue("return_date")
-              ? format(new Date(row.getValue("return_date")), "MMMM d, yyyy")
-              : "N/A"}
-          </div>
+        accessorKey: "condition",
+        header: "Item Condition",
+        cell: ({ row }: { row: Row<FlattenedItem> }) => (
+          <div>{row.getValue("condition")}</div>
         ),
-        sortingFn: "datetime",
       },
       {
-        accessorKey: "borrow_date",
-        header: "Borrow Date",
-        cell: ({ row }: { row: Row<Transaction> }) => (
-          <div>
-            {row.getValue("borrow_date")
-              ? format(new Date(row.getValue("borrow_date")), "MMMM d, yyyy")
-              : "N/A"}
-          </div>
-        ),
-        sortingFn: "datetime",
-      },
-      {
-        accessorKey: "items",
-        header: "Items",
-        cell: ({ row }: { row: Row<Transaction> }) => {
-          const items = row.original.items;
-          if (!items || items.length === 0) {
-            return <span className="text-muted-foreground">N/A</span>;
-          }
-
-          // if only 1 item → just show name
-          if (items.length === 1) {
-            return <span>{items[0].item_name}</span>;
-          }
-
-          // if multiple items → show button to open dialog
-          return (
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-1"
-                >
-                  {items.length} items
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Borrowed Items</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-3">
-                  {items.map((it) => (
-                    <div
-                      key={it.id}
-                      className="flex items-center gap-3 border rounded p-2"
-                    >
-                      {it.image ? (
-                        <img
-                          src={it.image}
-                          alt={it.item_name}
-                          className="h-12 w-12 rounded object-cover"
-                        />
-                      ) : (
-                        <div className="h-12 w-12 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground">
-                          No Img
-                        </div>
-                      )}
-                      <div className="flex flex-col">
-                        <span className="font-medium">{it.item_name}</span>
-                        {it.condition && (
-                          <span className="text-xs text-muted-foreground">
-                            Condition: {it.condition}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </DialogContent>
-            </Dialog>
-          );
-        },
-      },
-      {
-        accessorKey: "school_id",
+        accessorKey: "schoolId",
         header: "Borrower School ID",
-        cell: ({ row }: { row: Row<Transaction> }) => (
-          <div>{row.getValue("school_id")}</div>
+        cell: ({ row }: { row: Row<FlattenedItem> }) => (
+          <div>{row.getValue("schoolId")}</div>
         ),
-        sortingFn: "alphanumeric",
       },
       {
         accessorKey: "borrowerName",
         header: "Borrower Name",
-        cell: ({ row }: { row: Row<Transaction> }) => (
+        cell: ({ row }: { row: Row<FlattenedItem> }) => (
           <div>{row.getValue("borrowerName")}</div>
         ),
-        sortingFn: "alphanumeric",
       },
       {
         id: "actions",
-        cell: ({ row }: { row: Row<Transaction> }) => (
+        cell: ({ row }: { row: Row<FlattenedItem> }) => (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0">
@@ -749,7 +686,7 @@ export function Transactions() {
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => deleteTransaction(row.original.id)}
+                onClick={() => deleteTransaction(row.original.transactionId)}
                 className="text-destructive"
               >
                 <Trash2 className="mr-2 h-4 w-4" />
@@ -765,7 +702,7 @@ export function Transactions() {
   );
 
   const table = useReactTable({
-    data: filteredTransactions,
+    data: filteredData,
     columns,
     state: { sorting, rowSelection, pagination: { pageIndex, pageSize } },
     onSortingChange: setSorting,
@@ -849,20 +786,59 @@ export function Transactions() {
                 />
               </div>
 
-              {/* Filter segmented control - revised for better look */}
-              <div className="md:ml-auto">
-         <ToggleGroup type="single" value={returnDateFilter} onValueChange={(v: any) => setReturnDateFilter(v as any)} className="flex">
-<ToggleGroupItem value="all" className="px-3 py-1.5">All</ToggleGroupItem>
-<ToggleGroupItem value="today" className="px-3 py-1.5">Today</ToggleGroupItem>
-<ToggleGroupItem value="week" className="px-3 py-1.5">This Week</ToggleGroupItem>
-<ToggleGroupItem value="month" className="px-3 py-1.5">This Month</ToggleGroupItem>
-</ToggleGroup>
+              {/* Status filter */}
+              <Select
+                value={filterStatus}
+                onValueChange={(v) =>
+                  setFilterStatus(v as "all" | "borrowed" | "returned" | "overdue")
+                }
+              >
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="borrowed">Borrowed</SelectItem>
+                  <SelectItem value="returned">Returned</SelectItem>
+                  <SelectItem value="overdue">Overdue</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Date filters */}
+              <div className="flex items-center gap-2 md:ml-auto">
+             <Select
+  value={dateType}
+  onValueChange={(value: string) => setDateType(value as "borrow" | "return")}
+>
+  <SelectTrigger className="w-32">
+    <SelectValue />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="borrow">Borrow Date</SelectItem>
+    <SelectItem value="return">Return Date</SelectItem>
+  </SelectContent>
+</Select>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-36"
+                />
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-36"
+                />
               </div>
             </div>
 
             {/* Edit mode bulk actions */}
             {userRole === "user_web" && isEditMode && (
               <div className="mt-3 flex flex-wrap gap-2">
+                {selectedCount > 0 && (
+                  <Button onClick={handleReturnSelected}>Return Selected</Button>
+                )}
                 {selectedCount === 1 && (
                   <Button onClick={handleEditSelected}>Edit Selected</Button>
                 )}
@@ -977,14 +953,32 @@ export function Transactions() {
                 />
               </div>
 
-              {/* Date filter segmented control */}
-              <div className="md:ml-auto">
-             <ToggleGroup type="single" value={returnDateFilter} onValueChange={(v: any) => setReturnDateFilter(v as any)} className="flex">
-<ToggleGroupItem value="all" className="px-3 py-1.5">All</ToggleGroupItem>
-<ToggleGroupItem value="today" className="px-3 py-1.5">Today</ToggleGroupItem>
-<ToggleGroupItem value="week" className="px-3 py-1.5">This Week</ToggleGroupItem>
-<ToggleGroupItem value="month" className="px-3 py-1.5">This Month</ToggleGroupItem>
-</ToggleGroup>
+              {/* Date filters */}
+              <div className="flex items-center gap-2 md:ml-auto">
+             <Select
+  value={dateType}
+  onValueChange={(value: string) => setDateType(value as "borrow" | "return")}
+>
+  <SelectTrigger className="w-32">
+    <SelectValue />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="borrow">Borrow Date</SelectItem>
+    <SelectItem value="return">Return Date</SelectItem>
+  </SelectContent>
+</Select>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-36"
+                />
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-36"
+                />
               </div>
             </div>
 
@@ -1002,7 +996,7 @@ export function Transactions() {
             )}
           </div>
 
-          {/* Same table for returns, filtered above */}
+          {/* Table card */}
           <div className="rounded-xl border bg-card overflow-hidden">
             <UITable>
               <TableHeader>
@@ -1062,7 +1056,7 @@ export function Transactions() {
             </UITable>
           </div>
 
-          {/* Pagination for returns */}
+          {/* Pagination */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
             <div className="text-sm text-muted-foreground">
               Page {table.getState().pagination.pageIndex + 1} of{" "}
@@ -1308,7 +1302,6 @@ export function Transactions() {
                           onValueChange={(v: Condition) => {
                             const key = item.id as string;
                             if (v === "__keep__") {
-                              // remove override so it truly “keeps current”
                               const { [key]: _omit, ...rest } = itemConditions;
                               setItemConditions(rest);
                             } else {
@@ -1320,7 +1313,7 @@ export function Transactions() {
                             <SelectValue placeholder="Condition" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__keep__">Keep Current</SelectItem> {/* ✅ non-empty */}
+                            <SelectItem value="__keep__">Keep Current</SelectItem>
                             <SelectItem value="Good">Good</SelectItem>
                             <SelectItem value="Fair">Fair</SelectItem>
                             <SelectItem value="Damaged">Damaged</SelectItem>
