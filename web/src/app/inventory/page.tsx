@@ -602,11 +602,17 @@ setSelectedItems(new Set(selectedItemIds));
     return (
       <div
         className="cursor-pointer flex justify-center"
-        onClick={() => {
-          const selectedItem = data.find((i) => String(i.id) === itemId);
-          setPreviewItem(selectedItem || null);
-          setIsPreviewModalOpen(true);
-        }}
+    onClick={() => {
+  const selectedItem = data.find((i) => String(i.id) === itemId);
+  if (selectedItem) {
+    setPreviewItem(selectedItem);
+    // delay the modal open slightly to ensure state is set before render
+    setTimeout(() => setIsPreviewModalOpen(true), 0);
+  } else {
+    toast.error("Item not found for preview");
+  }
+}}
+
       >
         <QRCodeCanvas
           id={`qr-${itemId}`}
@@ -963,7 +969,8 @@ setSelectedItems(new Set(selectedItemIds));
       {previewItem ? (
         <>
           <QRCodeCanvas
-            key={previewItem.id}
+          key={`${previewItem.id}-${previewItem.item_name}`}
+
             value={JSON.stringify({
               id: String(previewItem.id),
               name: String(previewItem.item_name || ""),
