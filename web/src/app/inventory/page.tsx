@@ -93,6 +93,7 @@ export default function Page() {
   const [editError, setEditError] = React.useState<string | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = React.useState(false);
   const [previewItemId, setPreviewItemId] = React.useState<number | null>(null);
+  const [previewItem, setPreviewItem] = React.useState<Item | null>(null);
 
   const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -596,10 +597,11 @@ export default function Page() {
           return (
             <div
               className="cursor-pointer flex justify-center"
-              onClick={() => {
-                setPreviewItemId(itemId);
-                setIsPreviewModalOpen(true);
-              }}
+             onClick={() => {
+  const item = data.find(i => i.id === itemId);
+  setPreviewItem(item || null);
+  setIsPreviewModalOpen(true);
+}}
             >
              <QRCodeCanvas
   id={`qr-${itemId}`}
@@ -935,35 +937,41 @@ export default function Page() {
                   </Dialog>
 
                   {/* QR Preview Modal */}
-                  <Dialog
-                    open={isPreviewModalOpen}
-                    onOpenChange={setIsPreviewModalOpen}
-                  >
-                    <DialogContent className="sm:max-w-[425px]">
-                      <DialogHeader>
-                        <DialogTitle>QR Code Preview</DialogTitle>
-                      </DialogHeader>
-                      <div className="flex justify-center py-4">
-                        {previewItemId ? (
-                          <QRCodeCanvas
-                            value={String(previewItemId)}
-                            size={200}
-                            level="H"
-                          />
-                        ) : (
-                          <div>No QR code available</div>
-                        )}
-                      </div>
-                      <DialogFooter>
-                        <Button
-                          variant="outline"
-                          onClick={() => setIsPreviewModalOpen(false)}
-                        >
-                          Close
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
+                <Dialog
+  open={isPreviewModalOpen}
+  onOpenChange={(open) => {
+    setIsPreviewModalOpen(open);
+    if (!open) setPreviewItem(null);
+  }}
+>
+  <DialogContent className="sm:max-w-[425px]">
+    <DialogHeader>
+      <DialogTitle>QR Code Preview</DialogTitle>
+    </DialogHeader>
+    <div className="flex justify-center py-4">
+      {previewItem ? (
+        <QRCodeCanvas
+          value={JSON.stringify({ id: previewItem.id, name: previewItem.item_name })}
+          size={200}
+          level="H"
+        />
+      ) : (
+        <div>No QR code available</div>
+      )}
+    </div>
+    <DialogFooter>
+      <Button
+        variant="outline"
+        onClick={() => {
+          setIsPreviewModalOpen(false);
+          setPreviewItem(null);
+        }}
+      >
+        Close
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
 
                   {loading ? (
                     <div className="rounded-md border p-8 text-center">
