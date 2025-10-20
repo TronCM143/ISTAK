@@ -949,15 +949,20 @@ export default function Page() {
       <DialogTitle>QR Code Preview</DialogTitle>
     </DialogHeader>
     <div className="flex justify-center py-4">
-      {previewItem ? (
-        <QRCodeCanvas
-          value={JSON.stringify({ id: previewItem.id, name: previewItem.item_name })}
-          size={200}
-          level="H"
-        />
-      ) : (
-        <div>No QR code available</div>
-      )}
+     {previewItem ? (
+  <QRCodeCanvas
+    key={previewItem.id} // forces rerender on each new item
+    value={JSON.stringify({
+      id: String(previewItem.id),
+      name: String(previewItem.item_name || ""),
+    })}
+    size={200}
+    level="H"
+  />
+) : (
+  <div className="text-gray-500">No QR code available</div>
+)}
+
     </div>
     <DialogFooter>
       <Button
