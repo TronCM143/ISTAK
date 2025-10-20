@@ -82,7 +82,7 @@ export default function Page() {
   const [editItem, setEditItem] = React.useState<Item | null>(null);
   const [newItem, setNewItem] = React.useState<{
     item_name: string;
-    condition: | "Good" | "Fair" | "Damaged" | "Lost";
+    condition: "Good" | "Fair" | "Damaged" | "Lost";
     _newFile: File | null;
   }>({
     item_name: "",
@@ -92,7 +92,6 @@ export default function Page() {
   const [addError, setAddError] = React.useState<string | null>(null);
   const [editError, setEditError] = React.useState<string | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = React.useState(false);
-  const [previewItemId, setPreviewItemId] = React.useState<number | null>(null);
   const [previewItem, setPreviewItem] = React.useState<Item | null>(null);
 
   const API_BASE_URL =
@@ -414,11 +413,11 @@ setSelectedItems(new Set(selectedItemIds));
             let completed = 0;
             items.forEach((item) => {
               const canvas = document.getElementById('print-qr-' + item.id);
-              QRCode.toCanvas(canvas, item.id.toString(), {
-                width: 200,
-                margin: 2,
-                errorCorrectionLevel: 'H'
-              }, (error) => {
+             QRCode.toCanvas(canvas, item.id, { // Removed .toString()
+  width: 200,
+  margin: 2,
+  errorCorrectionLevel: 'H'
+}, (error) => {
                 completed++;
                 if (error) console.error(error);
                 if (completed === items.length) {
@@ -602,16 +601,10 @@ setSelectedItems(new Set(selectedItemIds));
     return (
       <div
         className="cursor-pointer flex justify-center"
-    onClick={() => {
-  const selectedItem = data.find((i) => String(i.id) === itemId);
-  if (selectedItem) {
-    setPreviewItem(selectedItem);
-    // delay the modal open slightly to ensure state is set before render
-    setTimeout(() => setIsPreviewModalOpen(true), 0);
-  } else {
-    toast.error("Item not found for preview");
-  }
-}}
+    onClick={() => {  // ← Insert the onClick here
+          setPreviewItem(row.original);
+          setIsPreviewModalOpen(true);
+        }}
 
       >
         <QRCodeCanvas
@@ -953,7 +946,7 @@ setSelectedItems(new Set(selectedItemIds));
                   </Dialog>
 
                   {/* QR Preview Modal */}
-            <Dialog
+       <Dialog
   open={isPreviewModalOpen}
   onOpenChange={(open) => {
     setIsPreviewModalOpen(open);
@@ -969,11 +962,10 @@ setSelectedItems(new Set(selectedItemIds));
       {previewItem ? (
         <>
           <QRCodeCanvas
-          key={`${previewItem.id}-${previewItem.item_name}`}
-
+            key={previewItem.id} // Ensures re-render on item change
             value={JSON.stringify({
-              id: String(previewItem.id),
-              name: String(previewItem.item_name || ""),
+              id: previewItem.id,
+              name: previewItem.item_name || "",
             })}
             size={200}
             level="H"
@@ -1000,7 +992,6 @@ setSelectedItems(new Set(selectedItemIds));
     </DialogFooter>
   </DialogContent>
 </Dialog>
-
 
                   {loading ? (
                     <div className="rounded-md border p-8 text-center">
