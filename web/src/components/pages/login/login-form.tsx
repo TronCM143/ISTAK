@@ -18,8 +18,8 @@ export function LoginForm({
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
-  console.log("API_BASE_URL:", API_BASE_URL) // Debug the URL
+  //const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+
 
   const handleSubmit = async (e: { preventDefault: () => void }) => {
     e.preventDefault()
@@ -27,7 +27,7 @@ export function LoginForm({
     setIsLoading(true)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/login_manager/`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/login_manager/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -6,7 +6,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile/components/transaction/borrowing/sync.dart';
+import 'package:mobile/components/transaction/sync.dart';
 import 'package:lottie/lottie.dart';
 
 class ProcessTransaction extends StatefulWidget {
@@ -209,9 +209,9 @@ class _ProcessTransactionState extends State<ProcessTransaction> {
         ..fields['status'] = widget.borrowerData!['status']!
         ..fields['return_date'] = widget.borrowerData!['return_date']!;
 
-      for (var item in widget.scannedItems) {
-        request.fields['item_ids[]'] = item['item_id'];
-      }
+      request.fields['item_ids'] = jsonEncode(
+        widget.scannedItems.map((e) => e['item_id']).toList(),
+      );
 
       // Use processed image_url if available, otherwise fall back to photo_path
       final imageUrl = widget.borrowerData!['image_url'] ?? _imageUrl;

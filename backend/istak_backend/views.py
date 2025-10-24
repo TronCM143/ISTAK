@@ -1,6 +1,6 @@
 import logging
 import json
-from django.utils import timezone
+from django.utils import timezone as dj_timezone
 from django.contrib.auth import get_user_model, authenticate, login
 from django.contrib.auth.hashers import make_password
 from django.shortcuts import render, redirect
@@ -23,7 +23,6 @@ from datetime import date
 from django.db.models import Count
 from sympy import Q
 
-from .firebase import send_push_notification
 from .models import Transaction, Item, CustomUser, RegistrationRequest, Borrower
 from .serializers import CreateBorrowingSerializer, TransactionSerializer, ItemSerializer, RegistrationRequestSerializer, TopBorrowedItemsSerializer
 from istak_backend import models
@@ -397,7 +396,7 @@ class RegistrationRequestViewSet(viewsets.ModelViewSet):
     
 import logging
 import json
-from django.utils import timezone
+
 from django.core.files.base import ContentFile
 from datetime import date
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
@@ -487,7 +486,7 @@ def borrowing_create(request):
             borrower.name = name
             borrower.status = status_choice
             if image_file:
-                timestamp = timezone.now().strftime("%Y%m%d%H%M%S")
+                timestamp = dj_timezone.now().strftime("%Y%m%d%H%M%S")
                 orig_name = getattr(image_file, 'name', 'upload')
                 filename = f"{school_id}_{timestamp}_{orig_name}"
                 borrower.image.save(filename, ContentFile(image_file.read()), save=False)
@@ -646,7 +645,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Transaction
-from django.utils import timezone
+
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from rest_framework.permissions import AllowAny
@@ -660,7 +659,7 @@ class MonthlyTransactionsView(APIView):
     def get(self, request):
         try:
             # Calculate the date range: last 6 months + current = 7 months
-            today = timezone.now().date()
+            today = dj_timezone.now().date()
             start_date = today - relativedelta(months=6)  # Starts from 7 months ago
             transactions = Transaction.objects.filter(borrow_date__gte=start_date)
 
@@ -923,15 +922,19 @@ def item_borrower_view(request, itemId):
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
-from rest_framework.response import Response
-from rest_framework import status
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated
-from django.utils import timezone
-from django.db import transaction  # Module for atomic()
-import json
+from rest_framework.response import Response
+from rest_framework import status
+from django.db.models import Count
+
+from .models import Item, Transaction, Borrower
+from PIL import Image, ImageDraw, ImageFont
+from django.core.files.base import ContentFile
+from io import BytesIO
+import os
+from django.conf import settings
 import logging
-from istak_backend.models import Transaction, Item, Borrower
 
 logger = logging.getLogger(__name__)
 
@@ -940,150 +943,110 @@ logger = logging.getLogger(__name__)
 @permission_classes([IsAuthenticated])
 def return_item(request):
     try:
-        if not request.user.is_authenticated:
-            logger.error("Unauthenticated request to return_item")
-            return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+        # Parse request data
+        school_id = request.data.get('school_id')
+        items_data = []
+        for i in range(len(request.data) // 2):  # Parse items array
+            item_id = request.data.get(f'items[{i}][itemId]') or request.data.get(f'items[{i}][item_id]')
+            condition = request.data.get(f'items[{i}][condition]')
+            if item_id and condition:
+                items_data.append({'item_id': item_id, 'condition': condition})
 
-        data = json.loads(request.body)
-        logger.info(f"Received request data: {data}")
-        transaction_id = data.get('transaction_id')
-        items_data = data.get('items', [])  # List of {itemId, condition}
-        school_id = data.get('school_id')
+        return_image = request.FILES.get('return_image')
+        if not items_data:
+            return Response({"error": "No items provided"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not transaction_id or not items_data or not school_id:
-            logger.error(
-                f"Missing required fields: transaction_id={transaction_id}, "
-                f"items={items_data}, school_id={school_id}"
-            )
-            return Response(
-                {"error": "transaction_id, items, and school_id are required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Find transaction
+        item_ids = [item['item_id'] for item in items_data]
+        transactions = Transaction.objects.filter(
+            status='borrowed',
+            items__id__in=item_ids,
+        ).annotate(num_matches=Count('items__id')).filter(num_matches=len(item_ids))
 
-        # Coerce transaction_id to integer
-        try:
-            transaction_id = int(transaction_id)
-            logger.debug(f"Coerced transaction_id to: {transaction_id}, type: {type(transaction_id)}")
-        except (ValueError, TypeError):
-            logger.error(f"Invalid transaction_id: {transaction_id}")
-            return Response({"error": "Invalid transaction_id"}, status=status.HTTP_400_BAD_REQUEST)
+        if school_id:
+            transactions = transactions.filter(borrower__school_id=school_id)
 
-        manager = request.user if request.user.role == 'user_web' else request.user.manager
-        if not manager:
-            logger.error(f"No manager assigned for user {request.user.username}")
-            return Response(
-                {"error": "No manager assigned for mobile user"},
-                status=status.HTTP_403_FORBIDDEN
-            )
+        transaction = transactions.first()
+        if not transaction:
+            return Response({"error": "No matching borrowed transaction found"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Verify borrower exists
-        try:
-            borrower = Borrower.objects.get(school_id=school_id)
-            logger.info(f"Found borrower with school_id {school_id}")
-        except Borrower.DoesNotExist:
-            logger.error(f"Borrower with school_id {school_id} not found")
-            return Response(
-                {"error": f"Borrower with school_id {school_id} not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        # Get borrower details
+        borrower = transaction.borrower
+        name = borrower.name
+        school_id = borrower.school_id
 
-        # Find the transaction with id explicitly selected
-        try:
-            db_transaction = Transaction.objects.select_related('borrower').prefetch_related('items').get(  # Renamed to db_transaction
-                id=transaction_id,
-                borrower=borrower,
-                status='borrowed',
-                manager=manager
-            )
-            logger.info(f"Retrieved transaction {transaction_id} with items: {[item.id for item in db_transaction.items.all()]}")
-        except Transaction.DoesNotExist:
-            logger.error(
-                f"No active transaction {transaction_id} found for borrower {school_id} "
-                f"and manager {manager.username}"
-            )
-            return Response(
-                {"error": f"No active transaction found for transaction ID {transaction_id}"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        except ValueError:
-            logger.error(f"Invalid transaction_id: {transaction_id}")
-            return Response(
-                {"error": "Invalid transaction_id"},
-                status=status.HTTP_400_BAD_REQUEST
+        # Process return_image if provided
+        processed_image = None
+        if return_image:
+            # Validate image size (max 5MB)
+            if return_image.size > 5 * 1024 * 1024:
+                return Response({"error": "Return image size exceeds 5MB"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Open and process image
+            image = Image.open(return_image).convert('RGB')
+            draw = ImageDraw.Draw(image)
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            text = f"Name: {name}\nSchool ID: {school_id}\nReturned: {timestamp}"
+
+            try:
+                font = ImageFont.truetype(os.path.join(settings.BASE_DIR, 'fonts', 'arial.ttf'), 24)
+            except IOError:
+                font = ImageFont.load_default(size=24)
+
+            text_position = (10, 10)
+            draw.multiline_text(
+                text_position,
+                text,
+                font=font,
+                fill=(255, 255, 255, 255),
+                stroke_width=2,
+                stroke_fill=(0, 0, 0, 255)
             )
 
-        # Validate that all transaction items are included and no extra items are submitted
-        transaction_item_ids = set(map(int, db_transaction.items.values_list('id', flat=True)))  # Use db_transaction
-        submitted_item_ids = set(int(str(item['itemId'])) for item in items_data)
-        logger.debug(f"Transaction_item_ids: {transaction_item_ids}, type: {type(next(iter(transaction_item_ids)))}")
-        logger.debug(f"Submitted_item_ids: {submitted_item_ids}, type: {type(next(iter(submitted_item_ids)))}")
-        logger.debug(f"Comparison: {transaction_item_ids == submitted_item_ids}")
+            # Save processed image to buffer
+            buffer = BytesIO()
+            image.save(buffer, format="PNG")
+            buffer.seek(0)
+            timestamp_clean = timestamp.replace(":", "-").replace(" ", "_")
+            filename = f"borrower_return_image_{school_id}_{timestamp_clean}.png"
+            processed_image = ContentFile(buffer.read(), name=filename)
 
-        if transaction_item_ids != submitted_item_ids:
-            logger.error(
-                f"Submitted items {submitted_item_ids} do not match transaction items {transaction_item_ids}"
-            )
-            return Response(
-                {"error": "All items in the transaction must be returned together, no extra items allowed"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Update transaction
+        transaction.status = 'returned'
+        transaction.return_date = dj_timezone.now().date()
+        transaction.save()
 
-        # Validate items and update conditions within a transaction
-        with transaction.atomic():  # Use the transaction module
-            for item_data in items_data:
-                item_id = int(item_data['itemId'])
-                condition = item_data['condition']
-                
-                try:
-                    item = Item.objects.only('id', 'manager', 'condition').get(id=item_id, manager=manager)
-                except Item.DoesNotExist:
-                    logger.error(f"Item {item_id} not found or not managed by {manager.username}")
-                    return Response(
-                        {"error": f"Item {item_id} not found or not managed by your manager"},
-                        status=status.HTTP_404_NOT_FOUND
-                    )
-
-                if condition not in ['Good', 'Fair', 'Damaged', 'Broken']:
-                    logger.error(f"Invalid condition {condition} for item {item_id}")
-                    return Response(
-                        {"error": f"Invalid condition {condition} for item {item_id}"},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-
-                item.condition = condition
+        # Update item conditions
+        for item_data in items_data:
+            try:
+                item = Item.objects.get(id=item_data['item_id'])
+                item.condition = item_data['condition']
                 item.save()
+            except Item.DoesNotExist:
+                logger.warning(f"Item {item_data['item_id']} not found")
 
-            # Update transaction
-            db_transaction.status = 'returned'  # Use db_transaction
-            db_transaction.return_date = timezone.now().date()
-            db_transaction.save()
+        # Update borrower's return_image
+        if processed_image:
+            borrower.return_image = processed_image
+            borrower.save()
 
-        logger.info(
-            f"Successfully returned transaction {transaction_id} for borrower {school_id} "
-            f"by user {request.user.username}"
-        )
+        logger.info(f"Return processed for transaction {transaction.id}, borrower {borrower.school_id}")
         return Response(
-            {"message": f"All items in transaction {transaction_id} returned successfully"},
+            {
+                "status": "success",
+                "message": "Items returned successfully",
+                "image_url": request.build_absolute_uri(borrower.return_image.url) if processed_image else None
+            },
             status=status.HTTP_200_OK
         )
 
-    except json.JSONDecodeError:
-        logger.error("Invalid JSON in request body")
-        return Response(
-            {"error": "Invalid JSON in request body"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
     except Exception as e:
-        logger.exception(f"Error processing return for transaction {transaction_id}")
-        return Response(
-            {"error": str(e)},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        logger.error(f"Error in return_item: {str(e)}")
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 # views.py
 # views.py (Revised: Now returns transaction counts, not item counts)
 from django.db.models import Q
-from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -1102,7 +1065,7 @@ class InventorySummaryView(APIView):
     def get(self, request):
         try:
             user = request.user
-            today = timezone.now().date()
+            today = dj_timezone.now().date()
 
             # Scope by role
             if user.role == 'user_web':
@@ -1116,32 +1079,32 @@ class InventorySummaryView(APIView):
 
             # Counts
             returned_transactions = queryset.filter(status='returned').count()
-
-            # Overdue definition: either explicitly overdue OR borrowed past due
-            overdue_q = Q(status='overdue') | (Q(status='borrowed') & Q(return_date__lt=today))
-            overdue_transactions = queryset.filter(overdue_q).count()
-
-            # Borrowed but NOT overdue
-            non_overdue_borrowed = queryset.filter(status='borrowed').exclude(return_date__lt=today).count()
-
-            # Active borrowed = all borrowed currently out (yellow + red)
+            overdue_transactions = queryset.filter(
+                Q(status='overdue') | (Q(status='borrowed') & Q(return_date__lt=today))
+            ).count()
+            non_overdue_borrowed = queryset.filter(
+                status='borrowed',
+                return_date__gte=today
+            ).count()
             borrowed_active = non_overdue_borrowed + overdue_transactions
-
-            # Total for the snapshot pie
+            returning_today_transactions = queryset.filter(
+                status='borrowed',
+                return_date=today
+            ).count()
             total_transactions = returned_transactions + borrowed_active
 
-            # (Optional) who’s due today (still borrowed)
-            returning_today_transactions = queryset.filter(
-                status='borrowed', return_date=today
-            ).count()
+            # Log counts for debugging
+            logger.debug(f"InventorySummaryView: returned={returned_transactions}, "
+                        f"borrowed_active={borrowed_active}, non_overdue_borrowed={non_overdue_borrowed}, "
+                        f"overdue={overdue_transactions}, returning_today={returning_today_transactions}")
 
             return Response({
-                'totalTransactions': total_transactions,                  # used only if you want it
-                'borrowedTransactions': borrowed_active,                  # center number: Borrowed (incl. overdue)
-                'returnedTransactions': returned_transactions,            # "Available"
-                'overdueTransactions': overdue_transactions,              # red
-                'returningTodayTransactions': returning_today_transactions,
-                'nonOverdueBorrowedTransactions': non_overdue_borrowed,   # yellow
+                'totalTransactions': total_transactions,
+                'borrowedTransactions': borrowed_active,  # For percentage (yellow + red)
+                'returnedTransactions': returned_transactions,  # Available (green)
+                'overdueTransactions': overdue_transactions,  # Red
+                'returningTodayTransactions': returning_today_transactions,  # For UI text
+                'nonOverdueBorrowedTransactions': non_overdue_borrowed,  # Yellow
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
@@ -1222,7 +1185,7 @@ import traceback
 from django.core.cache import cache
 from datetime import date
 from dateutil.relativedelta import relativedelta
-from django.utils import timezone
+
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -1368,7 +1331,6 @@ class TransactionRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIV
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from django.utils import timezone
 from datetime import timedelta, datetime
 from django.db.models import Count
 from .models import Transaction
@@ -1384,7 +1346,7 @@ class AnalyticsTransactionsView(APIView):
             transactions = Transaction.objects.all()
 
             # Calculate date ranges
-            today = timezone.now().date()
+            today = dj_timezone.now().date()
 
             # Daily aggregation: Last 7 days
             start_daily = today - timedelta(days=6)
@@ -1491,7 +1453,7 @@ class AnalyticsTransactionsView(APIView):
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from django.utils import timezone
+
 from datetime import timedelta
 from django.db.models import Q, Prefetch
 from .models import Transaction, Item
@@ -1509,7 +1471,7 @@ class DamagedOverdueReportView(APIView):  # FIXED: Proper APIView
             date_from = request.data.get('dateFrom')
             date_to = request.data.get('dateTo')
 
-            today = timezone.now().date()
+            today = dj_timezone.now().date()
 
             # Base queryset
             queryset = Transaction.objects.filter(
@@ -1536,10 +1498,24 @@ class DamagedOverdueReportView(APIView):  # FIXED: Proper APIView
                     queryset = queryset.filter(status='borrowed', return_date__lt=today)
 
             # Apply date range
+            from datetime import datetime, timedelta
+
+# ...
             if date_from:
-                queryset = queryset.filter(borrow_date__gte=date_from)
+                try:
+                    date_from = datetime.strptime(date_from, "%Y-%m-%d").date()
+                    queryset = queryset.filter(borrow_date__gte=date_from)
+                except ValueError:
+                    return Response({"error": "Invalid dateFrom format"}, status=status.HTTP_400_BAD_REQUEST)
+
             if date_to:
-                queryset = queryset.filter(borrow_date__lte=date_to)
+                try:
+                    # include the full end day by adding +1 day and using < instead of <=
+                    date_to = datetime.strptime(date_to, "%Y-%m-%d").date() + timedelta(days=1)
+                    queryset = queryset.filter(borrow_date__lt=date_to)
+                except ValueError:
+                    return Response({"error": "Invalid dateTo format"}, status=status.HTTP_400_BAD_REQUEST)
+
 
             logger.info(f"Queried {queryset.count()} transactions")
 
@@ -1639,7 +1615,7 @@ def change_mobile_password(request, user_id):
 
 # --- add/ensure imports ---
 from datetime import timedelta
-from django.utils import timezone
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -1671,9 +1647,9 @@ class PredictiveDamageInsightView(APIView):
                 return Response({"error": "Unauthorized role or missing manager."},
                                 status=status.HTTP_403_FORBIDDEN)
 
-            today = timezone.now().date()
+            today = dj_timezone.now().date()
             ninety_days_ago = today - timedelta(days=90)
-            now_iso = timezone.now().isoformat()
+            now_iso = dj_timezone.now().isoformat()
 
             results = []
             for item in items_qs:
@@ -1724,14 +1700,16 @@ class PredictiveDamageInsightView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+
+
+from datetime import datetime, timedelta
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from django.utils import timezone
-from datetime import timedelta
+from django.utils import timezone as dj_timezone
 from django.db.models import Q, Prefetch
 from .models import Transaction, Item, Borrower
-from .serializers import TransactionReportSerializer  # NEW: Assume/create this serializer
+from .serializers import TransactionReportSerializer
 import logging
 
 logger = logging.getLogger(__name__)
@@ -1739,32 +1717,31 @@ logger = logging.getLogger(__name__)
 class TransactionReportView(APIView):
     def post(self, request):
         try:
-            # Get filters from request body
+            # --- Get filters from request body ---
             search = request.data.get('search', '')
             condition_filter = request.data.get('condition', '').lower()
             date_from = request.data.get('dateFrom')
             date_to = request.data.get('dateTo')
+            date_type = request.data.get('dateType', 'borrow').lower()  
+            # 👆 new field: 'borrow' | 'return' | 'both'
 
-            today = timezone.now().date()
+            today = dj_timezone.now().date()
 
-            # Base queryset: All transactions (borrowed or returned)
             queryset = Transaction.objects.select_related('borrower').prefetch_related(
                 Prefetch('items', queryset=Item.objects.only('item_name', 'condition')),
             ).distinct()
 
-            # Apply condition filter
+            # --- Condition filter ---
             if condition_filter and condition_filter != 'all':
                 if condition_filter == 'overdue':
-                    # Special case: Overdue as borrowed past due
                     queryset = queryset.filter(status='borrowed', return_date__lt=today)
                 else:
-                    # Condition-based: For returned items with specific condition
                     queryset = queryset.filter(
                         status='returned',
                         items__condition__iexact=condition_filter
                     )
 
-            # Apply search
+            # --- Search filter ---
             if search:
                 queryset = queryset.filter(
                     Q(borrower__name__icontains=search) |
@@ -1772,13 +1749,42 @@ class TransactionReportView(APIView):
                     Q(items__item_name__icontains=search)
                 )
 
-            # Apply date range
+            # --- Date parsing ---
+            parsed_from = None
+            parsed_to = None
             if date_from:
-                queryset = queryset.filter(borrow_date__gte=date_from)
+                parsed_from = datetime.strptime(date_from, "%Y-%m-%d").date()
             if date_to:
-                queryset = queryset.filter(borrow_date__lte=date_to)
+                parsed_to = datetime.strptime(date_to, "%Y-%m-%d").date() + timedelta(days=1)
 
-            # Post-process for daysPastDue (for overdue items)
+            # --- Date filter logic ---
+            if parsed_from and parsed_to:
+                if date_type == "borrow":
+                    queryset = queryset.filter(borrow_date__gte=parsed_from, borrow_date__lt=parsed_to)
+                elif date_type == "return":
+                    queryset = queryset.filter(return_date__isnull=False,
+                                               return_date__gte=parsed_from,
+                                               return_date__lt=parsed_to)
+                elif date_type == "both":
+                    queryset = queryset.filter(
+                        borrow_date__gte=parsed_from, borrow_date__lt=parsed_to,
+                        return_date__isnull=False,
+                        return_date__gte=parsed_from, return_date__lt=parsed_to
+                    )
+            elif parsed_from:
+                # fallback if only start given
+                if date_type == "borrow":
+                    queryset = queryset.filter(borrow_date__gte=parsed_from)
+                elif date_type == "return":
+                    queryset = queryset.filter(return_date__isnull=False, return_date__gte=parsed_from)
+            elif parsed_to:
+                if date_type == "borrow":
+                    queryset = queryset.filter(borrow_date__lt=parsed_to)
+                elif date_type == "return":
+                    queryset = queryset.filter(return_date__isnull=False, return_date__lt=parsed_to)
+
+            # --- Serialize + extra overdue info ---
+            today = dj_timezone.now().date()
             processed_data = []
             for tx in queryset:
                 serializer = TransactionReportSerializer(tx, context={'request': request})
@@ -1786,11 +1792,104 @@ class TransactionReportView(APIView):
                 if tx.status == 'borrowed' and tx.return_date and tx.return_date < today:
                     data['daysPastDue'] = (today - tx.return_date).days
                 processed_data.append(data)
-                
-            logger.info(f"Queried {len(processed_data)} transactions")
+
+            logger.info(f"Queried {len(processed_data)} transactions (dateType={date_type})")
 
             return Response(processed_data, status=status.HTTP_200_OK)
 
         except Exception as e:
             logger.error(f"Error in TransactionReportView: {str(e)}")
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+from django.http import JsonResponse
+
+
+def healthz(_):
+    # simple OK; fast and safe
+    return JsonResponse({"status": "ok"}, status=200)
+
+
+
+from .models import Item
+from .serializers import SimpleItemSerializer
+import logging
+
+logger = logging.getLogger(__name__)
+
+class SimpleItemListCreateAPIView(generics.ListCreateAPIView):
+    serializer_class = SimpleItemSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None  # Disable pagination for simplicity
+
+    def get_queryset(self):
+        user = self.request.user
+        cache_key = f"simple_items_{user.id}_{user.role}"
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            logger.info(f"Cache hit for simple items: user={user.username}")
+            return Item.objects.filter(id__in=[item['id'] for item in cached_data])
+
+        if user.role == 'user_web':
+            queryset = Item.objects.filter(manager=user).only('id', 'item_name')
+        elif user.manager:
+            queryset = Item.objects.filter(manager=user.manager).only('id', 'item_name')
+        else:
+            queryset = Item.objects.none()
+
+        serializer = SimpleItemSerializer(queryset, many=True)
+        cache.set(cache_key, serializer.data, 60 * 60)  # Cache for 1 hour
+        logger.info(f"Cached simple items for user={user.username}, count={len(serializer.data)}")
+
+        return queryset
+
+    def perform_create(self, serializer):
+        from PIL import Image
+        from rembg import remove
+        from io import BytesIO
+
+        image_file = self.request.FILES.get('image')
+        new_image = None
+        if image_file:
+            try:
+                if image_file.size > 5 * 1024 * 1024:
+                    logger.error("Image size exceeds 5MB")
+                    return Response(
+                        {"error": "Image size exceeds 5MB"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                input_img = Image.open(image_file).convert("RGBA")
+                input_img.thumbnail((800, 800), Image.Resampling.LANCZOS)
+                output_img = remove(input_img)
+                temp_buffer = BytesIO()
+                output_img.save(temp_buffer, format="PNG")
+                temp_buffer.seek(0)
+                new_image = ContentFile(
+                    temp_buffer.read(),
+                    name=f"{image_file.name.rsplit('.', 1)[0]}.png"
+                )
+            except Exception as e:
+                logger.error(f"Error removing background for new item: {str(e)}")
+                return Response(
+                    {"error": f"Failed to process image: {str(e)}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        manager = self.request.user if self.request.user.role == 'user_web' else self.request.user.manager
+        if not manager:
+            logger.error(f"No manager assigned for user {self.request.user.username}")
+            return Response(
+                {"error": "No manager assigned for mobile user"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        instance = serializer.save(manager=manager, image=new_image if new_image else None)
+
+        cache_key = f"simple_items_{self.request.user.id}_{self.request.user.role}"
+        cache.delete(cache_key)
+        logger.info(f"Invalidated cache for user={self.request.user.username}")
+
+        if new_image:
+            logger.info(f"Background removed for item {instance.id}")
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)

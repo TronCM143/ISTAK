@@ -8,7 +8,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'components/utils/firebase_options.dart';
 import 'package:mobile/components/utils/splashPlusLogin.dart';
 import 'package:mobile/components/utils/notif.dart';
-import 'package:mobile/components/transaction/borrowing/sync.dart';
+import 'package:mobile/components/transaction/sync.dart';
 
 // ✅ Put GlassShowcase in lib/glass_showcase.dart and import that:
 

@@ -81,6 +81,7 @@ class Borrower(models.Model):
     school_id = models.CharField(max_length=10, unique=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     image = models.ImageField(upload_to='borrower_images/', null=True, blank=True)
+    return_image = models.ImageField(upload_to='borrower_return_images/', null=True, blank=True)
 
     def __str__(self):
         return f"{self.name} (School ID: {self.school_id})"

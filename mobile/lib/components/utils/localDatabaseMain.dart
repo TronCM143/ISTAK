@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
@@ -152,5 +154,14 @@ class LocalDatabase {
   Future<void> deleteBorrowRequest(String id) async {
     final db = await database;
     await db.delete('borrow_requests', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> insertOfflineReturn(Map<String, dynamic> data) async {
+    final db = await database;
+    await db.insert(
+      'offline_returns', // or your actual table name
+      {'payload': jsonEncode(data), 'synced': 0},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 }

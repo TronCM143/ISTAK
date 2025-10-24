@@ -262,7 +262,7 @@ class _ItemlistState extends State<Itemlist> with TickerProviderStateMixin {
                               hintText: 'Search by item name...',
                               hintStyle: GoogleFonts.ibmPlexMono(
                                 color: Colors.grey[400],
-                                fontSize: 14,
+                                fontSize: 20,
                               ),
                               prefixIcon: const Icon(
                                 Icons.search,
@@ -328,10 +328,18 @@ class _ItemlistState extends State<Itemlist> with TickerProviderStateMixin {
                                           ),
                                           decoration: BoxDecoration(
                                             color: isSelected
-                                                ? const Color(
-                                                    0xFF34C759,
+                                                ? const Color.fromARGB(
+                                                    255,
+                                                    0,
+                                                    253,
+                                                    59,
                                                   ).withOpacity(0.3)
-                                                : Colors.transparent,
+                                                : const Color.fromARGB(
+                                                    255,
+                                                    134,
+                                                    133,
+                                                    133,
+                                                  ),
                                             borderRadius: BorderRadius.circular(
                                               10,
                                             ),
@@ -339,13 +347,18 @@ class _ItemlistState extends State<Itemlist> with TickerProviderStateMixin {
                                           child: Text(
                                             filter,
                                             style: GoogleFonts.ibmPlexMono(
-                                              fontSize: 14,
+                                              fontSize: 15,
                                               fontWeight: isSelected
-                                                  ? FontWeight.w600
-                                                  : FontWeight.w400,
+                                                  ? FontWeight.w900
+                                                  : FontWeight.w600,
                                               color: isSelected
                                                   ? Colors.white
-                                                  : const Color(0xFFA8B0B2),
+                                                  : const Color.fromARGB(
+                                                      255,
+                                                      29,
+                                                      29,
+                                                      29,
+                                                    ),
                                             ),
                                           ),
                                         ),
@@ -359,83 +372,62 @@ class _ItemlistState extends State<Itemlist> with TickerProviderStateMixin {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 1),
+                    const SizedBox(height: 10),
                     // Column Headers without LiquidGlass
-                    Container(
-                      // margin: const EdgeInsets.only(bottom: 8),
-                      // decoration: BoxDecoration(
-                      //   color: Colors.white.withOpacity(0.05),
-                      //   borderRadius: BorderRadius.circular(10),
-                      //   border: Border.all(
-                      //     color: Colors.white.withOpacity(0.18),
-                      //     width: 1,
-                      //   ),
-                      // ),
-                      child: ClipRRect(
-                        //      borderRadius: BorderRadius.circular(10),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12,
-                              horizontal: 16,
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 10,
-                                  margin: const EdgeInsets.only(right: 8),
-                                  child: Text(
-                                    '',
-                                    style: GoogleFonts.ibmPlexMono(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                    ClipRRect(
+                      //      borderRadius: BorderRadius.circular(10),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                            horizontal: 5,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  '  Item Name',
+                                  style: GoogleFonts.ibmPlexMono(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
                                   ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    '  Item Name',
-                                    style: GoogleFonts.ibmPlexMono(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  '  Condition',
+                                  style: GoogleFonts.ibmPlexMono(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
                                   ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    '  Condition',
-                                    style: GoogleFonts.ibmPlexMono(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  'Last Borrowed',
+                                  style: GoogleFonts.ibmPlexMono(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
                                   ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    'Last Borrowed',
-                                    style: GoogleFonts.ibmPlexMono(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                              // SizedBox(width: 30),
+                            ],
                           ),
                         ),
                       ),
                     ),
+
                     // Item List without LiquidGlass
                     Expanded(
                       child: loading
@@ -594,7 +586,7 @@ class _ItemlistState extends State<Itemlist> with TickerProviderStateMixin {
                                                 // color: Colors.white.withOpacity(
                                                 //   0.08,
                                                 // ),
-                                                width: 10,
+                                                //   width: 10,
                                                 height: 10,
                                                 margin: const EdgeInsets.only(
                                                   right: 8,
@@ -694,25 +686,26 @@ class _ItemlistState extends State<Itemlist> with TickerProviderStateMixin {
                                                   style:
                                                       GoogleFonts.ibmPlexMono(
                                                         color: Colors.white,
-                                                        fontSize: 14,
+                                                        fontSize: 17,
                                                       ),
                                                   overflow:
                                                       TextOverflow.ellipsis,
                                                 ),
                                               ),
                                               Expanded(
-                                                flex: 2,
+                                                flex: 1,
                                                 child: Text(
                                                   condition,
                                                   style:
                                                       GoogleFonts.ibmPlexMono(
                                                         color: Colors.white,
-                                                        fontSize: 14,
+                                                        fontSize: 17,
                                                       ),
                                                   overflow:
                                                       TextOverflow.ellipsis,
                                                 ),
                                               ),
+                                              SizedBox(width: 10),
                                               Expanded(
                                                 flex: 2,
                                                 child: Text(
@@ -720,12 +713,15 @@ class _ItemlistState extends State<Itemlist> with TickerProviderStateMixin {
                                                   style:
                                                       GoogleFonts.ibmPlexMono(
                                                         color: Colors.white,
-                                                        fontSize: 14,
+                                                        fontSize: 17,
+                                                        fontWeight:
+                                                            FontWeight.w700,
                                                       ),
                                                   overflow:
                                                       TextOverflow.ellipsis,
                                                 ),
                                               ),
+                                              SizedBox(width: 10),
                                             ],
                                           ),
                                         ),

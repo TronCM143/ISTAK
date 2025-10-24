@@ -6,8 +6,10 @@ import 'package:lottie/lottie.dart';
 import 'package:mobile/components/dashboard/basicForecasts.dart';
 import 'package:mobile/components/dashboard/transactionList.dart';
 import 'package:mobile/components/transaction/borrowing/inputData.dart';
-import 'package:mobile/components/transaction/returning/returning.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:mobile/components/transaction/returning/_firstScreen.dart';
+
+import '../components/transaction/returning/RETURN/scanItems.dart';
 
 class HomeContent extends StatefulWidget {
   const HomeContent({super.key});
@@ -83,20 +85,6 @@ class _HomeContentState extends State<HomeContent>
     );
   }
 
-  Future<void> _refreshDashboard() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(color: Colors.yellow, strokeWidth: 3),
-      ),
-    );
-    if (TransactionList.globalKey.currentState != null) {
-      await TransactionList.globalKey.currentState!.fetchTransactions();
-    }
-    Navigator.pop(context);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -149,12 +137,7 @@ class _HomeContentState extends State<HomeContent>
                     ),
                     const SizedBox(height: 10),
                     GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const ReturnItem()),
-                        );
-                      },
+                      onTap: () => showItemActionsOverlay(context),
                       child: LiquidGlass(
                         settings: const LiquidGlassSettings(
                           thickness: 40, // High thickness for glass effect

@@ -422,15 +422,16 @@ class _TransactionsState extends State<TransactionList>
                         style: GoogleFonts.ibmPlexMono(
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
-                          fontSize: 14,
+                          fontSize: 20,
                         ),
                       ),
                       const SizedBox(height: 12),
                       Container(
-                        constraints: BoxConstraints(
-                          maxHeight: MediaQuery.of(context).size.height * 0.4,
-                          minWidth: 200,
-                        ),
+                        // constraints: BoxConstraints(
+                        //   maxHeight: MediaQuery.of(context).size.height * 0.4,
+                        //   minWidth: 500,
+                        // ),
+                        width: 500,
                         child: items.isEmpty
                             ? Text(
                                 'No items borrowed',
@@ -505,7 +506,7 @@ class _TransactionsState extends State<TransactionList>
                                               itemName,
                                               style: GoogleFonts.ibmPlexMono(
                                                 color: Colors.white,
-                                                fontSize: 12,
+                                                fontSize: 30,
                                                 fontWeight: FontWeight.w900,
                                               ),
                                               overflow: TextOverflow.ellipsis,
@@ -526,7 +527,7 @@ class _TransactionsState extends State<TransactionList>
                           style: GoogleFonts.ibmPlexMono(
                             color: const Color(0xFF34C759),
                             fontWeight: FontWeight.w600,
-                            fontSize: 12,
+                            fontSize: 20,
                           ),
                         ),
                       ),
@@ -706,7 +707,7 @@ class _TransactionsState extends State<TransactionList>
                           ),
                           textAlignVertical: TextAlignVertical.center,
                           decoration: InputDecoration(
-                            hintText: 'Search by name, school ID, or item',
+                            hintText: 'Search...',
                             hintStyle: GoogleFonts.ibmPlexMono(
                               color: const Color(0xFFA8B0B2),
                             ),
@@ -761,7 +762,7 @@ class _TransactionsState extends State<TransactionList>
                                     color: isSelected
                                         ? const Color(0xFF34C759)
                                         : Colors.white70,
-                                    fontSize: 12,
+                                    fontSize: 19,
                                   ),
                                 ),
                               ),
@@ -981,7 +982,7 @@ class _TransactionsState extends State<TransactionList>
                                                               fontWeight:
                                                                   FontWeight
                                                                       .w600,
-                                                              fontSize: 14,
+                                                              fontSize: 20,
                                                             ),
                                                         overflow: TextOverflow
                                                             .ellipsis,
@@ -1002,7 +1003,7 @@ class _TransactionsState extends State<TransactionList>
                                                             GoogleFonts.ibmPlexMono(
                                                               color: Colors
                                                                   .white70,
-                                                              fontSize: 15,
+                                                              fontSize: 18,
                                                             ),
                                                         overflow: TextOverflow
                                                             .ellipsis,

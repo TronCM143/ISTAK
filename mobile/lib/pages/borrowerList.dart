@@ -130,6 +130,7 @@ class _BorrowerlistState extends State<Borrowerlist>
           'school_id': borrower['school_id'],
           'status': borrower['status'],
           'image': borrower['image'],
+          'return_image': borrower['return_image_url'] ?? null,
           'borrowed_items': borrower['borrowed_items'] ?? [],
           'transaction_count': borrower['transaction_count'] ?? 0,
           'total_borrowed_items': borrower['total_borrowed_items'] ?? 0,
@@ -218,13 +219,16 @@ class _BorrowerlistState extends State<Borrowerlist>
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
           child: TextField(
-            style: GoogleFonts.ibmPlexMono(color: Colors.white, fontSize: 14),
+            style: GoogleFonts.ibmPlexMono(
+              color: Colors.white,
+              fontSize: 16, // Increased from 14
+            ),
             textAlignVertical: TextAlignVertical.center,
             decoration: InputDecoration(
               hintText: 'Search by name or school ID...',
               hintStyle: GoogleFonts.ibmPlexMono(
                 color: Colors.grey[400],
-                fontSize: 14,
+                fontSize: 16, // Increased from 14
               ),
               prefixIcon: const Icon(Icons.search, color: Colors.white70),
               border: InputBorder.none,
@@ -269,7 +273,7 @@ class _BorrowerlistState extends State<Borrowerlist>
                 child: Text(
                   filter,
                   style: GoogleFonts.ibmPlexMono(
-                    fontSize: 14,
+                    fontSize: 16, // Increased from 14
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                     color: isSelected ? Colors.white : const Color(0xFFA8B0B2),
                   ),
@@ -298,7 +302,7 @@ class _BorrowerlistState extends State<Borrowerlist>
               style: GoogleFonts.ibmPlexMono(
                 fontWeight: FontWeight.w300,
                 color: const Color(0xFFD33F49),
-                fontSize: 16,
+                fontSize: 18, // Increased from 16
               ),
               textAlign: TextAlign.center,
             ),
@@ -325,7 +329,7 @@ class _BorrowerlistState extends State<Borrowerlist>
                       'Retry',
                       style: GoogleFonts.ibmPlexMono(
                         fontWeight: FontWeight.w600,
-                        fontSize: 14,
+                        fontSize: 16, // Increased from 14
                         color: Colors.white,
                       ),
                     ),
@@ -344,6 +348,7 @@ class _BorrowerlistState extends State<Borrowerlist>
           style: GoogleFonts.ibmPlexMono(
             fontWeight: FontWeight.w300,
             color: Colors.white,
+            fontSize: 18, // Increased from default
           ),
         ),
       );
@@ -360,7 +365,7 @@ class _BorrowerlistState extends State<Borrowerlist>
         borrower['last_borrowed_date']?.toString() ?? "None";
     final totalBorrowedItems = borrower['total_borrowed_items'] ?? 0;
     return GestureDetector(
-      onTap: () => _showBorrowerTransactions(borrower),
+      onTap: () => _showBorrowerDetails(borrower),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
@@ -372,31 +377,56 @@ class _BorrowerlistState extends State<Borrowerlist>
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
             child: Container(
-              // 👇 this adds the color overlay
               color: Colors.white.withOpacity(0.08),
               child: ListTile(
                 leading: _buildBorrowerAvatar(borrower),
                 title: Text(
-                  '${borrower['name']}: ${borrower['school_id']}',
+                  'Name: ${borrower['name']}',
                   style: GoogleFonts.ibmPlexMono(
                     fontWeight: FontWeight.w500,
                     color: Colors.white,
+                    fontSize: 18, // Increased from default
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
-                subtitle: Text(
-                  'Last Borrowed: $lastBorrowedDate',
-                  style: GoogleFonts.ibmPlexMono(
-                    fontWeight: FontWeight.w300,
-                    color: Colors.white70,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'ID: ${borrower['school_id']}',
+                      style: GoogleFonts.ibmPlexMono(
+                        fontWeight: FontWeight.w300,
+                        color: Colors.white70,
+                        fontSize: 16, // Increased from default
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    // Text(
+                    //   'Borrow Image: ${borrower['image'] != null ? 'Available' : 'N/A'}',
+                    //   style: GoogleFonts.ibmPlexMono(
+                    //     fontWeight: FontWeight.w300,
+                    //     color: Colors.white70,
+                    //     fontSize: 16, // Increased from default
+                    //   ),
+                    //   overflow: TextOverflow.ellipsis,
+                    // ),
+                    // Text(
+                    //   'Return Image: ${borrower['return_image'] != null ? 'Available' : 'N/A'}',
+                    //   style: GoogleFonts.ibmPlexMono(
+                    //     fontWeight: FontWeight.w300,
+                    //     color: Colors.white70,
+                    //     fontSize: 16, // Increased from default
+                    //   ),
+                    //   overflow: TextOverflow.ellipsis,
+                    // ),
+                  ],
                 ),
                 trailing: Text(
                   'Items: $totalBorrowedItems',
                   style: GoogleFonts.ibmPlexMono(
                     fontWeight: FontWeight.w300,
                     color: Colors.white,
+                    fontSize: 16, // Increased from default
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -410,34 +440,7 @@ class _BorrowerlistState extends State<Borrowerlist>
 
   Widget _buildBorrowerAvatar(dynamic borrower) {
     return GestureDetector(
-      onTap: borrower['image'] != null
-          ? () {
-              showDialog(
-                context: context,
-                builder: (context) => Dialog(
-                  backgroundColor: Colors.transparent,
-                  insetPadding: const EdgeInsets.all(16),
-                  child: GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: InteractiveViewer(
-                      child: Image.network(
-                        borrower['image'],
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const Center(
-                              child: Icon(
-                                Icons.broken_image,
-                                size: 80,
-                                color: Color(0xFFF5F7F5),
-                              ),
-                            ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }
-          : null,
+      onTap: () => _showBorrowerDetails(borrower),
       child: borrower['image'] != null
           ? CircleAvatar(
               radius: 25,
@@ -453,13 +456,14 @@ class _BorrowerlistState extends State<Borrowerlist>
                 style: GoogleFonts.ibmPlexMono(
                   fontWeight: FontWeight.w500,
                   color: Colors.white,
+                  fontSize: 18, // Increased from default
                 ),
               ),
             ),
     );
   }
 
-  void _showBorrowerTransactions(dynamic borrower) async {
+  void _showBorrowerDetails(dynamic borrower) async {
     try {
       final transactions = await fetchBorrowerTransactions(borrower['id']);
       showDialog(
@@ -480,121 +484,271 @@ class _BorrowerlistState extends State<Borrowerlist>
                 filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
                 child: Container(
                   padding: const EdgeInsets.all(16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Borrowed Items: ${borrower['name']} (${borrower['school_id']})',
-                        style: GoogleFonts.ibmPlexMono(
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white,
-                          fontSize: 16,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Borrower Details: ${borrower['name']} (${borrower['school_id']})',
+                          style: GoogleFonts.ibmPlexMono(
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white,
+                            fontSize: 18, // Increased from 16
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        width: double.maxFinite,
-                        constraints: const BoxConstraints(maxHeight: 400),
-                        child: transactions.isEmpty
-                            ? Text(
-                                'No transactions found for this borrower.',
-                                style: GoogleFonts.ibmPlexMono(
-                                  fontWeight: FontWeight.w300,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : ListView.builder(
-                                shrinkWrap: true,
-                                itemCount: transactions.length,
-                                itemBuilder: (context, index) {
-                                  final transaction = transactions[index];
-                                  final items = transaction['items'] ?? [];
-                                  final itemNames = items
-                                      .map(
-                                        (item) =>
-                                            item['item_name'] ?? 'Unknown Item',
-                                      )
-                                      .join(', ');
-                                  final borrowDate =
-                                      transaction['borrow_date'] != null
-                                      ? DateFormat('MMM d, yyyy').format(
-                                          DateTime.parse(
-                                            transaction['borrow_date'],
-                                          ),
-                                        )
-                                      : 'N/A';
-                                  final returnDate =
-                                      transaction['return_date'] != null
-                                      ? DateFormat('MMM d, yyyy').format(
-                                          DateTime.parse(
-                                            transaction['return_date'],
-                                          ),
-                                        )
-                                      : 'Not returned';
-                                  final status =
-                                      transaction['status']?.toString() ??
-                                      'Unknown';
-
-                                  return Container(
-                                    margin: const EdgeInsets.only(bottom: 8),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(0.2),
-                                        width: 1.5,
-                                      ),
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(10),
-                                      child: BackdropFilter(
-                                        filter: ImageFilter.blur(
-                                          sigmaX: 5,
-                                          sigmaY: 5,
-                                        ),
-                                        child: Container(
-                                          padding: const EdgeInsets.all(12),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                itemNames.isEmpty
-                                                    ? 'No items in this transaction'
-                                                    : itemNames,
-                                                style: GoogleFonts.ibmPlexMono(
-                                                  fontWeight: FontWeight.w400,
-                                                  color: Colors.white,
-                                                ),
-                                              ),
-                                              Text(
-                                                'Status: $status\nBorrowed: $borrowDate\nReturned: $returnDate',
-                                                style: GoogleFonts.ibmPlexMono(
-                                                  fontWeight: FontWeight.w300,
-                                                  color: Colors.grey[400],
-                                                ),
-                                              ),
-                                            ],
+                        const SizedBox(height: 16),
+                        Text(
+                          'Borrow Image',
+                          style: GoogleFonts.ibmPlexMono(
+                            fontWeight: FontWeight.w400,
+                            color: Colors.white,
+                            fontSize: 16, // Increased from 14
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        borrower['image'] != null
+                            ? GestureDetector(
+                                onTap: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => Dialog(
+                                      backgroundColor: Colors.transparent,
+                                      insetPadding: const EdgeInsets.all(16),
+                                      child: GestureDetector(
+                                        onTap: () =>
+                                            Navigator.of(context).pop(),
+                                        child: InteractiveViewer(
+                                          child: Image.network(
+                                            borrower['image'],
+                                            fit: BoxFit.contain,
+                                            errorBuilder:
+                                                (context, error, stackTrace) =>
+                                                    const Center(
+                                                      child: Icon(
+                                                        Icons.broken_image,
+                                                        size: 80,
+                                                        color: Color(
+                                                          0xFFF5F7F5,
+                                                        ),
+                                                      ),
+                                                    ),
                                           ),
                                         ),
                                       ),
                                     ),
                                   );
                                 },
+                                child: Image.network(
+                                  borrower['image'],
+                                  height: 150,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Center(
+                                        child: Text(
+                                          'Failed to load borrow image',
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 16, // Increased from 14
+                                          ),
+                                        ),
+                                      ),
+                                ),
+                              )
+                            : const Text(
+                                'N/A',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 16, // Increased from 14
+                                ),
                               ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text(
-                          'Close',
+                        const SizedBox(height: 16),
+                        Text(
+                          'Return Image',
                           style: GoogleFonts.ibmPlexMono(
-                            fontWeight: FontWeight.w500,
-                            color: const Color(0xFF34C759),
-                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                            color: Colors.white,
+                            fontSize: 16, // Increased from 14
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        borrower['return_image'] != null
+                            ? GestureDetector(
+                                onTap: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => Dialog(
+                                      backgroundColor: Colors.transparent,
+                                      insetPadding: const EdgeInsets.all(16),
+                                      child: GestureDetector(
+                                        onTap: () =>
+                                            Navigator.of(context).pop(),
+                                        child: InteractiveViewer(
+                                          child: Image.network(
+                                            borrower['return_image'],
+                                            fit: BoxFit.contain,
+                                            errorBuilder:
+                                                (context, error, stackTrace) =>
+                                                    const Center(
+                                                      child: Icon(
+                                                        Icons.broken_image,
+                                                        size: 80,
+                                                        color: Color(
+                                                          0xFFF5F7F5,
+                                                        ),
+                                                      ),
+                                                    ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: Image.network(
+                                  borrower['return_image'],
+                                  height: 150,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Center(
+                                        child: Text(
+                                          'Failed to load return image',
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 16, // Increased from 14
+                                          ),
+                                        ),
+                                      ),
+                                ),
+                              )
+                            : const Text(
+                                'N/A (Not yet returned)',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 16, // Increased from 14
+                                ),
+                              ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Transactions',
+                          style: GoogleFonts.ibmPlexMono(
+                            fontWeight: FontWeight.w400,
+                            color: Colors.white,
+                            fontSize: 16, // Increased from 14
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.maxFinite,
+                          constraints: const BoxConstraints(maxHeight: 300),
+                          child: transactions.isEmpty
+                              ? Text(
+                                  'No transactions found for this borrower.',
+                                  style: GoogleFonts.ibmPlexMono(
+                                    fontWeight: FontWeight.w300,
+                                    color: Colors.white,
+                                    fontSize: 16, // Increased from default
+                                  ),
+                                )
+                              : ListView.builder(
+                                  shrinkWrap: true,
+                                  itemCount: transactions.length,
+                                  itemBuilder: (context, index) {
+                                    final transaction = transactions[index];
+                                    final items = transaction['items'] ?? [];
+                                    final itemNames = items
+                                        .map(
+                                          (item) =>
+                                              item['item_name'] ??
+                                              'Unknown Item',
+                                        )
+                                        .join(', ');
+                                    final borrowDate =
+                                        transaction['borrow_date'] != null
+                                        ? DateFormat('MMM d, yyyy').format(
+                                            DateTime.parse(
+                                              transaction['borrow_date'],
+                                            ),
+                                          )
+                                        : 'N/A';
+                                    final returnDate =
+                                        transaction['return_date'] != null
+                                        ? DateFormat('MMM d, yyyy').format(
+                                            DateTime.parse(
+                                              transaction['return_date'],
+                                            ),
+                                          )
+                                        : 'Not returned';
+                                    final status =
+                                        transaction['status']?.toString() ??
+                                        'Unknown';
+
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 8),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(0.2),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: BackdropFilter(
+                                          filter: ImageFilter.blur(
+                                            sigmaX: 5,
+                                            sigmaY: 5,
+                                          ),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(12),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  itemNames.isEmpty
+                                                      ? 'No items in this transaction'
+                                                      : itemNames,
+                                                  style: GoogleFonts.ibmPlexMono(
+                                                    fontWeight: FontWeight.w400,
+                                                    color: Colors.white,
+                                                    fontSize:
+                                                        16, // Increased from default
+                                                  ),
+                                                ),
+                                                Text(
+                                                  'Status: $status\nBorrowed: $borrowDate\nReturned: $returnDate',
+                                                  style: GoogleFonts.ibmPlexMono(
+                                                    fontWeight: FontWeight.w300,
+                                                    color: Colors.grey[400],
+                                                    fontSize:
+                                                        16, // Increased from default
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: Text(
+                            'Close',
+                            style: GoogleFonts.ibmPlexMono(
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF34C759),
+                              fontSize: 16, // Increased from 14
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -612,6 +766,7 @@ class _BorrowerlistState extends State<Borrowerlist>
             style: GoogleFonts.ibmPlexMono(
               fontWeight: FontWeight.w300,
               color: Colors.white,
+              fontSize: 16, // Increased from default
             ),
           ),
           backgroundColor: const Color(0xFFD33F49),
@@ -626,12 +781,10 @@ class _BorrowerlistState extends State<Borrowerlist>
     final filteredBorrowers = getFilteredBorrowers();
     final screenWidth = MediaQuery.of(context).size.width;
     final containerWidth = screenWidth > 700 ? 700.0 : screenWidth * 1;
-    final availableHeight =
-        _scaffoldHeight - 200; // Approximate offset for header/search/filters
+    final availableHeight = _scaffoldHeight - 200;
 
     return Column(
       children: [
-        //  _buildHeightAdjuster(),
         SizedBox(height: 110),
         SizedBox(
           height: 840,
@@ -645,22 +798,16 @@ class _BorrowerlistState extends State<Borrowerlist>
                   borderRadius: const Radius.circular(30),
                 ),
                 settings: const LiquidGlassSettings(
-                  thickness: 50, // controls optical depth (refraction)
-                  glassColor: Color.fromARGB(
-                    26,
-                    65,
-                    65,
-                    65,
-                  ), // dark translucent tint
-                  lightIntensity: 1.25, // highlight brightness
-                  ambientStrength: 0.5, // soft glow
+                  thickness: 50,
+                  glassColor: Color.fromARGB(26, 65, 65, 65),
+                  lightIntensity: 1.25,
+                  ambientStrength: 0.5,
                   saturation: 1.05,
                 ),
                 child: FadeTransition(
                   opacity: _fadeAnimation,
                   child: Column(
                     children: [
-                      // Static header
                       Padding(
                         padding: const EdgeInsets.all(25),
                         child: Row(
@@ -699,18 +846,15 @@ class _BorrowerlistState extends State<Borrowerlist>
                           ],
                         ),
                       ),
-                      // Static search bar
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 25),
                         child: _buildSearchBar(),
                       ),
-                      // Static filter buttons
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 25),
                         child: _buildFilterButtons(),
                       ),
                       const SizedBox(height: 16),
-                      // Scrollable list taking remaining space
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 25),

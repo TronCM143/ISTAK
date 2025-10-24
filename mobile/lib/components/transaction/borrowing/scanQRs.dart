@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:mobile/components/transaction/borrowing/processData.dart';
 
 class QRScannerDialog extends StatefulWidget {
   final bool allowMultiple;
@@ -29,13 +28,23 @@ class _QRScannerDialogState extends State<QRScannerDialog> {
   );
 
   final Set<String> _ids = <String>{};
+  final Map<String, String?> _names = <String, String?>{};
   int _lastHitMs = 0;
   bool _isTorchOn = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.initial != null) _ids.addAll(widget.initial!);
+
+    if (widget.initial != null) {
+      for (final id in widget.initial!) {
+        _ids.add(id);
+        _names[id] = null; // Name unknown until scanned
+      }
+      if (widget.initial!.isNotEmpty && mounted) {
+        setState(() {});
+      }
+    }
   }
 
   @override
@@ -53,45 +62,68 @@ class _QRScannerDialogState extends State<QRScannerDialog> {
       final raw = b.rawValue?.trim();
       if (raw == null || raw.isEmpty) continue;
 
-      final id = _extractItemId(raw);
-      if (id == null || id.isEmpty) continue;
+      try {
+        final obj = json.decode(raw);
+        if (obj is Map<String, dynamic>) {
+          final id = obj['id']?.toString().trim();
+          final name = obj['name'] as String?;
 
-      if (!widget.allowMultiple) {
-        widget.onItemsScanned({id});
-        widget.onFinish();
-        return;
-      }
+          if (id != null && id.isNotEmpty && name != null && name.isNotEmpty) {
+            if (!widget.allowMultiple) {
+              widget.onItemsScanned({id});
+              widget.onFinish();
+              return;
+            }
 
-      if (_ids.add(id)) {
-        if (mounted) setState(() {});
+            if (_ids.add(id)) {
+              _names[id] = name;
+              if (mounted) setState(() {});
+            }
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Invalid QR format: missing id or name'),
+                ),
+              );
+            }
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Invalid QR format: expected JSON')),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed to parse QR: $e')));
+        }
       }
     }
-  }
-
-  String? _extractItemId(String raw) {
-    try {
-      final obj = json.decode(raw);
-      if (obj is Map) {
-        final v = obj['id'] ?? obj['item_id'] ?? obj['itemId'];
-        if (v != null) return v.toString().trim();
-      }
-    } catch (_) {}
-
-    final uri = Uri.tryParse(raw);
-    if (uri != null && (uri.hasQuery || uri.query.isNotEmpty)) {
-      final v =
-          uri.queryParameters['id'] ??
-          uri.queryParameters['item_id'] ??
-          uri.queryParameters['itemId'];
-      if (v != null && v.trim().isNotEmpty) return v.trim();
-    }
-
-    return raw;
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    final titleStyle = theme.textTheme.titleLarge?.copyWith(
+      color: Colors.white,
+      fontWeight: FontWeight.w700,
+      fontSize: 22,
+    );
+    final bigValue = theme.textTheme.displaySmall?.copyWith(
+      color: Colors.white,
+      fontWeight: FontWeight.w800,
+      fontSize: 30,
+      letterSpacing: 0.3,
+    );
+    final smallValue = theme.textTheme.bodyLarge?.copyWith(
+      color: Colors.white70,
+      fontSize: 18,
+    );
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -110,11 +142,8 @@ class _QRScannerDialogState extends State<QRScannerDialog> {
                   ),
                   Expanded(
                     child: Text(
-                      widget.allowMultiple ? 'Scan QR' : 'Scan QRs',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      widget.allowMultiple ? 'Scan QRs' : 'Scan QR',
+                      style: titleStyle,
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -156,9 +185,10 @@ class _QRScannerDialogState extends State<QRScannerDialog> {
                       Row(
                         children: [
                           Text(
-                            'Collected: ',
+                            'Collected:',
                             style: theme.textTheme.labelLarge?.copyWith(
                               color: Colors.white70,
+                              fontSize: 18,
                             ),
                           ),
                           const SizedBox(width: 6),
@@ -176,7 +206,10 @@ class _QRScannerDialogState extends State<QRScannerDialog> {
                             ),
                             onPressed: _ids.isEmpty
                                 ? null
-                                : () => setState(() => _ids.clear()),
+                                : () => setState(() {
+                                    _ids.clear();
+                                    _names.clear();
+                                  }),
                             icon: const Icon(Icons.delete_outline),
                             label: const Text('Clear'),
                           ),
@@ -188,8 +221,9 @@ class _QRScannerDialogState extends State<QRScannerDialog> {
                             ? Center(
                                 child: Text(
                                   'Point camera at QR codes',
-                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                  style: theme.textTheme.titleMedium?.copyWith(
                                     color: Colors.white38,
+                                    fontSize: 20,
                                   ),
                                 ),
                               )
@@ -199,21 +233,39 @@ class _QRScannerDialogState extends State<QRScannerDialog> {
                                     const Divider(color: Colors.white12),
                                 itemBuilder: (_, i) {
                                   final id = _ids.elementAt(i);
+                                  final name = _names[id];
+
                                   return Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Expanded(
-                                        child: Text(
-                                          id,
-                                          style: theme.textTheme.bodyMedium
-                                              ?.copyWith(color: Colors.white),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              name ?? 'Unknown Item',
+                                              style: bigValue,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'ID: $id',
+                                              style: smallValue,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
                                         ),
                                       ),
                                       IconButton(
                                         tooltip: 'Remove',
-                                        onPressed: () =>
-                                            setState(() => _ids.remove(id)),
+                                        onPressed: () => setState(() {
+                                          _ids.remove(id);
+                                          _names.remove(id);
+                                        }),
                                         icon: const Icon(
                                           Icons.close,
                                           color: Colors.white70,
